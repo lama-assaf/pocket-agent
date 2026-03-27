@@ -13,8 +13,8 @@
 }
 
 #messages > * {
-  margin-left: calc(max(20px, (100% - 860px) / 2));
-  margin-right: calc(max(20px, (100% - 860px) / 2));
+  margin-left: calc(max(80px, (100% - 720px) / 2));
+  margin-right: calc(max(80px, (100% - 720px) / 2));
 }
 
 #messages::-webkit-scrollbar {
@@ -92,7 +92,7 @@
   padding: 12px 16px;
   border-radius: var(--radius);
   line-height: 1.5;
-  font-size: 14px;
+  font-size: 16px;
   word-wrap: break-word;
   animation: messageIn 0.3s ease-out;
   contain: content;
@@ -113,16 +113,17 @@
   align-self: flex-end;
   background: var(--user-bubble);
   color: white;
-  border-bottom-right-radius: 4px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
 .message.assistant {
   align-self: flex-start;
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border);
-  border-bottom-left-radius: 4px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
   color: var(--text-primary);
+  max-width: 100%;
+  padding: 4px 0;
 }
 
 /* Streaming bubble: smooth entrance + typing cursor */
@@ -374,6 +375,29 @@
   padding: 8px 0;
 }
 
+/* External footer for user messages (sits outside the bubble) */
+.message-footer-external {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: -4px;
+  padding-top: 12px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+/* Eliminate the flex gap above the external footer */
+.message.user {
+  margin-bottom: -16px;
+}
+
+/* Show external footer when hovering the user bubble or the footer itself */
+.message.user:hover + .message-footer-external,
+.message-footer-external:hover {
+  opacity: 1;
+}
+
 /* Message footer (copy + timestamp) */
 .message-footer {
   display: flex;
@@ -381,6 +405,13 @@
   justify-content: flex-end;
   gap: 8px;
   margin-top: 6px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+/* Show internal footer when hovering the message */
+.message:hover .message-footer {
+  opacity: 1;
 }
 
 .message-copy-btn {
@@ -394,13 +425,9 @@
   border-radius: 4px;
   color: var(--text-muted);
   cursor: pointer;
-  opacity: 0;
+  opacity: 0.6;
   transition: all 0.15s ease;
   padding: 0;
-}
-
-.message:hover .message-copy-btn {
-  opacity: 0.6;
 }
 
 .message-copy-btn:hover {
@@ -419,27 +446,10 @@
   height: 12px;
 }
 
-.message.user .message-copy-btn {
-  color: rgba(255, 255, 255, 0.5);
-}
-
-.message.user .message-copy-btn:hover {
-  color: white;
-  background: rgba(255, 255, 255, 0.15);
-}
-
-.message.user .message-copy-btn.copied {
-  color: white;
-}
-
 .message-timestamp {
   font-size: 10px;
   color: var(--text-muted);
   opacity: 0.7;
-}
-
-.message.user .message-timestamp {
-  color: rgba(255, 255, 255, 0.6);
 }
 
 /* Search highlight */

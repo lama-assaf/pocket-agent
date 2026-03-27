@@ -107,6 +107,8 @@ function addMessage(role, content, animate = true, attachments = [], timestamp =
   }
 
   // Add footer with copy button and timestamp
+  // For user messages, footer goes outside the bubble as a sibling
+  let externalFooter = null;
   if (showTimestamp) {
     const ts = timestamp ? parseSqliteTimestamp(timestamp) : new Date();
     const footerDiv = document.createElement('div');
@@ -129,15 +131,22 @@ function addMessage(role, content, animate = true, attachments = [], timestamp =
     timestampDiv.textContent = formatTimestamp(ts);
     footerDiv.appendChild(timestampDiv);
 
-    div.appendChild(footerDiv);
+    if (role === 'user') {
+      footerDiv.className = 'message-footer-external';
+      externalFooter = footerDiv;
+    } else {
+      div.appendChild(footerDiv);
+    }
   }
 
   // Insert before status indicator if one exists (keeps indicator at bottom)
   const statusIndicator = messagesDiv.querySelector('.status-indicator');
   if (statusIndicator) {
     messagesDiv.insertBefore(div, statusIndicator);
+    if (externalFooter) messagesDiv.insertBefore(externalFooter, statusIndicator);
   } else {
     messagesDiv.appendChild(div);
+    if (externalFooter) messagesDiv.appendChild(externalFooter);
   }
   return div;
 }
