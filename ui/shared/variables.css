@@ -1,4 +1,5 @@
 :root {
+  color-scheme: dark;
   --bg-primary: #0a0a0b;
   --bg-secondary: #141415;
   --bg-tertiary: #1c1c1e;
@@ -22,6 +23,6 @@
   --badge-bg: #1f1528;
   --badge-border: #352547;
   --cyan: #22d3ee;
-  --radius: 18px;
+  --radius: 16px;
   --radius-sm: 10px;
 }

@@ -1,11 +1,7 @@
 /* Routines Panel — embedded in chat.html */
 
-let _rtnInitialized = false;
 let _rtnNotyf = null;
-let _rtnCurrentScheduleType = 'daily';
-const _rtnSelectedDays = new Set();
 let _rtnSessionsMap = {};
-let _rtnWorkflowCommands = [];
 
 // ---- Show / Hide ----
 
@@ -22,11 +18,7 @@ function showRoutinesPanel() {
   const sidebarBtn = document.getElementById('sidebar-routines-btn');
   if (sidebarBtn) sidebarBtn.classList.add('active');
 
-  if (!_rtnInitialized) {
-    _rtnInit();
-    _rtnInitialized = true;
-  }
-
+  _rtnLoadSessions();
   _rtnLoadJobs();
 }
 
@@ -80,83 +72,7 @@ function _rtnEscapeAttr(text) {
   return text.replace(/'/g, "\\'").replace(/"/g, '\\"');
 }
 
-// ---- Init ----
-
-function _rtnInit() {
-  const root = document.getElementById('routines-view');
-  if (!root) return;
-
-  // Generate hour/minute options
-  root.querySelectorAll('select[id^="rtn-hour-"]').forEach(el => {
-    let html = '';
-    for (let i = 1; i <= 12; i++) {
-      html += `<option value="${i}" ${i === 9 ? 'selected' : ''}>${i}</option>`;
-    }
-    el.innerHTML = html;
-  });
-  root.querySelectorAll('select[id^="rtn-minute-"]').forEach(el => {
-    el.innerHTML = '<option value="0">00</option><option value="15">15</option><option value="30">30</option><option value="45">45</option>';
-  });
-
-  // Schedule tabs
-  root.querySelectorAll('.rtn-schedule-tab').forEach(tab => {
-    tab.addEventListener('click', () => {
-      root.querySelectorAll('.rtn-schedule-tab').forEach(t => t.classList.remove('active'));
-      root.querySelectorAll('.rtn-schedule-options').forEach(o => o.classList.remove('active'));
-      tab.classList.add('active');
-      _rtnCurrentScheduleType = tab.dataset.type;
-      document.getElementById(`rtn-options-${_rtnCurrentScheduleType}`).classList.add('active');
-    });
-  });
-
-  // Day buttons
-  root.querySelectorAll('.rtn-day-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const day = btn.dataset.day;
-      if (_rtnSelectedDays.has(day)) { _rtnSelectedDays.delete(day); btn.classList.remove('selected'); }
-      else { _rtnSelectedDays.add(day); btn.classList.add('selected'); }
-    });
-  });
-
-  // Load sessions & workflows
-  _rtnLoadSessions();
-  _rtnLoadWorkflows();
-}
-
-// ---- Schedule ----
-
-function _rtnTo24Hour(hour, minute, ampm) {
-  let h = parseInt(hour);
-  if (ampm === 'PM' && h !== 12) h += 12;
-  if (ampm === 'AM' && h === 12) h = 0;
-  return { hour: h, minute: parseInt(minute) };
-}
-
-function _rtnBuildCronExpression() {
-  if (_rtnCurrentScheduleType === 'interval') {
-    const hours = parseInt(document.getElementById('rtn-interval-hours').value);
-    const minutes = parseInt(document.getElementById('rtn-interval-minutes').value);
-    const totalMinutes = (hours * 60) + minutes;
-    if (totalMinutes === 0) return '*/30 * * * *';
-    if (hours > 0 && minutes === 0) return `0 */${hours} * * *`;
-    if (hours === 0) return `*/${minutes} * * * *`;
-    return `*/${totalMinutes} * * * *`;
-  }
-
-  const suffix = _rtnCurrentScheduleType === 'weekdays' ? 'weekdays' :
-                 _rtnCurrentScheduleType === 'custom' ? 'custom' : 'daily';
-  const hour = document.getElementById(`rtn-hour-${suffix}`).value;
-  const minute = document.getElementById(`rtn-minute-${suffix}`).value;
-  const ampm = document.getElementById(`rtn-ampm-${suffix}`).value;
-  const time = _rtnTo24Hour(hour, minute, ampm);
-
-  if (_rtnCurrentScheduleType === 'daily') return `${time.minute} ${time.hour} * * *`;
-  if (_rtnCurrentScheduleType === 'weekdays') return `${time.minute} ${time.hour} * * 1-5`;
-  if (_rtnCurrentScheduleType === 'custom') {
-    if (_rtnSelectedDays.size === 0) return `${time.minute} ${time.hour} * * *`;
-    return `${time.minute} ${time.hour} * * ${Array.from(_rtnSelectedDays).sort().join(',')}`;
-  }
-}
+// ---- Schedule Display ----
 
 function _rtnParseDbTimestamp(timestamp) {
   if (!timestamp) return new Date();
@@ -217,28 +133,9 @@ function _rtnScheduleToHuman(job) {
 async function _rtnLoadSessions() {
   try {
     const sessions = await window.pocketAgent.sessions.list();
-    const sel = document.getElementById('rtn-job-session');
-    if (!sel) return;
     _rtnSessionsMap = {};
-    sel.innerHTML = sessions.map(s => {
-      _rtnSessionsMap[s.id] = s.name;
-      return `<option value="${_rtnEscapeAttr(s.id)}"${s.id === 'default' ? ' selected' : ''}>${_rtnEscapeHtml(s.name)}</option>`;
-    }).join('');
+    sessions.forEach(s => { _rtnSessionsMap[s.id] = s.name; });
   } catch (err) { console.error('[Routines] Failed to load sessions:', err); }
-}
-
-async function _rtnLoadWorkflows() {
-  try {
-    _rtnWorkflowCommands = await window.pocketAgent.commands.list();
-    const sel = document.getElementById('rtn-prompt-source');
-    if (!sel) return;
-    _rtnWorkflowCommands.forEach(cmd => {
-      const opt = document.createElement('option');
-      opt.value = cmd.name;
-      opt.textContent = cmd.name;
-      sel.appendChild(opt);
-    });
-  } catch (err) { console.error('[Routines] Failed to load workflows:', err); }
 }
 
 async function _rtnLoadJobs() {
@@ -289,47 +186,6 @@ async function _rtnLoadJobs() {
 }
 
 // ---- Actions (global for onclick) ----
-
-function rtnHandlePromptSourceChange() {
-  const source = document.getElementById('rtn-prompt-source').value;
-  const promptRow = document.getElementById('rtn-prompt-row');
-  const textarea = document.getElementById('rtn-job-prompt');
-  if (source === 'custom') {
-    promptRow.classList.remove('hidden');
-    textarea.value = '';
-    textarea.readOnly = false;
-    textarea.placeholder = "what should i do when this kicks off?";
-  } else {
-    const cmd = _rtnWorkflowCommands.find(c => c.name === source);
-    if (cmd) {
-      promptRow.classList.add('hidden');
-      textarea.value = `[Workflow: ${cmd.name}]\n${cmd.content}\n[/Workflow]`;
-    }
-  }
-}
-
-async function rtnCreateJob() {
-  const name = document.getElementById('rtn-job-name').value.trim();
-  const source = document.getElementById('rtn-prompt-source').value;
-  const prompt = document.getElementById('rtn-job-prompt').value.trim();
-  const sessionId = document.getElementById('rtn-job-session').value;
-
-  if (!name) { _rtnShowToast('Need a name!', 'error'); return; }
-  if (source === 'custom' && !prompt) { _rtnShowToast('Need a prompt!', 'error'); return; }
-
-  const schedule = _rtnBuildCronExpression();
-  try {
-    const result = await window.pocketAgent.cron.create(name, schedule, prompt, 'default', sessionId);
-    if (result.success) {
-      document.getElementById('rtn-job-name').value = '';
-      document.getElementById('rtn-job-prompt').value = '';
-      document.getElementById('rtn-prompt-source').value = 'custom';
-      rtnHandlePromptSourceChange();
-      _rtnShowToast('Routine created!', 'success');
-      _rtnLoadJobs();
-    } else { _rtnShowToast('Couldn\'t create that', 'error'); }
-  } catch (err) { _rtnShowToast(err.message, 'error'); }
-}
 
 async function rtnToggleJob(name, enabled) {
   try {

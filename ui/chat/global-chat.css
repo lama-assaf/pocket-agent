@@ -260,6 +260,8 @@
   flex-direction: column;
   gap: 16px;
   scroll-behavior: smooth;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
 }
 
 #global-chat-messages > * {
@@ -288,6 +290,7 @@
   display: flex;
   flex-direction: column;
   max-width: 80%;
+  contain: content;
 }
 
 .global-chat-wrapper.self {
@@ -330,20 +333,12 @@
   font-size: 14px;
   line-height: 1.5;
   word-wrap: break-word;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.message.global-chat-self:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
 .message.global-chat-other {
   max-width: 100%;
-  background: rgba(28, 28, 30, 0.85);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  background: var(--bg-tertiary);
   color: var(--text-primary);
   padding: 12px 16px;
   border-radius: var(--radius) var(--radius) var(--radius) 4px;
@@ -351,14 +346,6 @@
   line-height: 1.5;
   word-wrap: break-word;
   border: 1px solid var(--border);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03), 0 2px 8px rgba(0, 0, 0, 0.15);
-  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
-}
-
-.message.global-chat-other:hover {
-  transform: translateY(-1px);
-  border-color: var(--text-muted);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03), 0 4px 14px rgba(0, 0, 0, 0.2);
 }
 
 .admin-username {
@@ -1222,6 +1209,21 @@
 }
 
 #mention-highlight .mention-hl {
+  color: var(--cyan);
+  font-weight: 600;
+}
+
+#message-input.mention-active {
+  color: transparent;
+  caret-color: var(--text-primary);
+}
+
+/* @Mention highlight in chat bubbles */
+.gchat-mention {
+  color: var(--cyan);
+  font-weight: 600;
+}
+light .mention-hl {
   color: var(--cyan);
   font-weight: 600;
 }
