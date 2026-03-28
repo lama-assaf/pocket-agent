@@ -402,7 +402,7 @@ async function buildMessageWithAttachments(message, attachments) {
 }
 
 async function clearChat() {
-  if (!confirm('Start fresh? Don\'t worry - I\'ll keep everything I know about you!')) return;
+  if (!confirm('Clear this session?')) return;
 
   try {
     await window.pocketAgent.agent.clearConversation(currentSessionId);
