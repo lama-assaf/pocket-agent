@@ -57,6 +57,11 @@ async function initializeChat() {
     if (globalChatMode) updateHeaderTierBadge();
   });
 
+  // Listen for cron test run start (insert user message bubble before execution)
+  window.pocketAgent.events.onCronTesting((data) => {
+    handleCronTestingStart(data);
+  });
+
   // Listen for scheduler messages
   window.pocketAgent.events.onSchedulerMessage((data) => {
     console.log('[Chat] Received scheduler message:', data.jobName, 'sessionId:', data.sessionId, 'currentSession:', currentSessionId);

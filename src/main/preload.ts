@@ -269,6 +269,16 @@ contextBridge.exposeInMainWorld('pocketAgent', {
       ipcRenderer.on('scheduler:message', listener);
       return () => ipcRenderer.removeListener('scheduler:message', listener);
     },
+    onCronTesting: (
+      callback: (data: { name: string; sessionId: string }) => void
+    ): (() => void) => {
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        data: { name: string; sessionId: string }
+      ) => callback(data);
+      ipcRenderer.on('cron:testing', listener);
+      return () => ipcRenderer.removeListener('cron:testing', listener);
+    },
     onTelegramMessage: (
       callback: (data: {
         userMessage: string;
