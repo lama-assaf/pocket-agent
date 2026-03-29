@@ -6,7 +6,7 @@
  */
 
 import crypto from 'crypto';
-import { shell } from 'electron';
+import { BrowserWindow, shell } from 'electron';
 import { SettingsManager } from '../settings';
 
 // OAuth Configuration (same as Claude Code)
@@ -266,6 +266,9 @@ class ClaudeOAuthManager {
         return true;
       } catch (error) {
         console.error('[OAuth] Token refresh failed:', error);
+        // Clear expiry so subsequent checks don't falsely report the token as valid.
+        // This ensures the settings UI won't show "Connected" for a dead session.
+        SettingsManager.set('auth.tokenExpiresAt', '0');
         return false;
       } finally {
         this.refreshPromise = null;
@@ -314,10 +317,28 @@ class ClaudeOAuthManager {
 
     const refreshed = await this.refreshTokenIfNeeded();
     if (!refreshed) {
+      // Notify all renderer windows so UIs update immediately
+      this.broadcastAuthExpired();
       return null;
     }
 
     return SettingsManager.get('auth.oauthToken') || null;
+  }
+
+  /**
+   * Broadcast auth:expired event to all open renderer windows
+   * so settings panels update without manual refresh.
+   */
+  private broadcastAuthExpired(): void {
+    try {
+      for (const win of BrowserWindow.getAllWindows()) {
+        if (!win.isDestroyed() && !win.webContents.isDestroyed()) {
+          win.webContents.send('auth:expired');
+        }
+      }
+    } catch {
+      // Electron not ready or no windows — ignore
+    }
   }
 
   /**

@@ -1469,6 +1469,11 @@
       initializeBrowserSection();
       initPocketCli();
       await initSkinPicker();
+
+      // Listen for auth expiry events from the main process
+      window.pocketAgent.auth.onExpired(async () => {
+        await loadSettings();
+      });
     });
 
     async function loadAppVersion() {

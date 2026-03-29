@@ -129,6 +129,11 @@ function _initSettingsPanel() {
     _stgInitSkinPicker();
     _stgInitializeUpdates();
   });
+
+  // Listen for auth expiry events from the main process
+  window.pocketAgent.auth.onExpired(() => {
+    _stgLoadSettings();
+  });
 }
 
 async function _stgLoadAppVersion() {

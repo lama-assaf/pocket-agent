@@ -174,6 +174,11 @@ contextBridge.exposeInMainWorld('pocketAgent', {
     cancelOAuth: () => ipcRenderer.invoke('auth:cancelOAuth'),
     isOAuthPending: () => ipcRenderer.invoke('auth:isOAuthPending'),
     validateOAuth: () => ipcRenderer.invoke('auth:validateOAuth'),
+    onExpired: (callback: () => void) => {
+      const listener = () => callback();
+      ipcRenderer.on('auth:expired', listener);
+      return () => ipcRenderer.removeListener('auth:expired', listener);
+    },
   },
 
   // ─── Themes ──────────────────────────────────────────────────────────
@@ -580,6 +585,7 @@ declare global {
         cancelOAuth: () => Promise<{ success: boolean }>;
         isOAuthPending: () => Promise<boolean>;
         validateOAuth: () => Promise<{ valid: boolean; error?: string }>;
+        onExpired: (callback: () => void) => () => void;
       };
 
       themes: {
