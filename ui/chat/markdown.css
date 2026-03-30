@@ -85,6 +85,8 @@
   text-decoration: underline;
   text-decoration-color: rgba(96, 165, 250, 0.4);
   text-underline-offset: 2px;
+  word-break: break-all;
+  overflow-wrap: anywhere;
 }
 
 .message a:hover {
@@ -123,15 +125,17 @@
 
 .message table {
   border-collapse: collapse;
-  min-width: 100%;
+  width: 100%;
+  table-layout: fixed;
   font-size: 0.95em;
-  white-space: nowrap;
 }
 
 .message th, .message td {
   border: 1px solid var(--border);
   padding: 0.4em 0.6em;
   text-align: left;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .message th {
