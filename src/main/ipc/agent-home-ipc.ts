@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron';
-import { AgentManager } from '../../agent';
+import { AgentManager, type AgentStatus } from '../../agent';
 import { createAgentHomeChannel, destroyAgentHomeChannel } from '../../channels/agent-home';
 import type { AgentSession } from '@kenkaiiii/agent-home-sdk';
 import type { IncomingMessage, ResponseStream } from '@kenkaiiii/agent-home-sdk';
@@ -27,6 +27,19 @@ export function wireAgentHomeChannelHandlers(deps: IPCDependencies): void {
   // Push sessions to relay on connect
   channel.onConnect(() => {
     pushSessionsToRelay(deps);
+  });
+
+  // Clean up sessions when deleted from the iOS app
+  channel.onSessionDelete((sessionId: string) => {
+    const memory = getMemory();
+    if (memory) {
+      try {
+        memory.deleteSession(sessionId);
+        console.log(`[AgentHome] Deleted session from DB: ${sessionId}`);
+      } catch (err) {
+        console.error(`[AgentHome] Failed to delete session ${sessionId}:`, err);
+      }
+    }
   });
 
   channel.setMessageHandler(async (message: IncomingMessage, stream: ResponseStream) => {
@@ -63,17 +76,30 @@ export function wireAgentHomeChannelHandlers(deps: IPCDependencies): void {
       // Push sessions so Agent Home sees the new/updated session immediately
       pushSessionsToRelay(deps);
 
-      const result = await AgentManager.processMessage(message.content, 'agent-home', sessionId);
+      // Stream tokens to Agent Home as the agent composes
+      const streamSessionOpts = isNewSession ? { sessionId } : undefined;
+      const statusListener = (status: AgentStatus) => {
+        if (
+          status.sessionId === sessionId &&
+          status.type === 'partial_text' &&
+          status.partialText
+        ) {
+          stream.token(status.partialText, streamSessionOpts);
+        }
+      };
+      AgentManager.on('status', statusListener);
 
-      const responseText = result.response || 'No response generated.';
+      try {
+        const result = await AgentManager.processMessage(message.content, 'agent-home', sessionId);
+        const responseText = result.response || 'No response generated.';
 
-      if (isNewSession) {
-        // For new sessions, tag the response with the new sessionId
-        // so Agent Home associates it with the newly created session
-        stream.end(responseText, { sessionId });
-      } else {
-        // For existing sessions, sessionId is auto-tagged from the incoming message
-        stream.end(responseText);
+        if (isNewSession) {
+          stream.end(responseText, { sessionId });
+        } else {
+          stream.end(responseText);
+        }
+      } finally {
+        AgentManager.off('status', statusListener);
       }
 
       // Push updated sessions after processing (updated_at may have changed)

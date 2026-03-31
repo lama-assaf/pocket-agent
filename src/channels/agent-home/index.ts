@@ -20,12 +20,15 @@ export type AgentHomeMessageHandler = (
   stream: ResponseStream
 ) => void | Promise<void>;
 
+export type AgentHomeSessionDeleteHandler = (sessionId: string) => void | Promise<void>;
+
 export class AgentHomeChannel extends BaseChannel {
   name = 'agent-home';
   private client: AgentHomeClient | null = null;
   private connected = false;
   private messageHandler: AgentHomeMessageHandler | null = null;
   private connectHandler: (() => void) | null = null;
+  private sessionDeleteHandler: AgentHomeSessionDeleteHandler | null = null;
 
   setMessageHandler(handler: AgentHomeMessageHandler): void {
     this.messageHandler = handler;
@@ -33,6 +36,10 @@ export class AgentHomeChannel extends BaseChannel {
 
   onConnect(handler: () => void): void {
     this.connectHandler = handler;
+  }
+
+  onSessionDelete(handler: AgentHomeSessionDeleteHandler): void {
+    this.sessionDeleteHandler = handler;
   }
 
   updateSessions(sessions: AgentSession[]): void {
@@ -88,6 +95,13 @@ export class AgentHomeChannel extends BaseChannel {
         this.messageHandler(message, stream);
       } else {
         stream.error('No message handler configured');
+      }
+    });
+
+    this.client.onSessionDelete((sessionId: string) => {
+      console.log(`[AgentHome] Session deleted from app: ${sessionId}`);
+      if (this.sessionDeleteHandler) {
+        this.sessionDeleteHandler(sessionId);
       }
     });
 
