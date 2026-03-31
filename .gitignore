@@ -13,5 +13,6 @@ config.json
 release/
 *.cer
 .claude/
+.gg/
 app.json
 filterAndSort.js
