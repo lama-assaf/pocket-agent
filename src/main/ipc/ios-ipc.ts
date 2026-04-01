@@ -18,15 +18,7 @@ import type { IPCDependencies } from './types';
  * the live toggle (ios:toggle IPC handler).
  */
 export function wireIosChannelHandlers(deps: IPCDependencies): void {
-  const {
-    getIosChannel,
-    getMemory,
-    getTelegramBot,
-    getScheduler,
-    updateTrayMenu,
-    ensureCoderWorkingDirectory,
-    WIN,
-  } = deps;
+  const { getIosChannel, getMemory, getTelegramBot, getScheduler, updateTrayMenu, WIN } = deps;
   const iosChannel = getIosChannel();
   if (!iosChannel) return;
 
@@ -60,7 +52,6 @@ export function wireIosChannelHandlers(deps: IPCDependencies): void {
         }
       };
       AgentManager.on('status', desktopStatusHandler);
-      ensureCoderWorkingDirectory(message.sessionId);
       let result;
       try {
         result = await AgentManager.processMessage(messageText, 'ios', message.sessionId);
@@ -164,7 +155,6 @@ export function wireIosChannelHandlers(deps: IPCDependencies): void {
   iosChannel.setClearHandler((sessionId: string) => {
     AgentManager.clearQueue(sessionId);
     AgentManager.clearConversation(sessionId);
-    AgentManager.clearSdkSessionMapping(sessionId);
     updateTrayMenu();
     getWindow(WIN.CHAT)?.webContents.send('session:cleared', sessionId);
     console.log(`[Main] Fresh start from iOS (session: ${sessionId})`);

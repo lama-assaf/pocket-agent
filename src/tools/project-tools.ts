@@ -173,7 +173,7 @@ export function getGetProjectToolDefinition() {
  * Get project tool handler — returns the current session's working directory
  */
 export async function handleGetProjectTool(): Promise<string> {
-  const defaultWorkspace = AgentManager.getProjectRoot();
+  const defaultWorkspace = AgentManager.getWorkspace();
 
   const db = getDb();
   if (!db) {
@@ -260,7 +260,7 @@ export async function handleClearProjectTool(): Promise<string> {
 
   try {
     const sessionId = getCurrentSessionId();
-    const defaultPath = AgentManager.getProjectRoot();
+    const defaultPath = AgentManager.getWorkspace();
     console.log(
       `[ProjectTools] clear_project: session=${sessionId} resetting to default=${defaultPath}`
     );

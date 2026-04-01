@@ -22,7 +22,8 @@ import { SYSTEM_GUIDELINES } from '../config/system-guidelines';
 import { getModeConfig, buildRoutingInstructions } from './agent-modes';
 import type { AgentModeId } from './agent-modes';
 import { getStreamConfig } from './chat-providers';
-import { getChatAgentTools } from './chat-tools';
+import { getChatAgentTools, getCoderAgentTools } from './chat-tools';
+import { buildSystemPrompt as buildCoderSystemPrompt } from '@kenkaiiii/ggcoder';
 import { buildTemporalContext } from './context-extraction';
 import {
   formatToolName,
@@ -85,6 +86,7 @@ interface ChatEngineConfig {
   memory: MemoryManager;
   toolsConfig: ToolsConfig;
   statusEmitter: (status: AgentStatus) => void;
+  workspace: string;
 }
 
 /**
@@ -94,6 +96,7 @@ export class ChatEngine {
   private memory: MemoryManager;
   private toolsConfig: ToolsConfig;
   private emitStatus: (status: AgentStatus) => void;
+  private workspace: string;
   private conversationsBySession: Map<string, MessageParam[]> = new Map();
   private abortControllersBySession: Map<string, AbortController> = new Map();
   private processingBySession: Map<string, boolean> = new Map();
@@ -114,6 +117,7 @@ export class ChatEngine {
     this.memory = config.memory;
     this.toolsConfig = config.toolsConfig;
     this.emitStatus = config.statusEmitter;
+    this.workspace = config.workspace;
 
     // Wire up the summarizer for smart context / compaction
     this.memory.setSummarizer(async (messages) => {
@@ -258,24 +262,48 @@ export class ChatEngine {
       }
       const conversation = this.conversationsBySession.get(sessionId)!;
 
-      // Build timestamped user message
-      const now = new Date();
-      const timeTag = `[${now.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}]`;
-      const timestampedMessage = `${timeTag} ${userMessage}`;
-      const userContent = this.buildUserContent(timestampedMessage, images);
+      // Determine session mode
+      const sessionMode = (
+        sessionId ? this.memory.getSessionMode(sessionId) : 'general'
+      ) as AgentModeId;
+
+      // Build user message — coder mode is clean (no timestamps), others get time tags
+      let finalMessage: string;
+      if (sessionMode === 'coder') {
+        finalMessage = userMessage;
+      } else {
+        const now = new Date();
+        const timeTag = `[${now.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}]`;
+        finalMessage = `${timeTag} ${userMessage}`;
+      }
+      const userContent = this.buildUserContent(finalMessage, images);
       conversation.push({ role: 'user', content: userContent });
 
       // Compact if needed
       const wasCompacted = await this.compactConversation(sessionId, userMessage);
 
-      // Build system prompt
-      const { staticPrompt, dynamicPrompt } = this.buildSystemPrompt(sessionId, channel);
-      const systemPrompt = `${staticPrompt}\n\n${dynamicPrompt}`;
+      // Build system prompt — coder mode uses gg-coder's prompt, others use the standard prompt
+      let systemPrompt: string;
+      if (sessionMode === 'coder') {
+        const coderCwd = this.getCoderCwd(sessionId);
+        const coderPrompt = await buildCoderSystemPrompt(coderCwd);
+        // Append routing instructions so coder can hand off to other modes
+        const routingInstructions = buildRoutingInstructions(sessionMode);
+        systemPrompt = routingInstructions
+          ? `${coderPrompt}\n\n${routingInstructions}`
+          : coderPrompt;
+      } else {
+        const { staticPrompt, dynamicPrompt } = this.buildSystemPrompt(sessionId, channel);
+        systemPrompt = `${staticPrompt}\n\n${dynamicPrompt}`;
+      }
 
       // Get model + provider config
       const model = SettingsManager.get('agent.model') || 'claude-opus-4-6';
       const streamConfig = await getStreamConfig(model);
-      const agentTools = getChatAgentTools(this.toolsConfig);
+      const agentTools =
+        sessionMode === 'coder'
+          ? getCoderAgentTools(this.toolsConfig, this.getCoderCwd(sessionId))
+          : getChatAgentTools(this.toolsConfig, this.workspace);
 
       // Map thinking level
       const thinkingLevel = SettingsManager.get('agent.thinkingLevel') || 'normal';
@@ -1003,5 +1031,15 @@ export class ChatEngine {
   clearSession(sessionId: string): void {
     this.conversationsBySession.delete(sessionId);
     this.pendingMediaBySession.delete(sessionId);
+  }
+
+  /**
+   * Get the working directory for coder mode.
+   * Falls back to session working directory from memory, then workspace.
+   */
+  private getCoderCwd(sessionId: string): string {
+    const sessionWorkDir = this.memory.getSessionWorkingDirectory(sessionId);
+    if (sessionWorkDir) return sessionWorkDir;
+    return this.workspace;
   }
 }

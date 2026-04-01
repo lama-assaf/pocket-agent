@@ -82,11 +82,14 @@ function createEngine() {
     saveMessage: vi.fn(() => 1),
     embedMessage: vi.fn(async () => {}),
     getSmartContext: vi.fn(async () => ({ recentMessages: [], rollingSummary: null })),
+    getSessionMode: vi.fn(() => 'general'),
+    getSessionWorkingDirectory: vi.fn(() => null),
   };
   const engine = new ChatEngine({
     memory: memory as never,
     toolsConfig: {} as never,
     statusEmitter: vi.fn(),
+    workspace: '/tmp/test-workspace',
   });
   return { engine, memory };
 }

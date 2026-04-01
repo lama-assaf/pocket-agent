@@ -24,7 +24,6 @@ export interface IPCDependencies {
   updateTrayMenu: () => void;
   initializeAgent: () => Promise<void>;
   restartAgent: () => Promise<void>;
-  ensureCoderWorkingDirectory: (sessionId: string) => void;
   openChatWindow: () => void;
   openSettingsWindow: (tab?: string) => void;
   openCronWindow: () => void;

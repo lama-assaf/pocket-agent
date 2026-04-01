@@ -10,6 +10,7 @@ import { z } from 'zod';
 import type { AgentTool, ToolContext } from '@kenkaiiii/gg-agent';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import { createTools as createCoderTools } from '@kenkaiiii/ggcoder';
 import { getCustomTools, ToolsConfig } from '../tools';
 import { wrapToolHandler } from '../tools/diagnostics';
 import { createSubAgentTool } from '../tools/subagent';
@@ -75,7 +76,7 @@ function jsonSchemaToZod(
  * Build the AgentTool array for Chat mode.
  * Wraps each handler with diagnostics and returns AgentTool[] compatible with @kenkaiiii/gg-agent.
  */
-export function getChatAgentTools(config: ToolsConfig): AgentTool[] {
+export function getChatAgentTools(config: ToolsConfig, cwd: string): AgentTool[] {
   const customTools = getCustomTools(config);
   const tools: AgentTool[] = [];
 
@@ -98,6 +99,15 @@ export function getChatAgentTools(config: ToolsConfig): AgentTool[] {
     });
   }
 
+  // Add file tools (read, write, edit) from gg-coder
+  const { tools: coderNativeTools } = createCoderTools(cwd);
+  const fileToolNames = new Set(['read', 'write', 'edit']);
+  for (const t of coderNativeTools) {
+    if (fileToolNames.has(t.name)) {
+      tools.push(t);
+    }
+  }
+
   // Add web_fetch tool
   tools.push(buildWebFetchTool());
 
@@ -108,6 +118,41 @@ export function getChatAgentTools(config: ToolsConfig): AgentTool[] {
   tools.push(createSubAgentTool(tools, getStreamConfig));
 
   return tools;
+}
+
+/**
+ * Build the AgentTool array for Coder mode.
+ * Uses gg-coder native tools (read, write, edit, bash, etc.) merged with MCP tools.
+ */
+export function getCoderAgentTools(config: ToolsConfig, cwd: string): AgentTool[] {
+  // Create gg-coder native tools
+  const { tools: coderNativeTools } = createCoderTools(cwd);
+
+  // Get MCP-wrapped tools (browser, notify, project, grep-github, switch_agent)
+  const customTools = getCustomTools(config);
+  const mcpTools: AgentTool[] = [];
+
+  for (const tool of customTools) {
+    const wrapped = wrapToolHandler(tool.name, tool.handler);
+    const inputSchema = tool.input_schema as {
+      properties?: Record<string, unknown>;
+      required?: string[];
+    };
+
+    const parameters = jsonSchemaToZod(inputSchema.properties || {}, inputSchema.required || []);
+
+    mcpTools.push({
+      name: tool.name,
+      description: tool.description,
+      parameters,
+      execute: async (args: unknown, _context: ToolContext) => {
+        return await wrapped(args as Record<string, unknown>);
+      },
+    });
+  }
+
+  // Merge: coder native tools + MCP tools
+  return [...coderNativeTools, ...mcpTools];
 }
 
 /**

@@ -123,10 +123,7 @@ export function registerSessionsIPC(deps: IPCDependencies): void {
           return { success: false, error: `Cannot rename: directory "${name}" already exists` };
         }
         newWorkingDirectory = newPath;
-        console.log(
-          `[Sessions] Directory renamed: ${session.working_directory} -> ${newPath} | closing SDK session`
-        );
-        AgentManager.clearSdkSessionMapping(id);
+        console.log(`[Sessions] Directory renamed: ${session.working_directory} -> ${newPath}`);
       }
 
       const success = memory?.renameSession(id, name, newWorkingDirectory) ?? false;
@@ -146,7 +143,6 @@ export function registerSessionsIPC(deps: IPCDependencies): void {
 
   ipcMain.handle('sessions:delete', async (_, id: string) => {
     AgentManager.clearQueue(id);
-    AgentManager.clearSdkSessionMapping(id);
     AgentManager.cleanupSession(id);
     const memory = getMemory();
     const success = memory?.deleteSession(id) ?? false;

@@ -83,20 +83,19 @@ export function validateBrowserUrl(url: string): ValidationResult {
 
 /**
  * Main validation function for tool calls
- * Called by the SDK's canUseTool callback
  */
 export function validateToolCall(
   toolName: string,
   input: Record<string, unknown>
 ): ValidationResult {
   // Bash command validation
-  if (toolName === 'Bash') {
+  if (toolName === 'Bash' || toolName === 'bash') {
     const command = (input.command as string) || '';
     return validateBashCommand(command);
   }
 
   // Write/Edit file validation
-  if (toolName === 'Write' || toolName === 'Edit') {
+  if (toolName === 'Write' || toolName === 'Edit' || toolName === 'write' || toolName === 'edit') {
     const filePath = (input.file_path as string) || '';
     return validateWritePath(filePath);
   }
@@ -115,32 +114,6 @@ export function validateToolCall(
   return { allowed: true };
 }
 
-/**
- * Build the canUseTool callback for SDK options
- */
-export function buildCanUseToolCallback(): (
-  toolName: string,
-  input: Record<string, unknown>,
-  options: { signal: AbortSignal; toolUseID: string }
-) => Promise<{ behavior: 'allow' } | { behavior: 'deny'; message: string; interrupt: boolean }> {
-  return async (toolName, input) => {
-    console.log(`[Safety] canUseTool called for: ${toolName}`);
-    const validation = validateToolCall(toolName, input);
-
-    if (!validation.allowed) {
-      console.log(`[Safety] DENIED: ${validation.reason}`);
-      return {
-        behavior: 'deny',
-        message: `🚫 Safety block: ${validation.reason}`,
-        interrupt: false, // Don't interrupt the entire session, just block this tool
-      };
-    }
-
-    console.log(`[Safety] ALLOWED: ${toolName}`);
-    return { behavior: 'allow' };
-  };
-}
-
 // Status emitter type for UI updates
 type StatusEmitter = (status: {
   type: 'tool_blocked';
@@ -150,74 +123,18 @@ type StatusEmitter = (status: {
 }) => void;
 
 // Module-level status emitter (set by agent)
-let statusEmitter: StatusEmitter | null = null;
+let _statusEmitter: StatusEmitter | null = null;
 
 /**
  * Set the status emitter for UI updates when tools are blocked
  */
 export function setStatusEmitter(emitter: StatusEmitter): void {
-  statusEmitter = emitter;
+  _statusEmitter = emitter;
 }
 
 /**
- * Build PreToolUse hook for SDK options
- * Returns { hookSpecificOutput: { permissionDecision: 'deny' } } to block tools
- * See: https://github.com/anthropics/claude-code/issues/4362
+ * Get the current status emitter (if set)
  */
-export function buildPreToolUseHook(): {
-  hooks: Array<
-    (input: { tool_name: string; tool_input: unknown }) => Promise<{
-      hookSpecificOutput: {
-        hookEventName: 'PreToolUse';
-        permissionDecision: 'allow' | 'deny';
-        permissionDecisionReason?: string;
-      };
-    }>
-  >;
-} {
-  return {
-    hooks: [
-      async (input: { tool_name: string; tool_input: unknown }) => {
-        console.log(`[Safety] PreToolUse hook called for: ${input.tool_name}`);
-        const validation = validateToolCall(
-          input.tool_name,
-          (input.tool_input as Record<string, unknown>) || {}
-        );
-
-        if (!validation.allowed) {
-          console.log(`[Safety] HOOK DENIED: ${validation.reason}`);
-
-          // Emit status for UI
-          console.log(`[Safety] statusEmitter available: ${!!statusEmitter}`);
-          if (statusEmitter) {
-            console.log(`[Safety] Emitting tool_blocked status`);
-            statusEmitter({
-              type: 'tool_blocked',
-              toolName: input.tool_name,
-              message: '🙀 whoa! not allowed!',
-              blockedReason: validation.reason || 'Dangerous operation blocked',
-            });
-          } else {
-            console.log(`[Safety] WARNING: No status emitter set!`);
-          }
-
-          return {
-            hookSpecificOutput: {
-              hookEventName: 'PreToolUse' as const,
-              permissionDecision: 'deny' as const,
-              permissionDecisionReason: `🚫 Safety block: ${validation.reason}`,
-            },
-          };
-        }
-
-        console.log(`[Safety] HOOK ALLOWED: ${input.tool_name}`);
-        return {
-          hookSpecificOutput: {
-            hookEventName: 'PreToolUse' as const,
-            permissionDecision: 'allow' as const,
-          },
-        };
-      },
-    ],
-  };
+export function getStatusEmitter(): StatusEmitter | null {
+  return _statusEmitter;
 }

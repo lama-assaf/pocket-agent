@@ -8,14 +8,7 @@ import { getWindow } from '../windows';
 import type { IPCDependencies } from './types';
 
 export function registerAgentIPC(deps: IPCDependencies): void {
-  const {
-    getMemory,
-    getTelegramBot,
-    getIosChannel,
-    updateTrayMenu,
-    ensureCoderWorkingDirectory,
-    WIN,
-  } = deps;
+  const { getMemory, getTelegramBot, getIosChannel, updateTrayMenu, WIN } = deps;
 
   // Chat messages with status streaming
   ipcMain.handle(
@@ -61,9 +54,6 @@ export function registerAgentIPC(deps: IPCDependencies): void {
       AgentManager.on('status', statusHandler);
 
       try {
-        // Lazy working directory creation: only create when first message is sent in coder mode
-        ensureCoderWorkingDirectory(effectiveSessionId);
-
         const result = await AgentManager.processMessage(
           message,
           'desktop',
@@ -135,9 +125,6 @@ export function registerAgentIPC(deps: IPCDependencies): void {
       AgentManager.clearQueue(sessionId);
     }
     AgentManager.clearConversation(sessionId);
-    if (sessionId) {
-      AgentManager.clearSdkSessionMapping(sessionId);
-    }
     updateTrayMenu();
     // Notify iOS app to clear its messages
     const iosChannel = getIosChannel();
@@ -207,9 +194,6 @@ export function registerAgentIPC(deps: IPCDependencies): void {
       );
       memory?.setSessionWorkingDirectory(sessionId, null);
     }
-
-    // Close persistent SDK session in both cases (cwd may have changed)
-    AgentManager.clearSdkSessionMapping(sessionId);
 
     const success = memory?.setSessionMode(sessionId, mode) ?? false;
     return { success };

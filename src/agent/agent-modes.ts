@@ -13,7 +13,7 @@ export interface AgentMode {
   id: AgentModeId;
   name: string;
   icon: string;
-  engine: 'chat' | 'sdk';
+  engine: 'chat';
   systemPrompt: string;
   allowedTools: string[];
   mcpServers?: string[];
@@ -39,32 +39,26 @@ export type OnHandoffCallback = (context: HandoffContext) => void | Promise<void
 
 // ── Shared tool lists ──
 
-const SDK_CORE_TOOLS = [
-  'Read',
-  'Write',
-  'Edit',
-  'Bash',
-  'Glob',
-  'Grep',
-  'WebSearch',
-  'WebFetch',
-  // Plan mode
-  'EnterPlanMode',
-  'ExitPlanMode',
-  'AskUserQuestion',
-  // Agent Teams
-  'TeammateTool',
-  'TeamCreate',
-  'SendMessage',
-  'TaskCreate',
-  'TaskGet',
-  'TaskUpdate',
-  'TaskList',
-  // Background tasks
-  'TaskOutput',
-  'TaskStop',
-  'BashOutput',
-  'KillBash',
+/** Tools available in chat-engine modes (general, researcher, etc.) */
+const CHAT_CORE_TOOLS = ['web_fetch', 'shell_command', 'subagent', 'read', 'write', 'edit'];
+
+/** gg-coder native tools (read, write, edit, bash, etc.) */
+const CODER_NATIVE_TOOLS = [
+  'read',
+  'write',
+  'edit',
+  'bash',
+  'find',
+  'grep',
+  'ls',
+  'web_fetch',
+  'subagent',
+  'tasks',
+  'task_output',
+  'task_stop',
+  'skill',
+  'enter_plan',
+  'exit_plan',
 ];
 
 const BROWSER_TOOLS = ['mcp__pocket-agent__browser'];
@@ -95,7 +89,6 @@ const SCHEDULER_TOOLS = [
 ];
 const GREP_TOOLS = ['mcp__grep__searchGitHub'];
 const SWITCH_TOOL = ['mcp__pocket-agent__switch_agent'];
-const SUBAGENT_TOOL = ['subagent'];
 
 // ── System prompts ──
 
@@ -110,7 +103,7 @@ You are the user's personal assistant. You handle their day-to-day: scheduling, 
 - Be proactive — suggest reminders, follow up on past topics, anticipate needs
 - If the user needs deep coding, research, writing, or emotional support, switch to the appropriate agent`;
 
-const CODER_PROMPT = ''; // Coder uses SDK claude_code preset + workspace CLAUDE.md — no additional prompt
+const CODER_PROMPT = ''; // Coder uses gg-coder's buildSystemPrompt() — see chat-engine.ts
 
 const RESEARCHER_PROMPT = `## Researcher Mode
 
@@ -159,7 +152,7 @@ export const AGENT_MODES: Record<AgentModeId, AgentMode> = {
     engine: 'chat',
     systemPrompt: GENERAL_PROMPT,
     allowedTools: [
-      ...SDK_CORE_TOOLS,
+      ...CHAT_CORE_TOOLS,
       ...BROWSER_TOOLS,
       ...NOTIFY_TOOLS,
       ...PROJECT_TOOLS,
@@ -167,7 +160,6 @@ export const AGENT_MODES: Record<AgentModeId, AgentMode> = {
       ...SOUL_TOOLS,
       ...SCHEDULER_TOOLS,
       ...SWITCH_TOOL,
-      ...SUBAGENT_TOOL,
     ],
     mcpServers: ['pocket-agent'],
     description: 'Personal assistant — remembers, schedules, browses, manages life',
@@ -179,16 +171,9 @@ export const AGENT_MODES: Record<AgentModeId, AgentMode> = {
     id: 'coder',
     name: 'Coder',
     icon: '🔧',
-    engine: 'sdk',
+    engine: 'chat',
     systemPrompt: CODER_PROMPT,
-    allowedTools: [
-      ...SDK_CORE_TOOLS,
-      ...BROWSER_TOOLS,
-      ...NOTIFY_TOOLS,
-      ...PROJECT_TOOLS,
-      ...GREP_TOOLS,
-      ...SWITCH_TOOL,
-    ],
+    allowedTools: [...CODER_NATIVE_TOOLS, ...PROJECT_TOOLS, ...GREP_TOOLS, ...SWITCH_TOOL],
     mcpServers: ['pocket-agent', 'grep'],
     description: 'Full coding agent with file access and GitHub search',
     handoffDescription: 'Code, file edits, debugging, programming tasks',
@@ -207,7 +192,6 @@ export const AGENT_MODES: Record<AgentModeId, AgentMode> = {
       ...PROJECT_TOOLS,
       ...MEMORY_TOOLS,
       ...SWITCH_TOOL,
-      ...SUBAGENT_TOOL,
     ],
     mcpServers: ['pocket-agent'],
     description: 'Deep research — web search, browsing, note-taking',

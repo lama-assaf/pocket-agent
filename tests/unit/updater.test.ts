@@ -23,6 +23,7 @@ const { mockAutoUpdater, mockIpcMainHandle } = vi.hoisted(() => ({
 let mockIsPackaged = false;
 
 vi.mock('electron-updater', () => ({
+  default: { autoUpdater: mockAutoUpdater },
   autoUpdater: mockAutoUpdater,
 }));
 

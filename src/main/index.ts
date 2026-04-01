@@ -102,69 +102,6 @@ function getAgentWorkspace(): string {
 }
 
 /**
- * Create a per-session working directory for Coder mode.
- * Creates ~/Documents/Pocket-agent/<sessionName>/ and populates
- * .claude/commands/ with coder-specific commands from bundled assets.
- * Does NOT copy CLAUDE.md — coder mode uses the project's own CLAUDE.md
- * via the SDK's settingSources: ['project'] + cwd.
- */
-function createSessionDirectory(sessionName: string): string {
-  const workspace = getAgentWorkspace();
-  const sessionDir = path.join(workspace, sessionName);
-
-  if (!fs.existsSync(sessionDir)) {
-    fs.mkdirSync(sessionDir, { recursive: true });
-    console.log(`[Main] Created session directory: ${sessionDir}`);
-  }
-
-  // Always sync coder commands from bundled assets (overwrites stale commands from older versions)
-  const coderCommandsSource = path.join(__dirname, '../../assets/coder-commands');
-  const sessionCommandsDir = path.join(sessionDir, '.claude', 'commands');
-  if (fs.existsSync(coderCommandsSource)) {
-    fs.mkdirSync(sessionCommandsDir, { recursive: true });
-    // Remove old commands that aren't in the bundled set
-    const bundledFiles = new Set(
-      fs.readdirSync(coderCommandsSource).filter((f) => f.endsWith('.md'))
-    );
-    if (fs.existsSync(sessionCommandsDir)) {
-      for (const file of fs.readdirSync(sessionCommandsDir).filter((f) => f.endsWith('.md'))) {
-        if (!bundledFiles.has(file)) {
-          fs.unlinkSync(path.join(sessionCommandsDir, file));
-        }
-      }
-    }
-    // Copy all bundled coder commands
-    for (const file of bundledFiles) {
-      fs.copyFileSync(path.join(coderCommandsSource, file), path.join(sessionCommandsDir, file));
-    }
-    console.log(`[Main] Synced ${bundledFiles.size} coder commands to session directory`);
-  }
-
-  return sessionDir;
-}
-
-/**
- * Ensure a coder session has a working directory.
- * Called lazily on first message so directories aren't created for sessions
- * where the user switches to general before sending anything.
- */
-function ensureCoderWorkingDirectory(sessionId: string): void {
-  if (!memory) return;
-  const sessionMode = memory.getSessionMode(sessionId);
-  const sessionWorkDir = memory.getSessionWorkingDirectory(sessionId);
-  if (sessionMode === 'coder' && !sessionWorkDir) {
-    const session = memory.getSession(sessionId);
-    if (session) {
-      const workingDirectory = createSessionDirectory(session.name);
-      memory.setSessionWorkingDirectory(sessionId, workingDirectory);
-      console.log(
-        `[Sessions] Lazy-created working directory for coder session: ${workingDirectory}`
-      );
-    }
-  }
-}
-
-/**
  * Migrate identity.md content into personalize.* SQLite settings.
  * One-time migration: parses agent name from heading, extracts personality sections,
  * migrates profile.custom to personalize.world, renames identity.md to .migrated.
@@ -550,7 +487,6 @@ function buildIPCDeps(): IPCDependencies {
     updateTrayMenu,
     initializeAgent,
     restartAgent,
-    ensureCoderWorkingDirectory,
     openChatWindow,
     openSettingsWindow,
     openCronWindow,
