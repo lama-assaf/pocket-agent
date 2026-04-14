@@ -23,7 +23,7 @@ import { getModeConfig, buildRoutingInstructions } from './agent-modes';
 import type { AgentModeId } from './agent-modes';
 import { getStreamConfig } from './chat-providers';
 import { getChatAgentTools, getCoderAgentTools } from './chat-tools';
-import { buildSystemPrompt as buildCoderSystemPrompt, estimateConversationTokens } from '@kenkaiiii/ggcoder';
+import { buildSystemPrompt as buildCoderSystemPrompt, shouldCompact, estimateConversationTokens } from '@kenkaiiii/ggcoder';
 import { buildTemporalContext } from './context-extraction';
 import {
   formatToolName,
@@ -999,18 +999,13 @@ export class ChatEngine {
     const conversation = this.conversationsBySession.get(sessionId);
     if (!conversation || conversation.length === 0) return false;
 
-    // Token-based compaction: estimate conversation tokens and compact when >80% of context window
+    // Token-based compaction: use ggcoder's shouldCompact (80% threshold, 16K output reserve)
     const contextWindow = getContextWindow(model);
-    const outputReserve = 16_384;
-    const effectiveWindow = contextWindow - outputReserve;
+    if (!shouldCompact(conversation, contextWindow)) return false;
+
     const estimatedTokens = estimateConversationTokens(conversation);
-    const threshold = 0.8;
-    const tokenLimit = effectiveWindow * threshold;
-
-    if (estimatedTokens <= tokenLimit) return false;
-
     console.log(
-      `[ChatEngine] Compacting session ${sessionId}: ~${estimatedTokens} estimated tokens exceeds ${Math.round(threshold * 100)}% of ${effectiveWindow} effective context (limit: ${Math.round(tokenLimit)})`
+      `[ChatEngine] Compacting session ${sessionId}: ~${estimatedTokens} estimated tokens exceeds threshold for ${contextWindow} context window`
     );
 
     // Scale smart context params proportionally to model's context window
