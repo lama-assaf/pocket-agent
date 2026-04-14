@@ -143,6 +143,24 @@ function _brainFormatLogDate(dateStr) {
 
 const _trashSvg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5"><path d="m19.5 5.5l-.62 10.025c-.158 2.561-.237 3.842-.88 4.763a4 4 0 0 1-1.2 1.128c-.957.584-2.24.584-4.806.584c-2.57 0-3.855 0-4.814-.585a4 4 0 0 1-1.2-1.13c-.642-.922-.72-2.205-.874-4.77L4.5 5.5M3 5.5h18m-4.944 0l-.683-1.408c-.453-.936-.68-1.403-1.071-1.695a2 2 0 0 0-.275-.172C13.594 2 13.074 2 12.035 2c-1.066 0-1.599 0-2.04.234a2 2 0 0 0-.278.18c-.395.303-.616.788-1.058 1.757L8.053 5.5"/></svg>';
 
+// ---- Capacity Bar Helper ----
+
+function _brainUpdateCapacityBar(prefix, usage) {
+  const fillEl = document.getElementById(`${prefix}-capacity-fill`);
+  const textEl = document.getElementById(`${prefix}-capacity-text`);
+  if (!fillEl || !textEl) return;
+
+  const pct = Math.min(usage.pct, 100);
+  fillEl.style.width = `${pct}%`;
+
+  // Color coding
+  fillEl.classList.remove('warning', 'critical');
+  if (pct >= 90) fillEl.classList.add('critical');
+  else if (pct >= 70) fillEl.classList.add('warning');
+
+  textEl.textContent = `${pct}% — ${usage.usedChars.toLocaleString()} / ${usage.budgetChars.toLocaleString()} chars`;
+}
+
 // ---- Facts ----
 
 async function _brainLoadFacts() {
@@ -153,8 +171,12 @@ async function _brainLoadFacts() {
   if (!tbody) return;
 
   try {
-    const facts = await window.pocketAgent.facts.list();
+    const [facts, usage] = await Promise.all([
+      window.pocketAgent.facts.list(),
+      window.pocketAgent.facts.memoryUsage(),
+    ]);
     if (countEl) countEl.textContent = `(${facts.length})`;
+    _brainUpdateCapacityBar('brain-facts', usage);
 
     if (facts.length === 0) {
       if (tableEl) tableEl.classList.add('hidden');
@@ -200,8 +222,12 @@ async function _brainLoadSoul() {
   if (!container) return;
 
   try {
-    const aspects = await window.pocketAgent.soul.listAspects();
+    const [aspects, usage] = await Promise.all([
+      window.pocketAgent.soul.listAspects(),
+      window.pocketAgent.soul.memoryUsage(),
+    ]);
     if (countEl) countEl.textContent = `(${aspects.length})`;
+    _brainUpdateCapacityBar('brain-soul', usage);
 
     if (aspects.length === 0) {
       container.classList.add('hidden');
@@ -248,8 +274,12 @@ async function _brainLoadLogs() {
   if (!tbody) return;
 
   try {
-    const logs = await window.pocketAgent.dailyLogs.list();
+    const [logs, usage] = await Promise.all([
+      window.pocketAgent.dailyLogs.list(),
+      window.pocketAgent.dailyLogs.memoryUsage(),
+    ]);
     if (countEl) countEl.textContent = `(${logs.length})`;
+    _brainUpdateCapacityBar('brain-logs', usage);
 
     if (logs.length === 0) {
       if (tableEl) tableEl.classList.add('hidden');

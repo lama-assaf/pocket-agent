@@ -18,6 +18,7 @@ import {
   appendToDailyLog as _appendToDailyLog,
   getDailyLogsSince as _getDailyLogsSince,
   getDailyLogsContext as _getDailyLogsContext,
+  getDailyLogsMemoryUsage as _getDailyLogsMemoryUsage,
   deleteDailyLog as _deleteDailyLog,
 } from './daily-logs';
 import {
@@ -28,6 +29,7 @@ import {
   deleteSoulAspect as _deleteSoulAspect,
   deleteSoulAspectById as _deleteSoulAspectById,
   getSoulContext as _getSoulContext,
+  getSoulMemoryUsage as _getSoulMemoryUsage,
 } from './soul';
 import type { SoulCache, SoulAspect } from './soul';
 import {
@@ -52,12 +54,14 @@ import {
   saveFact as _saveFact,
   getAllFacts as _getAllFacts,
   getFactsForContext as _getFactsForContext,
+  getFactsMemoryUsage as _getFactsMemoryUsage,
   deleteFact as _deleteFact,
   deleteFactBySubject as _deleteFactBySubject,
   searchFactsHybrid as _searchFactsHybrid,
   searchFacts as _searchFacts,
   getFactsByCategory as _getFactsByCategory,
   getFactCategories as _getFactCategories,
+  decayFactImportance as _decayFactImportance,
 } from './facts';
 import type { FactsCache, Fact, SearchResult } from './facts';
 import {
@@ -103,6 +107,9 @@ export class MemoryManager {
     this.db = new Database(dbPath);
     this.db.pragma('journal_mode = WAL');
     this.initialize();
+
+    // Run importance decay on startup (reduces importance for stale facts)
+    _decayFactImportance(this.db);
   }
 
   private initialize(): void {
@@ -315,6 +322,17 @@ export class MemoryManager {
     if (!hasSubject) {
       this.db.exec(`ALTER TABLE facts ADD COLUMN subject TEXT NOT NULL DEFAULT ''`);
       console.log('[Memory] Migrated facts table: added subject column');
+    }
+
+    // Migration: add importance and last_accessed_at columns to facts
+    const factsColumns = this.db.pragma('table_info(facts)') as Array<{ name: string }>;
+    if (!factsColumns.some((c) => c.name === 'importance')) {
+      this.db.exec(`ALTER TABLE facts ADD COLUMN importance INTEGER DEFAULT 50`);
+      console.log('[Memory] Migrated facts table: added importance column');
+    }
+    if (!factsColumns.some((c) => c.name === 'last_accessed_at')) {
+      this.db.exec(`ALTER TABLE facts ADD COLUMN last_accessed_at TEXT`);
+      console.log('[Memory] Migrated facts table: added last_accessed_at column');
     }
 
     // Rebuild FTS index from existing facts (after all schema migrations)
@@ -727,6 +745,10 @@ export class MemoryManager {
     return _getFactsForContext(this.db, this.factsCache);
   }
 
+  getFactsMemoryUsage(): { usedChars: number; budgetChars: number; pct: number } {
+    return _getFactsMemoryUsage(this.db);
+  }
+
   deleteFact(id: number): boolean {
     return _deleteFact(this.db, id, this.factsCache);
   }
@@ -878,6 +900,18 @@ export class MemoryManager {
 
   getSoulContext(): string {
     return _getSoulContext(this.db, this.soulCache);
+  }
+
+  getSoulMemoryUsage(): { usedChars: number; budgetChars: number; pct: number } {
+    return _getSoulMemoryUsage(this.db);
+  }
+
+  getDailyLogsMemoryUsage(days: number = 3): {
+    usedChars: number;
+    budgetChars: number;
+    pct: number;
+  } {
+    return _getDailyLogsMemoryUsage(this.db, days);
   }
 
   close(): void {

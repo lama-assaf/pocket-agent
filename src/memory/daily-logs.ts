@@ -1,5 +1,11 @@
 import Database from 'better-sqlite3';
 
+/** Hard character budget for daily logs injected into the system prompt (~700 tokens) */
+export const DAILY_LOGS_CHAR_BUDGET = 2000;
+
+/** Percentage threshold at which memory pressure warnings are shown */
+const MEMORY_PRESSURE_THRESHOLD = 0.8;
+
 export interface DailyLog {
   id: number;
   date: string;
@@ -94,7 +100,9 @@ export function deleteDailyLog(db: Database.Database, id: number): boolean {
 }
 
 /**
- * Get daily logs as formatted context string for the agent
+ * Get daily logs as formatted context string for the agent.
+ * Truncates at DAILY_LOGS_CHAR_BUDGET and includes a usage header.
+ * Prioritizes most recent logs (today first, then yesterday, etc.).
  */
 export function getDailyLogsContext(db: Database.Database, days: number = 3): string {
   const logs = getDailyLogsSince(db, days);
@@ -102,13 +110,73 @@ export function getDailyLogsContext(db: Database.Database, days: number = 3): st
     return '';
   }
 
-  const lines: string[] = ['## Recent Daily Logs'];
-  for (const log of logs.reverse()) {
-    // Show oldest first
+  // Reserve space for the header line
+  const headerReserve = 90;
+  const contentBudget = DAILY_LOGS_CHAR_BUDGET - headerReserve;
+
+  // Show oldest first (reverse of DESC order from DB)
+  const orderedLogs = logs.reverse();
+
+  const includedLines: string[] = [];
+  let usedChars = 0;
+
+  for (const log of orderedLogs) {
     const dateLabel = log.date === getTodayDate() ? 'Today' : log.date;
-    lines.push(`\n### ${dateLabel}`);
-    lines.push(log.content);
+    const logHeader = `\n### ${dateLabel}`;
+    const logContent = log.content;
+    const additionalChars = logHeader.length + 1 + logContent.length;
+
+    if (usedChars + additionalChars > contentBudget) {
+      // Try to include a truncated version of this log
+      const remaining = contentBudget - usedChars - logHeader.length - 1;
+      if (remaining > 50) {
+        includedLines.push(logHeader);
+        includedLines.push(logContent.slice(0, remaining) + '...');
+        usedChars = contentBudget;
+      }
+      break;
+    }
+
+    usedChars += additionalChars;
+    includedLines.push(logHeader);
+    includedLines.push(logContent);
   }
 
-  return lines.join('\n');
+  // Build usage header
+  const totalChars = usedChars + headerReserve;
+  const pct = Math.round((totalChars / DAILY_LOGS_CHAR_BUDGET) * 100);
+  const pressureWarning = pct >= MEMORY_PRESSURE_THRESHOLD * 100 ? ' ⚠️ Logs nearly full' : '';
+  const header = `## Recent Daily Logs [${pct}% — ${totalChars}/${DAILY_LOGS_CHAR_BUDGET} chars]${pressureWarning}`;
+
+  return [header, ...includedLines].join('\n');
+}
+
+/**
+ * Get memory usage stats for the daily logs budget.
+ */
+export function getDailyLogsMemoryUsage(
+  db: Database.Database,
+  days: number = 3
+): {
+  usedChars: number;
+  budgetChars: number;
+  pct: number;
+} {
+  const logs = getDailyLogsSince(db, days);
+
+  const headerReserve = 90;
+  const contentBudget = DAILY_LOGS_CHAR_BUDGET - headerReserve;
+  let usedChars = 0;
+
+  for (const log of logs.reverse()) {
+    const dateLabel = log.date === getTodayDate() ? 'Today' : log.date;
+    const logHeader = `\n### ${dateLabel}`;
+    const additionalChars = logHeader.length + 1 + log.content.length;
+    if (usedChars + additionalChars > contentBudget) break;
+    usedChars += additionalChars;
+  }
+
+  const totalChars = usedChars + headerReserve;
+  const pct = Math.round((totalChars / DAILY_LOGS_CHAR_BUDGET) * 100);
+  return { usedChars: totalChars, budgetChars: DAILY_LOGS_CHAR_BUDGET, pct };
 }

@@ -45,6 +45,25 @@ export function registerFactsIPC(deps: IPCDependencies): void {
     return { success };
   });
 
+  // Memory usage stats
+  ipcMain.handle('facts:memoryUsage', async () => {
+    const memory = getMemory();
+    if (!memory) return { usedChars: 0, budgetChars: 3000, pct: 0 };
+    return memory.getFactsMemoryUsage();
+  });
+
+  ipcMain.handle('soul:memoryUsage', async () => {
+    const memory = getMemory();
+    if (!memory) return { usedChars: 0, budgetChars: 1500, pct: 0 };
+    return memory.getSoulMemoryUsage();
+  });
+
+  ipcMain.handle('dailyLogs:memoryUsage', async () => {
+    const memory = getMemory();
+    if (!memory) return { usedChars: 0, budgetChars: 2000, pct: 0 };
+    return memory.getDailyLogsMemoryUsage();
+  });
+
   // Daily Logs
   ipcMain.handle('dailyLogs:list', async () => {
     return AgentManager.getDailyLogsSince(3);

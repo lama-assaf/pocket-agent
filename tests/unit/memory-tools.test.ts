@@ -7,6 +7,7 @@ const mockDeleteFactBySubject = vi.fn();
 const mockGetAllFacts = vi.fn();
 const mockGetFactsByCategory = vi.fn();
 const mockSearchFactsHybrid = vi.fn();
+const mockGetFactsMemoryUsage = vi.fn().mockReturnValue({ usedChars: 500, budgetChars: 3000, pct: 17 });
 
 // Create a mock MemoryManager instance
 const mockMemoryManagerInstance = {
@@ -16,6 +17,7 @@ const mockMemoryManagerInstance = {
   getAllFacts: mockGetAllFacts,
   getFactsByCategory: mockGetFactsByCategory,
   searchFactsHybrid: mockSearchFactsHybrid,
+  getFactsMemoryUsage: mockGetFactsMemoryUsage,
 };
 
 // Mock the memory module with a constructor function

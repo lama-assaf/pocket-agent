@@ -23,7 +23,11 @@ import { getModeConfig, buildRoutingInstructions } from './agent-modes';
 import type { AgentModeId } from './agent-modes';
 import { getStreamConfig } from './chat-providers';
 import { getChatAgentTools, getCoderAgentTools } from './chat-tools';
-import { buildSystemPrompt as buildCoderSystemPrompt, shouldCompact, estimateConversationTokens } from '@kenkaiiii/ggcoder';
+import {
+  buildSystemPrompt as buildCoderSystemPrompt,
+  shouldCompact,
+  estimateConversationTokens,
+} from '@kenkaiiii/ggcoder';
 import { buildTemporalContext } from './context-extraction';
 import {
   formatToolName,
@@ -325,7 +329,10 @@ export class ChatEngine {
           : coderPrompt;
       } else {
         const { staticPrompt, dynamicPrompt } = this.buildSystemPrompt(sessionId, channel);
-        systemPrompt = `${staticPrompt}\n\n${dynamicPrompt}`;
+        // The <!-- uncached --> marker tells gg-ai to split the system message:
+        // everything before it gets cache_control (stays cached across turns),
+        // everything after it is sent uncached (changes every turn).
+        systemPrompt = `${staticPrompt}\n\n<!-- uncached -->\n\n${dynamicPrompt}`;
       }
 
       // Get provider config

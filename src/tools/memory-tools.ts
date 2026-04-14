@@ -64,12 +64,20 @@ export async function handleRememberTool(input: unknown): Promise<string> {
   const id = memoryManager.saveFact(category, subject, content);
   console.log(`[Remember] Saved: [${category}] ${subject}: ${content}`);
 
+  // Check memory pressure after saving
+  const usage = memoryManager.getFactsMemoryUsage();
+  const pressureWarning =
+    usage.pct >= 80
+      ? `\n⚠️ Memory at ${usage.pct}% capacity (${usage.usedChars}/${usage.budgetChars} chars). Consider consolidating facts or forgetting stale entries.`
+      : '';
+
   return JSON.stringify({
     success: true,
-    message: `Remembered: ${subject}`,
+    message: `Remembered: ${subject}${pressureWarning}`,
     id,
     category,
     subject,
+    memoryUsage: { pct: usage.pct, used: usage.usedChars, budget: usage.budgetChars },
   });
 }
 
@@ -282,6 +290,64 @@ export function getDailyLogToolDefinition() {
 }
 
 /**
+ * Extract meaningful words (>3 chars) from text, lowercased.
+ */
+function extractWords(text: string): Set<string> {
+  return new Set(
+    text
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, '')
+      .split(/\s+/)
+      .filter((w) => w.length > 3)
+  );
+}
+
+/**
+ * Check if a new entry is too similar to ANY existing log entry today.
+ * Two checks:
+ * 1. Word overlap — if >50% of the new entry's words appear in ANY single
+ *    existing entry, it's a duplicate.
+ * 2. Prefix match — if the first 60 chars of the new entry match the start
+ *    of any existing entry (ignoring timestamps), it's a duplicate.
+ */
+function isDuplicateLogEntry(existingContent: string, newEntry: string): boolean {
+  // Split into individual timestamped entries
+  const entries = existingContent.split(/\n/).filter((l) => l.startsWith('['));
+  if (entries.length === 0) return false;
+
+  const newWords = extractWords(newEntry);
+  if (newWords.size === 0) return false;
+
+  // Normalize the new entry for prefix comparison (strip timestamp-like prefixes)
+  const newNormalized = newEntry
+    .toLowerCase()
+    .replace(/^\[.*?\]\s*/, '')
+    .slice(0, 60);
+
+  for (const entry of entries) {
+    // Check 1: Prefix match against this entry (strip timestamp)
+    const entryBody = entry.replace(/^\[.*?\]\s*/, '').toLowerCase();
+    if (newNormalized.length >= 20 && entryBody.startsWith(newNormalized)) {
+      return true;
+    }
+
+    // Check 2: Word overlap against this single entry
+    const entryWords = extractWords(entryBody);
+    if (entryWords.size === 0) continue;
+
+    let overlap = 0;
+    for (const word of newWords) {
+      if (entryWords.has(word)) overlap++;
+    }
+
+    const overlapPct = overlap / newWords.size;
+    if (overlapPct > 0.5) return true;
+  }
+
+  return false;
+}
+
+/**
  * Daily log tool handler
  */
 export async function handleDailyLogTool(input: unknown): Promise<string> {
@@ -293,6 +359,19 @@ export async function handleDailyLogTool(input: unknown): Promise<string> {
 
   if (!entry || entry.trim().length === 0) {
     return JSON.stringify({ error: 'Entry is required' });
+  }
+
+  // Check for duplicate content against today's log
+  const todayLog = memoryManager.getDailyLog();
+  if (todayLog && isDuplicateLogEntry(todayLog.content, entry.trim())) {
+    console.log(`[DailyLog] Skipped duplicate: ${entry.trim().slice(0, 60)}...`);
+    return JSON.stringify({
+      success: true,
+      message:
+        'Skipped — this topic is already logged today. Only log if something materially new happened.',
+      date: todayLog.date,
+      skipped: true,
+    });
   }
 
   const log = memoryManager.appendToDailyLog(entry.trim());

@@ -80,6 +80,7 @@ contextBridge.exposeInMainWorld('pocketAgent', {
     search: (query: string) => ipcRenderer.invoke('facts:search', query),
     getCategories: () => ipcRenderer.invoke('facts:categories'),
     delete: (id: number) => ipcRenderer.invoke('facts:delete', id),
+    memoryUsage: () => ipcRenderer.invoke('facts:memoryUsage'),
   },
 
   // ─── Soul (Self-Knowledge) ──────────────────────────────────────────
@@ -87,12 +88,14 @@ contextBridge.exposeInMainWorld('pocketAgent', {
     listAspects: () => ipcRenderer.invoke('soul:list'),
     getAspect: (aspect: string) => ipcRenderer.invoke('soul:get', aspect),
     deleteAspect: (id: number) => ipcRenderer.invoke('soul:delete', id),
+    memoryUsage: () => ipcRenderer.invoke('soul:memoryUsage'),
   },
 
   // ─── Daily Logs ──────────────────────────────────────────────────────
   dailyLogs: {
     list: () => ipcRenderer.invoke('dailyLogs:list'),
     delete: (id: number) => ipcRenderer.invoke('dailyLogs:delete', id),
+    memoryUsage: () => ipcRenderer.invoke('dailyLogs:memoryUsage'),
   },
 
   // ─── App (Windows, Navigation, Info) ─────────────────────────────────
@@ -452,6 +455,7 @@ declare global {
         ) => Promise<Array<{ category: string; subject: string; content: string }>>;
         getCategories: () => Promise<string[]>;
         delete: (id: number) => Promise<{ success: boolean }>;
+        memoryUsage: () => Promise<{ usedChars: number; budgetChars: number; pct: number }>;
       };
 
       soul: {
@@ -472,6 +476,7 @@ declare global {
           updated_at: string;
         } | null>;
         deleteAspect: (id: number) => Promise<{ success: boolean }>;
+        memoryUsage: () => Promise<{ usedChars: number; budgetChars: number; pct: number }>;
       };
 
       dailyLogs: {
@@ -479,6 +484,7 @@ declare global {
           Array<{ id: number; date: string; content: string; updated_at: string }>
         >;
         delete: (id: number) => Promise<{ success: boolean }>;
+        memoryUsage: () => Promise<{ usedChars: number; budgetChars: number; pct: number }>;
       };
 
       app: {

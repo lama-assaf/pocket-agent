@@ -1,5 +1,11 @@
 import Database from 'better-sqlite3';
 
+/** Hard character budget for soul aspects injected into the system prompt (~500 tokens) */
+export const SOUL_CHAR_BUDGET = 1500;
+
+/** Percentage threshold at which memory pressure warnings are shown */
+const MEMORY_PRESSURE_THRESHOLD = 0.8;
+
 export interface SoulAspect {
   id: number;
   aspect: string;
@@ -119,6 +125,7 @@ export function deleteSoulAspectById(db: Database.Database, id: number, cache: S
 
 /**
  * Get soul aspects formatted for context injection.
+ * Truncates at SOUL_CHAR_BUDGET and includes a usage header.
  * Uses the cache to avoid re-computing when nothing has changed.
  */
 export function getSoulContext(db: Database.Database, cache: SoulCache): string {
@@ -134,14 +141,62 @@ export function getSoulContext(db: Database.Database, cache: SoulCache): string 
     return '';
   }
 
-  const lines: string[] = ['## Soul'];
+  // Reserve space for the header line
+  const headerReserve = 80;
+  const contentBudget = SOUL_CHAR_BUDGET - headerReserve;
+
+  const includedLines: string[] = [];
+  let usedChars = 0;
+
   for (const aspect of aspects) {
-    lines.push(`\n### ${aspect.aspect}`);
-    lines.push(aspect.content);
+    const aspectHeader = `\n### ${aspect.aspect}`;
+    const aspectContent = aspect.content;
+    const additionalChars = aspectHeader.length + 1 + aspectContent.length; // +1 for newline
+
+    if (usedChars + additionalChars > contentBudget) break;
+
+    usedChars += additionalChars;
+    includedLines.push(aspectHeader);
+    includedLines.push(aspectContent);
   }
 
-  const result = lines.join('\n');
+  // Build usage header
+  const totalChars = usedChars + headerReserve;
+  const pct = Math.round((totalChars / SOUL_CHAR_BUDGET) * 100);
+  const pressureWarning =
+    pct >= MEMORY_PRESSURE_THRESHOLD * 100
+      ? ' ⚠️ Memory nearly full — consolidate approach notes'
+      : '';
+  const header = `## Soul [${pct}% — ${totalChars}/${SOUL_CHAR_BUDGET} chars]${pressureWarning}`;
+
+  const result = [header, ...includedLines].join('\n');
   cache.soulContextCache = result;
   cache.soulContextCacheValid = true;
   return result;
+}
+
+/**
+ * Get memory usage stats for the soul budget.
+ */
+export function getSoulMemoryUsage(db: Database.Database): {
+  usedChars: number;
+  budgetChars: number;
+  pct: number;
+} {
+  const aspects = getAllSoulAspects(db);
+
+  const headerReserve = 80;
+  const contentBudget = SOUL_CHAR_BUDGET - headerReserve;
+  let usedChars = 0;
+
+  for (const aspect of aspects) {
+    const aspectHeader = `\n### ${aspect.aspect}`;
+    const additionalChars = aspectHeader.length + 1 + aspect.content.length;
+    if (usedChars + additionalChars > contentBudget) break;
+    usedChars += additionalChars;
+  }
+
+  const totalChars = usedChars + headerReserve;
+  const pct = Math.round((totalChars / SOUL_CHAR_BUDGET) * 100);
+  return { usedChars: totalChars, budgetChars: SOUL_CHAR_BUDGET, pct };
 }
