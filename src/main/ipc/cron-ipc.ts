@@ -4,7 +4,7 @@ import { AgentManager } from '../../agent';
 import { getWindow } from '../windows';
 
 export function registerCronIPC(deps: IPCDependencies): void {
-  const { getScheduler, getIosChannel, updateTrayMenu, WIN } = deps;
+  const { getScheduler, updateTrayMenu, WIN } = deps;
 
   ipcMain.handle('cron:list', async () => {
     return getScheduler()?.getAllJobs() || [];
@@ -29,11 +29,6 @@ export function registerCronIPC(deps: IPCDependencies): void {
         sessionId || 'default'
       );
       updateTrayMenu();
-      // Notify iOS of updated routines
-      const iosChannel = getIosChannel();
-      if (iosChannel) {
-        iosChannel.broadcast({ type: 'routines', jobs: scheduler?.getAllJobs() || [] });
-      }
       return { success };
     }
   );
@@ -42,11 +37,6 @@ export function registerCronIPC(deps: IPCDependencies): void {
     const scheduler = getScheduler();
     const success = scheduler?.deleteJob(name);
     updateTrayMenu();
-    // Notify iOS of updated routines
-    const iosChannel = getIosChannel();
-    if (success && iosChannel) {
-      iosChannel.broadcast({ type: 'routines', jobs: scheduler?.getAllJobs() || [] });
-    }
     return { success };
   });
 
@@ -54,11 +44,6 @@ export function registerCronIPC(deps: IPCDependencies): void {
     const scheduler = getScheduler();
     const success = scheduler?.setJobEnabled(name, enabled);
     updateTrayMenu();
-    // Notify iOS of updated routines
-    const iosChannel = getIosChannel();
-    if (success && iosChannel) {
-      iosChannel.broadcast({ type: 'routines', jobs: scheduler?.getAllJobs() || [] });
-    }
     return { success };
   });
 

@@ -151,7 +151,6 @@ export const TOOL_TIMEOUTS = {
   notify: 5000,
 
   // Medium tools - up to 15s
-  memory_search: 15000,
   schedule_task: 10000,
   list_scheduled_tasks: 5000,
   delete_scheduled_task: 5000,

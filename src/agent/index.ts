@@ -205,28 +205,6 @@ class AgentManagerClass extends EventEmitter {
     addOnHandoffCallback(({ fromMode, toMode, reason }) => {
       console.log(`[AgentManager] Handoff: ${fromMode} -> ${toMode} (${reason})`);
     });
-
-    // Backfill message embeddings asynchronously (for semantic retrieval)
-    this.backfillMessageEmbeddings().catch((e) => {
-      console.error('[AgentManager] Embedding backfill failed:', e);
-    });
-  }
-
-  /**
-   * Backfill embeddings for messages that don't have them yet.
-   * Runs asynchronously in the background during initialization.
-   */
-  private async backfillMessageEmbeddings(): Promise<void> {
-    if (!this.memory) return;
-
-    // Get all sessions and backfill each
-    const sessions = this.memory.getSessions();
-    for (const session of sessions) {
-      const embedded = await this.memory.embedRecentMessages(session.id, 100);
-      if (embedded > 0) {
-        console.log(`[AgentManager] Backfilled ${embedded} embeddings for session ${session.id}`);
-      }
-    }
   }
 
   isInitialized(): boolean {

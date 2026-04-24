@@ -131,39 +131,3 @@ function handleTelegramMessage(data) {
 }
 
 
-function handleIOSMessage(data) {
-  // Only show message if it's for the current session
-  if (data.sessionId && data.sessionId !== currentSessionId) {
-    console.log(`[Chat] iOS message for session ${data.sessionId}, current is ${currentSessionId} - skipping display`);
-    return;
-  }
-
-  // Clear empty state if present
-  const emptyState = messagesDiv.querySelector('.empty-state');
-  if (emptyState) emptyState.remove();
-
-  // Add user message (strip workflow content for display)
-  let iosDisplayMsg = data.userMessage;
-  if (iosDisplayMsg && iosDisplayMsg.startsWith('[Workflow: ')) {
-    const eb = iosDisplayMsg.indexOf(']');
-    const em = iosDisplayMsg.indexOf('[/Workflow]');
-    if (eb !== -1 && em !== -1) {
-      const wfName = iosDisplayMsg.substring(11, eb);
-      const userText = iosDisplayMsg.substring(em + 11).replace(/^\n\n/, '').trim();
-      iosDisplayMsg = wfName + (userText ? ' ' + userText : '');
-    }
-  }
-  addMessage('user', iosDisplayMsg);
-
-  // Add the agent's response (with media if present) — skip empty (aborted)
-  if (data.response) {
-    addMessage('assistant', data.response, true, [], null, true, data.media);
-  }
-
-  // Update stats and scroll
-  updateStats();
-  scrollToBottom();
-}
-
-
-

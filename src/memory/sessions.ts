@@ -215,14 +215,6 @@ export function deleteSession(db: Database.Database, id: string): boolean {
   // Delete all related data first (due to foreign key constraints)
   // Order matters: delete child records before parent records
 
-  // Delete message embeddings for messages in this session
-  db.prepare(
-    `
-      DELETE FROM message_embeddings
-      WHERE message_id IN (SELECT id FROM messages WHERE session_id = ?)
-    `
-  ).run(id);
-
   // Delete messages and summaries
   db.prepare('DELETE FROM messages WHERE session_id = ?').run(id);
   db.prepare('DELETE FROM summaries WHERE session_id = ?').run(id);

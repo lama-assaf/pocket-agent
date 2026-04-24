@@ -80,7 +80,6 @@ function createEngine() {
     getSoulContext: vi.fn(() => ''),
     getDailyLogsContext: vi.fn(() => ''),
     saveMessage: vi.fn(() => 1),
-    embedMessage: vi.fn(async () => {}),
     getSmartContext: vi.fn(async () => ({ recentMessages: [], rollingSummary: null })),
     getSessionMode: vi.fn(() => 'general'),
     getSessionWorkingDirectory: vi.fn(() => null),

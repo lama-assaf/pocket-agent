@@ -141,7 +141,7 @@ describe('Agent Modes', () => {
 
     it('should have memory and soul tools for voice matching', () => {
       expect(AGENT_MODES.writer.allowedTools).toContain('mcp__pocket-agent__soul_get');
-      expect(AGENT_MODES.writer.allowedTools).toContain('mcp__pocket-agent__memory_search');
+      expect(AGENT_MODES.writer.allowedTools).toContain('mcp__pocket-agent__list_facts');
     });
   });
 

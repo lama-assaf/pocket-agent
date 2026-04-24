@@ -9,7 +9,7 @@ import type { IPCDependencies } from './types';
 
 /**
  * Get available models based on configured API keys.
- * Exported so other IPC modules (e.g. ios-ipc) can reuse it.
+ * Single source of truth for the model list.
  */
 export function getAvailableModels(): Array<{ id: string; name: string; provider: string }> {
   const models: Array<{ id: string; name: string; provider: string }> = [];
@@ -44,6 +44,8 @@ export function getAvailableModels(): Array<{ id: string; name: string; provider
   const hasOpenAIOAuth = SettingsManager.get('openai.auth.method') === 'oauth';
   if (hasOpenAIKey || hasOpenAIOAuth) {
     models.push(
+      { id: 'gpt-5.5', name: 'GPT-5.5', provider: 'openai' },
+      { id: 'gpt-5.5-pro', name: 'GPT-5.5 Pro', provider: 'openai' },
       { id: 'gpt-5.4', name: 'GPT-5.4', provider: 'openai' },
       { id: 'gpt-5.4-mini', name: 'GPT-5.4 Mini', provider: 'openai' },
       { id: 'gpt-5.3-codex', name: 'GPT-5.3 Codex', provider: 'openai' },
@@ -62,7 +64,7 @@ export function getAvailableModels(): Array<{ id: string; name: string; provider
 }
 
 export function registerSettingsIPC(deps: IPCDependencies): void {
-  const { getScheduler, getIosChannel, setTelegramBot, getTelegramBot, WIN } = deps;
+  const { getScheduler, setTelegramBot, getTelegramBot, WIN } = deps;
 
   // Keys that are encrypted but must be accessible from the renderer
   const RENDERER_ALLOWED_ENCRYPTED_KEYS = new Set(['chat.adminKey']);
@@ -98,28 +100,10 @@ export function registerSettingsIPC(deps: IPCDependencies): void {
         await setupBirthdayCronJobs(value, getScheduler());
       }
 
-      // Notify iOS when model changes
-      const iosChannel = getIosChannel();
-      if (key === 'agent.model' && iosChannel) {
-        iosChannel.broadcast({
-          type: 'models',
-          models: getAvailableModels(),
-          activeModelId: value,
-        });
-      }
-
-      // Notify iOS when mode changes (desktop toggle)
-      if (key === 'agent.mode' && iosChannel) {
-        iosChannel.broadcast({ type: 'mode', mode: value, locked: false });
-      }
-
-      // Broadcast skin change to all open windows + iOS
+      // Broadcast skin change to all open windows
       if (key === 'ui.skin') {
         for (const win of getAllWindows()) {
           win.webContents.send('skin:changed', value);
-        }
-        if (iosChannel) {
-          iosChannel.broadcast({ type: 'skin:changed', skinId: value });
         }
       }
 

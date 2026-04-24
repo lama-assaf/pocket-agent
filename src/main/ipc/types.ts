@@ -1,8 +1,6 @@
 import type { MemoryManager } from '../../memory';
 import type { CronScheduler } from '../../scheduler';
 import type { TelegramBot } from '../../channels/telegram';
-import type { iOSChannel } from '../../channels/ios';
-import type { AgentHomeChannel } from '../../channels/agent-home';
 
 /**
  * Dependency container passed to each IPC module.
@@ -14,11 +12,7 @@ export interface IPCDependencies {
   getMemory: () => MemoryManager | null;
   getScheduler: () => CronScheduler | null;
   getTelegramBot: () => TelegramBot | null;
-  getIosChannel: () => iOSChannel | null;
-  setIosChannel: (ch: iOSChannel | null) => void;
   setTelegramBot: (bot: TelegramBot | null) => void;
-  getAgentHomeChannel: () => AgentHomeChannel | null;
-  setAgentHomeChannel: (ch: AgentHomeChannel | null) => void;
 
   // Helper functions
   updateTrayMenu: () => void;

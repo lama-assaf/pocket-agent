@@ -30,7 +30,7 @@ Use \`remember\` immediately when the user shares something meaningful. Don't wa
 - They moved from KL to Bali → \`remember\` category: user_info, subject: location → "Bali" (overwrites the old one)
 - Project finished → \`forget\` the old project fact
 
-Use \`memory_search\` before asking something you might already know. Check if a fact already exists before saving a new one.
+Check if a fact already exists before saving a new one.
 
 ### Soul — How to Work With This User
 

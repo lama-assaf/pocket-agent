@@ -78,7 +78,7 @@ function renameSessionDirectory(oldPath: string, newName: string): string | null
 // ============ IPC Registration ============
 
 export function registerSessionsIPC(deps: IPCDependencies): void {
-  const { getMemory, getIosChannel } = deps;
+  const { getMemory } = deps;
 
   ipcMain.handle('sessions:list', async () => {
     return getMemory()?.getSessions() || [];
@@ -92,15 +92,6 @@ export function registerSessionsIPC(deps: IPCDependencies): void {
         `[Sessions] Creating session "${name}" mode=${mode} workingDirectory=null (deferred)`
       );
       const session = memory?.createSession(name, mode, null);
-      // Notify iOS of updated session list
-      const iosChannel = getIosChannel();
-      if (iosChannel) {
-        iosChannel.broadcast({
-          type: 'sessions',
-          sessions: memory?.getSessions() || [],
-          activeSessionId: '',
-        });
-      }
       return { success: true, session };
     } catch (err) {
       return { success: false, error: (err as Error).message };
@@ -127,14 +118,6 @@ export function registerSessionsIPC(deps: IPCDependencies): void {
       }
 
       const success = memory?.renameSession(id, name, newWorkingDirectory) ?? false;
-      const iosChannel = getIosChannel();
-      if (success && iosChannel) {
-        iosChannel.broadcast({
-          type: 'sessions',
-          sessions: memory?.getSessions() || [],
-          activeSessionId: '',
-        });
-      }
       return { success };
     } catch (err) {
       return { success: false, error: (err as Error).message };
@@ -146,14 +129,6 @@ export function registerSessionsIPC(deps: IPCDependencies): void {
     AgentManager.cleanupSession(id);
     const memory = getMemory();
     const success = memory?.deleteSession(id) ?? false;
-    const iosChannel = getIosChannel();
-    if (success && iosChannel) {
-      iosChannel.broadcast({
-        type: 'sessions',
-        sessions: memory?.getSessions() || [],
-        activeSessionId: '',
-      });
-    }
     return { success };
   });
 }

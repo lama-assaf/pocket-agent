@@ -84,6 +84,8 @@ const MODEL_CONTEXT_WINDOWS: Record<string, number> = {
   // Xiaomi/MiMo models
   'mimo-v2-pro': 1_000_000,
   // OpenAI models
+  'gpt-5.5': 1_000_000,
+  'gpt-5.5-pro': 1_000_000,
   'gpt-5.4': 1_050_000,
   'gpt-5.4-mini': 400_000,
   'gpt-5.3-codex': 400_000,
@@ -318,7 +320,7 @@ export class ChatEngine {
       conversation.push({ role: 'user', content: userContent });
 
       // Compact if needed (token-based: triggers when >80% of context window)
-      const wasCompacted = await this.compactConversation(sessionId, userMessage, model);
+      const wasCompacted = await this.compactConversation(sessionId, model);
 
       // Compact facts/soul memory if near capacity
       await this.compactMemoryIfNeeded(sessionId, model, channel);
@@ -686,11 +688,9 @@ export class ChatEngine {
       const attachmentType =
         attachmentInfo?.attachmentType ?? (images && images.length > 0 ? 'photo' : undefined);
       metadata = { source: 'telegram', hasAttachment, attachmentType };
-    } else if (channel === 'ios') {
-      metadata = { source: 'ios' };
     }
 
-    const userMsgId = this.memory.saveMessage('user', messageToSave, sessionId, metadata);
+    this.memory.saveMessage('user', messageToSave, sessionId, metadata);
     const assistantMetadata: Record<string, unknown> | undefined = metadata
       ? { source: metadata.source }
       : undefined;
@@ -699,20 +699,7 @@ export class ChatEngine {
     if (assistantMetadata && toolsUsed && toolsUsed.length > 0) {
       assistantMetadata.toolsUsed = [...new Set(toolsUsed)];
     }
-    const assistantMsgId = this.memory.saveMessage(
-      'assistant',
-      response,
-      sessionId,
-      assistantMetadata
-    );
-
-    // Embed asynchronously
-    this.memory
-      .embedMessage(userMsgId)
-      .catch((e) => console.error('[ChatEngine] Failed to embed user message:', e));
-    this.memory
-      .embedMessage(assistantMsgId)
-      .catch((e) => console.error('[ChatEngine] Failed to embed assistant message:', e));
+    this.memory.saveMessage('assistant', response, sessionId, assistantMetadata);
   }
 
   // ─── User content building ─────────────────────────────────────
@@ -889,7 +876,6 @@ export class ChatEngine {
       const smartContext = await this.memory.getSmartContext(sessionId, {
         recentMessageLimit: recentLimit,
         rollingSummaryInterval: summaryInterval,
-        semanticRetrievalCount: 0,
       });
 
       const conversation: MessageParam[] = [];
@@ -1004,11 +990,7 @@ export class ChatEngine {
     return cleaned;
   }
 
-  private async compactConversation(
-    sessionId: string,
-    currentQuery: string,
-    model: string
-  ): Promise<boolean> {
+  private async compactConversation(sessionId: string, model: string): Promise<boolean> {
     const conversation = this.conversationsBySession.get(sessionId);
     if (!conversation || conversation.length === 0) return false;
 
@@ -1030,8 +1012,6 @@ export class ChatEngine {
       const smartContext = await this.memory.getSmartContext(sessionId, {
         recentMessageLimit: recentLimit,
         rollingSummaryInterval: summaryInterval,
-        semanticRetrievalCount: 5,
-        currentQuery,
       });
 
       const newConversation: MessageParam[] = [];

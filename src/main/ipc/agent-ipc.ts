@@ -8,7 +8,7 @@ import { getWindow } from '../windows';
 import type { IPCDependencies } from './types';
 
 export function registerAgentIPC(deps: IPCDependencies): void {
-  const { getMemory, getTelegramBot, getIosChannel, updateTrayMenu, WIN } = deps;
+  const { getMemory, getTelegramBot, updateTrayMenu, WIN } = deps;
 
   // Chat messages with status streaming
   ipcMain.handle(
@@ -83,12 +83,6 @@ export function registerAgentIPC(deps: IPCDependencies): void {
             });
         }
 
-        // Sync to iOS (Desktop -> iOS) — skip if response is empty (e.g. aborted)
-        const iosChannel = getIosChannel();
-        if (iosChannel && result.response) {
-          iosChannel.syncFromDesktop(message, result.response, effectiveSessionId, result.media);
-        }
-
         // If response is empty (e.g. aborted/stopped), signal stop instead of empty bubble
         if (!result.response) {
           return { success: true, stopped: true };
@@ -126,21 +120,11 @@ export function registerAgentIPC(deps: IPCDependencies): void {
     }
     AgentManager.clearConversation(sessionId);
     updateTrayMenu();
-    // Notify iOS app to clear its messages
-    const iosChannel = getIosChannel();
-    if (iosChannel && sessionId) {
-      iosChannel.broadcast({ type: 'session:cleared', sessionId });
-    }
     return { success: true };
   });
 
   ipcMain.handle('agent:stop', async (_, sessionId?: string) => {
     const stopped = AgentManager.stopQuery(sessionId);
-    // Broadcast done status directly to iOS so it clears the thinking indicator
-    const iosChannel = getIosChannel();
-    if (stopped && sessionId && iosChannel) {
-      iosChannel.broadcast({ type: 'status', status: 'done', sessionId });
-    }
     return { success: stopped };
   });
 

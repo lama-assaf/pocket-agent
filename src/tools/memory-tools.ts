@@ -193,74 +193,6 @@ export async function handleListFactsTool(input: unknown): Promise<string> {
 }
 
 /**
- * Memory search tool definition
- */
-export function getMemorySearchToolDefinition() {
-  return {
-    name: 'memory_search',
-    description:
-      'Search long-term memory using semantic + keyword hybrid search. Use proactively to recall facts about the user. Returns top 6 results.',
-    input_schema: {
-      type: 'object' as const,
-      properties: {
-        query: {
-          type: 'string',
-          description: 'Search query - can be natural language',
-        },
-      },
-      required: ['query'],
-    },
-  };
-}
-
-/**
- * Memory search tool handler
- */
-export async function handleMemorySearchTool(input: unknown): Promise<string> {
-  if (!memoryManager) {
-    return JSON.stringify({ error: 'Memory not initialized' });
-  }
-
-  const { query } = input as { query: string };
-
-  if (!query || query.trim().length === 0) {
-    return JSON.stringify({ error: 'Query is required' });
-  }
-
-  try {
-    const results = await memoryManager.searchFactsHybrid(query);
-
-    if (results.length === 0) {
-      return JSON.stringify({
-        success: true,
-        message: 'No relevant facts found',
-        results: [],
-      });
-    }
-
-    console.log(`[MemorySearch] Found ${results.length} results for: "${query}"`);
-
-    return JSON.stringify({
-      success: true,
-      count: results.length,
-      results: results.map((r) => ({
-        id: r.fact.id,
-        category: r.fact.category,
-        subject: r.fact.subject,
-        content: r.fact.content,
-        score: Math.round(r.score * 100) / 100,
-        vectorScore: Math.round(r.vectorScore * 100) / 100,
-        keywordScore: Math.round(r.keywordScore * 100) / 100,
-      })),
-    });
-  } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-    console.error('[MemorySearch] Failed:', errorMsg);
-    return JSON.stringify({ error: errorMsg });
-  }
-}
-
-/**
  * Daily log tool definition
  */
 export function getDailyLogToolDefinition() {
@@ -392,10 +324,6 @@ export function getMemoryTools() {
     {
       ...getListFactsToolDefinition(),
       handler: handleListFactsTool,
-    },
-    {
-      ...getMemorySearchToolDefinition(),
-      handler: handleMemorySearchTool,
     },
     {
       ...getDailyLogToolDefinition(),

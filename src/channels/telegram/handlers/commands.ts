@@ -5,9 +5,9 @@
 
 import { Context, Bot } from 'grammy';
 import { AgentManager } from '../../../agent';
-import { SettingsManager } from '../../../settings';
 import { SessionLinkCallback } from '../types';
 import { loadWorkflowCommands } from '../../../config/commands-loader';
+import { getAvailableModels } from '../../../main/ipc/settings-ipc';
 
 export interface CommandHandlerDeps {
   bot: Bot;
@@ -190,30 +190,8 @@ Workflows are reusable command templates. Use /workflow to see what's available,
     const args = ctx.message?.text?.split(/\s+/).slice(1) || [];
     const subcommand = args[0]?.toLowerCase();
 
-    // Get available models based on configured API keys
-    const availableModels: Array<{ id: string; name: string; provider: string }> = [];
-
-    const authMethod = SettingsManager.get('auth.method');
-    const hasOAuth = authMethod === 'oauth' && SettingsManager.get('auth.oauthToken');
-    const hasAnthropicKey = SettingsManager.get('anthropic.apiKey');
-
-    if (hasOAuth || hasAnthropicKey) {
-      availableModels.push(
-        { id: 'claude-opus-4-7', name: 'Opus 4.7', provider: 'Anthropic' },
-        { id: 'claude-sonnet-4-6', name: 'Sonnet 4.6', provider: 'Anthropic' },
-        { id: 'claude-haiku-4-5-20251001', name: 'Haiku 4.5', provider: 'Anthropic' }
-      );
-    }
-
-    if (SettingsManager.get('moonshot.apiKey')) {
-      availableModels.push({ id: 'kimi-k2.6', name: 'Kimi K2.6', provider: 'Moonshot' });
-    }
-
-    if (SettingsManager.get('glm.apiKey')) {
-      availableModels.push({ id: 'glm-5.1', name: 'GLM 5.1', provider: 'Z.AI' });
-      availableModels.push({ id: 'glm-5-turbo', name: 'GLM 5 Turbo', provider: 'Z.AI' });
-      availableModels.push({ id: 'glm-4.7', name: 'GLM 4.7', provider: 'Z.AI' });
-    }
+    // Single source of truth — same list the chat UI / settings use
+    const availableModels = getAvailableModels();
 
     const currentModel = AgentManager.getModel();
 

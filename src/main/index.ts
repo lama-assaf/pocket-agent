@@ -9,8 +9,6 @@ import { AgentManager } from '../agent';
 import { MemoryManager } from '../memory';
 import { createScheduler, CronScheduler } from '../scheduler';
 import { createTelegramBot, TelegramBot } from '../channels/telegram';
-import { createiOSChannel, iOSChannel } from '../channels/ios';
-import { createAgentHomeChannel, AgentHomeChannel } from '../channels/agent-home';
 import { SettingsManager } from '../settings';
 import { DEFAULT_COMMANDS } from '../config/commands';
 import { getBrowserManager } from '../browser';
@@ -25,11 +23,7 @@ import {
   registerSettingsIPC,
   registerFactsIPC,
   registerCronIPC,
-  registerIosIPC,
   registerMiscIPC,
-  wireIosChannelHandlers,
-  registerAgentHomeIPC,
-  wireAgentHomeChannelHandlers,
 } from './ipc';
 import type { IPCDependencies } from './ipc';
 
@@ -54,8 +48,6 @@ fixPathForPackagedApp();
 let memory: MemoryManager | null = null;
 let scheduler: CronScheduler | null = null;
 let telegramBot: TelegramBot | null = null;
-let iosChannel: iOSChannel | null = null;
-let agentHomeChannel: AgentHomeChannel | null = null;
 let splashWindow: BrowserWindow | null = null;
 // tray menu updates are event-driven via IPC handlers
 let modelChangedHandler: ((model: string) => void) | null = null;
@@ -472,16 +464,8 @@ function buildIPCDeps(): IPCDependencies {
     getMemory: () => memory,
     getScheduler: () => scheduler,
     getTelegramBot: () => telegramBot,
-    getIosChannel: () => iosChannel,
-    setIosChannel: (ch) => {
-      iosChannel = ch;
-    },
     setTelegramBot: (bot) => {
       telegramBot = bot;
-    },
-    getAgentHomeChannel: () => agentHomeChannel,
-    setAgentHomeChannel: (ch) => {
-      agentHomeChannel = ch;
     },
     updateTrayMenu,
     initializeAgent,
@@ -505,8 +489,6 @@ function setupIPC(): void {
   registerSettingsIPC(deps);
   registerFactsIPC(deps);
   registerCronIPC(deps);
-  registerIosIPC(deps);
-  registerAgentHomeIPC(deps);
   registerMiscIPC(deps);
 }
 
@@ -533,15 +515,6 @@ async function initializeAgent(): Promise<void> {
   // Initialize memory (if not already done)
   if (!memory) {
     memory = new MemoryManager(dbPath);
-  }
-
-  // Initialize embeddings if OpenAI key is available
-  const openaiKey = SettingsManager.get('openai.apiKey');
-  if (openaiKey) {
-    memory.initializeEmbeddings(openaiKey);
-    console.log('[Main] Embeddings enabled with OpenAI');
-  } else {
-    console.log('[Main] Embeddings disabled (no OpenAI API key)');
   }
 
   // Build tools config from settings
@@ -624,49 +597,6 @@ async function initializeAgent(): Promise<void> {
     }
   );
 
-  // Initialize iOS channel (WebSocket server for mobile companion app)
-  // Must be initialized BEFORE scheduler so push notifications work for jobs that fire during init
-  const iosEnabled = SettingsManager.getBoolean('ios.enabled');
-  console.log('[Main] iOS channel enabled:', iosEnabled);
-  if (iosEnabled) {
-    try {
-      iosChannel = createiOSChannel();
-
-      if (iosChannel) {
-        // Wire up all iOS channel handlers using the shared helper
-        wireIosChannelHandlers(buildIPCDeps());
-
-        await iosChannel.start();
-        const mode = iosChannel.getMode();
-        if (mode === 'relay') {
-          console.log(
-            `[Main] iOS channel started (relay, instance: ${iosChannel.getInstanceId()})`
-          );
-        } else {
-          console.log(`[Main] iOS channel started (local, port: ${iosChannel.getPort()})`);
-        }
-      }
-    } catch (error) {
-      console.error('[Main] iOS channel failed:', error);
-    }
-  }
-
-  // Initialize Agent Home channel
-  const agentHomeEnabled = SettingsManager.getBoolean('agentHome.enabled');
-  console.log('[Main] Agent Home channel enabled:', agentHomeEnabled);
-  if (agentHomeEnabled) {
-    try {
-      agentHomeChannel = createAgentHomeChannel();
-      if (agentHomeChannel) {
-        wireAgentHomeChannelHandlers(buildIPCDeps());
-        await agentHomeChannel.start();
-        console.log('[Main] Agent Home channel started');
-      }
-    } catch (error) {
-      console.error('[Main] Agent Home channel failed:', error);
-    }
-  }
-
   // Initialize scheduler
   if (SettingsManager.getBoolean('scheduler.enabled')) {
     scheduler = createScheduler();
@@ -690,26 +620,6 @@ async function initializeAgent(): Promise<void> {
           // Window not open — open it. loadHistory() on init will pick up
           // the message from the database, so no need to send via IPC.
           openChatWindow();
-        }
-      }
-    );
-
-    scheduler.setIOSSyncHandler(
-      (jobName: string, prompt: string, response: string, sessionId: string) => {
-        if (iosChannel) {
-          // WebSocket broadcast (reaches connected/foregrounded devices)
-          iosChannel.broadcast({
-            type: 'scheduler',
-            jobName,
-            prompt,
-            response,
-            sessionId,
-            timestamp: new Date().toISOString(),
-          });
-          // Push notification (reaches backgrounded/closed devices)
-          iosChannel
-            .sendPushNotifications(jobName, response, { sessionId, jobName, type: 'scheduler' })
-            .catch((err) => console.error('[Scheduler→iOS] Push failed:', err));
         }
       }
     );
@@ -778,10 +688,6 @@ async function initializeAgent(): Promise<void> {
 }
 
 async function stopAgent(): Promise<void> {
-  if (iosChannel) {
-    await iosChannel.stop();
-    iosChannel = null;
-  }
   if (telegramBot) {
     await telegramBot.stop();
     telegramBot = null;
@@ -830,12 +736,6 @@ app.whenReady().then(async () => {
         .catch((err) => {
           console.warn('[Power] CDP reconnect after resume failed:', err);
         });
-      // Force iOS relay reconnection — WebSocket is dead after sleep
-      if (iosChannel) {
-        iosChannel.forceReconnect().catch((err) => {
-          console.warn('[Power] iOS relay reconnect after resume failed:', err);
-        });
-      }
     });
 
     // Handle lock screen (display off but CPU running)
@@ -851,12 +751,6 @@ app.whenReady().then(async () => {
         .catch((err) => {
           console.warn('[Power] CDP reconnect after unlock failed:', err);
         });
-      // Force iOS relay reconnection — connection may have gone stale during lock
-      if (iosChannel) {
-        iosChannel.forceReconnect().catch((err) => {
-          console.warn('[Power] iOS relay reconnect after unlock failed:', err);
-        });
-      }
     });
 
     // Set Dock icon on macOS

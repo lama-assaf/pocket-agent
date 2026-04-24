@@ -11,20 +11,12 @@ export type ChatHandler = (
   response: string,
   sessionId: string
 ) => void;
-export type IOSSyncHandler = (
-  jobName: string,
-  prompt: string,
-  response: string,
-  sessionId: string
-) => void;
-
 /**
  * Holds references to all notification channel handlers.
  */
 export interface NotificationChannels {
   onNotification?: NotificationHandler;
   onChatMessage?: ChatHandler;
-  onIOSSync?: IOSSyncHandler;
   telegramBot: TelegramBot | null;
   memory: MemoryManager | null;
 }
@@ -56,7 +48,7 @@ export function stripMarkdown(text: string): string {
 }
 
 /**
- * Send a notification to all configured channels (desktop, iOS, Telegram).
+ * Send a notification to all configured channels (desktop, Telegram).
  * Used by routeJobResponse for scheduled job results.
  */
 export async function sendToAllChannels(
@@ -73,11 +65,6 @@ export async function sendToAllChannels(
   }
   // Note: no system notification here — the agent sends notifications via the notify
   // tool when appropriate, so a duplicate system notification is unnecessary.
-
-  // Send to iOS devices
-  if (channels.onIOSSync) {
-    channels.onIOSSync(jobName, prompt, response, sessionId);
-  }
 
   // Also send to Telegram if configured and session has a linked chat
   if (channels.telegramBot && channels.memory) {
@@ -113,11 +100,6 @@ export async function sendReminderToAllChannels(
   }
   if (channels.onChatMessage) {
     channels.onChatMessage(`${type}_reminder`, message, message, sessionId);
-  }
-
-  // Send to iOS devices
-  if (channels.onIOSSync) {
-    channels.onIOSSync(`${type}_reminder`, message, message, sessionId);
   }
 
   // Also send to Telegram if configured AND session has a linked chat

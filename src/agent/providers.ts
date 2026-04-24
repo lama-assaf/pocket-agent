@@ -62,6 +62,8 @@ export const MODEL_PROVIDERS: Record<string, ProviderType> = {
   // Xiaomi/MiMo models
   'mimo-v2-pro': 'xiaomi',
   // OpenAI models
+  'gpt-5.5': 'openai',
+  'gpt-5.5-pro': 'openai',
   'gpt-5.4': 'openai',
   'gpt-5.4-mini': 'openai',
   'gpt-5.3-codex': 'openai',

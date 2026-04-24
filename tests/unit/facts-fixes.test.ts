@@ -82,14 +82,6 @@ describe('Facts Fixes', () => {
       expect(results[0].content).toBe('hello world');
     });
 
-    it('FTS5 hybrid search escapes special chars correctly', async () => {
-      memory.saveFact('test', 'greeting', 'hello world');
-
-      // searchFactsHybrid uses FTS5 — special chars must be stripped
-      // Without escaping fix, this would throw "fts5: syntax error"
-      await expect(memory.searchFactsHybrid('hello* OR NOT world')).resolves.not.toThrow();
-    });
-
     it('should handle query that is entirely special characters', () => {
       memory.saveFact('test', 'name', 'hello');
 

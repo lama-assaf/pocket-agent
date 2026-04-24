@@ -9,8 +9,6 @@ import {
   getRecentMessages as _getRecentMessages,
   getMessageCount as _getMessageCount,
   getSmartContext as _getSmartContext,
-  embedMessage as _embedMessage,
-  embedRecentMessages as _embedRecentMessages,
 } from './messages';
 import {
   type DailyLog,
@@ -50,21 +48,18 @@ import {
 } from './telegram-sessions';
 import {
   createFactsCache,
-  initializeEmbeddings as _initializeEmbeddings,
-  embedMissingFacts as _embedMissingFacts,
   saveFact as _saveFact,
   getAllFacts as _getAllFacts,
   getFactsForContext as _getFactsForContext,
   getFactsMemoryUsage as _getFactsMemoryUsage,
   deleteFact as _deleteFact,
   deleteFactBySubject as _deleteFactBySubject,
-  searchFactsHybrid as _searchFactsHybrid,
   searchFacts as _searchFacts,
   getFactsByCategory as _getFactsByCategory,
   getFactCategories as _getFactCategories,
   decayFactImportance as _decayFactImportance,
 } from './facts';
-import type { FactsCache, Fact, SearchResult } from './facts';
+import type { FactsCache, Fact } from './facts';
 import {
   type Session,
   createSession as _createSession,
@@ -88,7 +83,7 @@ import {
 // Types
 export type { Session } from './sessions';
 export type { Message, SmartContextOptions, SmartContext, SummarizerFn } from './messages';
-export type { Fact, SearchResult } from './facts';
+export type { Fact } from './facts';
 export type { CronJob } from './cron-jobs';
 export type { DailyLog } from './daily-logs';
 export type { TelegramChatSession } from './telegram-sessions';
@@ -144,16 +139,6 @@ export class MemoryManager {
         content TEXT NOT NULL,
         created_at TEXT DEFAULT ((strftime('%Y-%m-%dT%H:%M:%fZ'))),
         updated_at TEXT DEFAULT ((strftime('%Y-%m-%dT%H:%M:%fZ')))
-      );
-
-      -- Embedding chunks linked to facts
-      CREATE TABLE IF NOT EXISTS chunks (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        fact_id INTEGER NOT NULL,
-        content TEXT NOT NULL,
-        embedding BLOB,
-        created_at TEXT DEFAULT ((strftime('%Y-%m-%dT%H:%M:%fZ'))),
-        FOREIGN KEY (fact_id) REFERENCES facts(id) ON DELETE CASCADE
       );
 
       -- Scheduled cron jobs (supports cron/at/every schedule types)
@@ -245,15 +230,6 @@ export class MemoryManager {
         created_at TEXT DEFAULT ((strftime('%Y-%m-%dT%H:%M:%fZ')))
       );
 
-      -- Message embeddings for semantic search of past conversations
-      CREATE TABLE IF NOT EXISTS message_embeddings (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        message_id INTEGER NOT NULL UNIQUE,
-        embedding BLOB NOT NULL,
-        created_at TEXT DEFAULT ((strftime('%Y-%m-%dT%H:%M:%fZ'))),
-        FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE
-      );
-
       -- Rolling summaries for smart context (different from compaction summaries)
       CREATE TABLE IF NOT EXISTS rolling_summaries (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -268,11 +244,9 @@ export class MemoryManager {
       -- Indexes for performance
       CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp);
       CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id, timestamp);
-      CREATE INDEX IF NOT EXISTS idx_message_embeddings_message ON message_embeddings(message_id);
       CREATE INDEX IF NOT EXISTS idx_rolling_summaries_session ON rolling_summaries(session_id, end_message_id);
       CREATE INDEX IF NOT EXISTS idx_facts_category ON facts(category);
       CREATE INDEX IF NOT EXISTS idx_facts_subject ON facts(subject);
-      CREATE INDEX IF NOT EXISTS idx_chunks_fact_id ON chunks(fact_id);
       CREATE INDEX IF NOT EXISTS idx_summaries_range ON summaries(start_message_id, end_message_id);
       CREATE INDEX IF NOT EXISTS idx_summaries_session ON summaries(session_id);
       CREATE INDEX IF NOT EXISTS idx_calendar_start ON calendar_events(start_time);
@@ -563,18 +537,6 @@ export class MemoryManager {
   }
 
   /**
-   * Initialize embeddings with OpenAI API key
-   */
-  initializeEmbeddings(openaiApiKey: string): void {
-    _initializeEmbeddings(openaiApiKey, this.factsCache);
-
-    // Embed any facts that don't have embeddings
-    _embedMissingFacts(this.db).catch((err) => {
-      console.error('[Memory] Failed to embed missing facts:', err);
-    });
-  }
-
-  /**
    * Set the summarizer function
    */
   setSummarizer(fn: SummarizerFn): void {
@@ -723,16 +685,7 @@ export class MemoryManager {
   ): Promise<SmartContext> {
     return _getSmartContext(this.db, sessionId, options, {
       summarizer: this.summarizer,
-      embeddingsReady: this.factsCache.embeddingsReady,
     });
-  }
-
-  async embedMessage(messageId: number): Promise<void> {
-    return _embedMessage(this.db, messageId);
-  }
-
-  async embedRecentMessages(sessionId: string = 'default', limit: number = 50): Promise<number> {
-    return _embedRecentMessages(this.db, sessionId, limit);
   }
 
   // ============ FACT METHODS ============
@@ -759,10 +712,6 @@ export class MemoryManager {
 
   deleteFactBySubject(category: string, subject: string): boolean {
     return _deleteFactBySubject(this.db, category, subject, this.factsCache);
-  }
-
-  async searchFactsHybrid(query: string): Promise<SearchResult[]> {
-    return _searchFactsHybrid(this.db, query);
   }
 
   searchFacts(query: string, category?: string): Fact[] {
@@ -809,7 +758,6 @@ export class MemoryManager {
     cronJobCount: number;
     summaryCount: number;
     estimatedTokens: number;
-    embeddedFactCount: number;
     sessionCount?: number;
   } {
     let messages: { c: number; t: number };
@@ -833,9 +781,6 @@ export class MemoryManager {
 
     const facts = this.db.prepare('SELECT COUNT(*) as c FROM facts').get() as { c: number };
     const cronJobs = this.db.prepare('SELECT COUNT(*) as c FROM cron_jobs').get() as { c: number };
-    const embeddedFacts = this.db
-      .prepare('SELECT COUNT(DISTINCT fact_id) as c FROM chunks WHERE embedding IS NOT NULL')
-      .get() as { c: number };
     const sessionCount = this.db.prepare('SELECT COUNT(*) as c FROM sessions').get() as {
       c: number;
     };
@@ -846,7 +791,6 @@ export class MemoryManager {
       cronJobCount: cronJobs.c,
       summaryCount: summaries.c,
       estimatedTokens: messages.t || 0,
-      embeddedFactCount: embeddedFacts.c,
       sessionCount: sessionCount.c,
     };
   }

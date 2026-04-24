@@ -567,21 +567,9 @@
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path stroke-width="1.5" d="M12 4V2m7 20a7 7 0 1 0-14 0"/><path stroke-width="2" d="M9.5 7.5h.01m4.98 0h.01"/><path stroke-width="1.5" d="M5.5 6.667c0-.62 0-.93.068-1.185a2 2 0 0 1 1.414-1.414C7.237 4 7.547 4 8.167 4h7.666c.62 0 .93 0 1.185.068a2 2 0 0 1 1.414 1.414c.068.255.068.565.068 1.185c0 1.24 0 1.86-.136 2.368a4 4 0 0 1-2.829 2.829c-.508.136-1.128.136-2.368.136h-2.334c-1.24 0-1.86 0-2.368-.136a4 4 0 0 1-2.829-2.829C5.5 8.527 5.5 7.907 5.5 6.667"/></g></svg>
           LLM
         </div>
-        <div class="settings-nav-item" data-section="agent_home">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"><path d="M3 10.182V22h18V10.182L12 2z"/><path d="M9 14h6v8H9z"/></g></svg>
-          Agent Home
-        </div>
         <div class="settings-nav-item" data-section="telegram">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21.048 3.053C18.87.707 2.486 6.453 2.5 8.55c.015 2.379 6.398 3.11 8.167 3.607c1.064.299 1.349.604 1.594 1.72c1.111 5.052 1.67 7.566 2.94 7.622c2.027.09 7.972-16.158 5.847-18.447Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M11.5 12.5L15 9"/></g></svg>
           Telegram
-        </div>
-        <div class="settings-nav-item" data-section="ios">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path stroke-width="2" d="M12 19h.01"/><path stroke-width="1.5" d="M13.5 2h-3c-2.357 0-3.536 0-4.268.732S5.5 4.643 5.5 7v10c0 2.357 0 3.535.732 4.268S8.143 22 10.5 22h3c2.357 0 3.535 0 4.268-.732c.732-.733.732-1.911.732-4.268V7c0-2.357 0-3.536-.732-4.268C17.035 2 15.857 2 13.5 2"/></g></svg>
-          Mobile
-        </div>
-        <div class="settings-nav-item" data-section="memory">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" stroke-width="1.5"/><path stroke-width="1.5" d="M12 16v-4.5"/><path stroke-width="1.8" d="M12 8.012v-.01"/></g></svg>
-          Memory
         </div>
         <div class="settings-nav-item" data-section="browser">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12.5 19v3m-2 0h4"/><circle cx="7" cy="7" r="7" stroke-linecap="round" transform="matrix(-1 0 0 1 20.5 2)"/><path stroke-linejoin="round" d="M8.5 4c.654.038.992.359 1.573.973c1.05 1.11 2.1 1.202 2.8.832c1.049-.555.167-1.453 1.399-1.94c.803-.32.915-1.185.468-1.865M20 10c-1.5 0-1.766 1.247-3 1c-2.5-.5-3.208.059-3.208 1.251s0 1.192-.52 2.086c-.338.582-.457 1.163.217 1.663"/><path stroke-linecap="round" d="M6.5 2a9.85 9.85 0 0 0-3 7.083C3.5 14.56 7.977 19 13.5 19a10 10 0 0 0 7-2.835"/></g></svg>
@@ -697,23 +685,6 @@
           </div>
         </section>
 
-        <!-- Agent Home Section -->
-        <section id="agent_home" class="settings-section">
-          <h2 class="section-title">Agent Home</h2>
-          <p class="section-desc">Connect to Agent Home for remote access via the iOS app.</p>
-          <div class="settings-grid">
-            <div class="setting-row"><label>Enable Agent Home</label><div class="toggle" id="agentHome.enabled-toggle" onclick="playNormalClick(); stgToggleAgentHome()"></div></div>
-          </div>
-          <div id="agent-home-config" style="margin-top: 10px;">
-            <div class="settings-grid">
-              <div class="setting-row setting-row--stacked"><label>Token</label><div class="key-input"><input type="password" id="agentHome.token" placeholder="Your Agent Home token"><button onclick="playNormalClick(); stgSaveAgentHomeSetting('agentHome.token')">Save</button></div></div>
-            </div>
-            <div class="settings-grid" style="margin-top: 4px;">
-              <div class="setting-row"><label>Status</label><span id="agent-home-status" class="auth-badge loading">checking...</span></div>
-            </div>
-          </div>
-        </section>
-
         <!-- Telegram Section -->
         <section id="telegram" class="settings-section">
           <h2 class="section-title">Telegram</h2>
@@ -723,31 +694,6 @@
             <div class="setting-row setting-row--stacked"><div class="flex-between"><label>Bot Token</label><a href="https://t.me/BotFather" target="_blank" class="key-link">@BotFather</a></div><div class="key-input"><input type="password" id="telegram.botToken" placeholder="123456:ABC-DEF..."><button class="delete-btn" id="telegram.botToken-delete" onclick="playNormalClick(); stgDeleteKey('telegram.botToken')"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5" d="m19.5 5.5l-.62 10.025c-.158 2.561-.237 3.842-.88 4.763a4 4 0 0 1-1.2 1.128c-.957.584-2.24.584-4.806.584c-2.57 0-3.855 0-4.814-.585a4 4 0 0 1-1.2-1.13c-.642-.922-.72-2.205-.874-4.77L4.5 5.5M3 5.5h18m-4.944 0l-.683-1.408c-.453-.936-.68-1.403-1.071-1.695a2 2 0 0 0-.275-.172C13.594 2 13.074 2 12.035 2c-1.066 0-1.599 0-2.04.234a2 2 0 0 0-.278.18c-.395.303-.616.788-1.058 1.757L8.053 5.5"/></svg></button><button onclick="playNormalClick(); stgValidateKey('telegram')">Test</button></div></div>
             <div class="setting-row setting-row--stacked"><div class="flex-between"><label style="display:flex;align-items:center;margin:0;">Allowed Users <span class="badge-required">Required</span></label><a href="https://t.me/userinfobot" target="_blank" class="key-link">@userinfobot</a></div><div class="key-input"><input type="text" id="telegram.allowedUserIds" placeholder="e.g. 918273645"><button onclick="playNormalClick(); stgSaveTelegramSetting('telegram.allowedUserIds')">Save</button></div></div>
             <div class="setting-row setting-row--stacked"><label>Default Chat</label><div class="key-input"><input type="text" id="telegram.defaultChatId" placeholder="e.g. -100123456789"><button onclick="playNormalClick(); stgSaveTelegramSetting('telegram.defaultChatId')">Save</button></div></div>
-          </div>
-        </section>
-
-        <!-- iOS Mobile Section -->
-        <section id="ios" class="settings-section">
-          <h2 class="section-title">Mobile Companion</h2>
-          <p class="section-desc">Connect the Pocket Agent iOS app for on-the-go access.</p>
-          <div class="settings-grid"><div class="setting-row"><label>Enable Mobile Connection</label><div class="toggle" id="ios.enabled-toggle" onclick="playNormalClick(); stgToggleiOS()"></div></div></div>
-          <div id="ios-config" style="margin-top: 10px;">
-            <div id="ios-instance-section" style="margin-top: 8px;"><h3 class="subsection-title" style="margin: 0 0 8px 0; font-size: 14px; font-weight: 600; color: var(--text-secondary);">Instance ID</h3><p style="color: var(--text-muted); font-size: 11px; margin-bottom: 10px;">Enter this in the iOS app to identify your desktop. Click to copy.</p><div class="card-box"><div id="ios-instance-id" class="code-display" style="color: var(--text-primary);" onclick="playNormalClick(); stgCopyInstanceId()" title="Click to copy">--------</div></div></div>
-            <div id="ios-pairing" style="margin-top: 16px;"><div class="flex-between"><h3 class="subsection-title" style="margin: 0; font-size: 14px; font-weight: 600; color: var(--text-secondary);">Pairing Code</h3><button onclick="playNormalClick(); stgRefreshPairingCode(true)" style="padding: 4px 12px; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-secondary); font-size: 11px; cursor: pointer;">New Code</button></div><p style="color: var(--text-muted); font-size: 11px; margin: 6px 0 10px 0;">One-time code to pair a new device. Click to copy. Expires in 5 minutes.</p><div class="card-box"><div id="ios-pairing-code" class="code-display" style="color: var(--accent);" onclick="playNormalClick(); stgCopyPairingCode()" title="Click to copy">------</div></div></div>
-            <div style="margin-top: 16px;"><h3 class="subsection-title" style="margin-bottom: 12px; font-size: 14px; font-weight: 600; color: var(--text-secondary);">Connected Devices</h3><div id="ios-devices" class="card-box" style="padding: 16px;"><p style="color: var(--text-muted); font-size: 13px; text-align: center;">No devices connected</p></div></div>
-          </div>
-        </section>
-
-        <!-- Memory Section -->
-        <section id="memory" class="settings-section">
-          <h2 class="section-title">Memory & Search</h2>
-          <p class="section-desc">Fine-tune how I remember and find things.</p>
-          <div class="settings-grid">
-            <div class="setting-row"><label>Embeddings</label><select id="memory.embeddingProvider"><option value="openai">OpenAI</option><option value="none">None</option></select></div>
-            <div class="setting-row"><label>Vector Weight</label><input type="number" id="memory.vectorWeight" step="0.1" min="0" max="1" placeholder="0.7"></div>
-            <div class="setting-row"><label>Keyword Weight</label><input type="number" id="memory.keywordWeight" step="0.1" min="0" max="1" placeholder="0.3"></div>
-            <div class="setting-row"><label>Min Score</label><input type="number" id="memory.minScoreThreshold" step="0.05" min="0" max="1" placeholder="0.35"></div>
-            <div class="setting-row"><label>Max Results</label><input type="number" id="memory.maxSearchResults" min="1" max="20" placeholder="6"></div>
           </div>
         </section>
 

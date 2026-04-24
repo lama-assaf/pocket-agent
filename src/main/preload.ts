@@ -250,20 +250,6 @@ contextBridge.exposeInMainWorld('pocketAgent', {
     testConnection: (cdpUrl?: string) => ipcRenderer.invoke('browser:testConnection', cdpUrl),
   },
 
-  // ─── iOS Mobile Companion ──────────────────────────────────────────
-  ios: {
-    getPairingCode: (regenerate?: boolean) => ipcRenderer.invoke('ios:pairing-code', regenerate),
-    getDevices: () => ipcRenderer.invoke('ios:devices'),
-    getInfo: () => ipcRenderer.invoke('ios:info'),
-    toggle: (enabled: boolean) => ipcRenderer.invoke('ios:toggle', enabled),
-  },
-
-  // ─── Agent Home ────────────────────────────────────────────────────
-  agentHome: {
-    toggle: (enabled: boolean) => ipcRenderer.invoke('agentHome:toggle', enabled),
-    getStatus: () => ipcRenderer.invoke('agentHome:status'),
-  },
-
   // ─── Shell ───────────────────────────────────────────────────────────
   shell: {
     runCommand: (command: string) => ipcRenderer.invoke('shell:runCommand', command),
@@ -330,28 +316,6 @@ contextBridge.exposeInMainWorld('pocketAgent', {
       ) => callback(data);
       ipcRenderer.on('telegram:message', listener);
       return () => ipcRenderer.removeListener('telegram:message', listener);
-    },
-    onIOSMessage: (
-      callback: (data: {
-        userMessage: string;
-        response: string;
-        sessionId: string;
-        deviceId: string;
-        media?: Array<{ type: string; filePath: string; mimeType: string }>;
-      }) => void
-    ) => {
-      const listener = (
-        _event: Electron.IpcRendererEvent,
-        data: {
-          userMessage: string;
-          response: string;
-          sessionId: string;
-          deviceId: string;
-          media?: Array<{ type: string; filePath: string; mimeType: string }>;
-        }
-      ) => callback(data);
-      ipcRenderer.on('ios:message', listener);
-      return () => ipcRenderer.removeListener('ios:message', listener);
     },
     onModelChanged: (callback: (model: string) => void) => {
       const listener = (_event: Electron.IpcRendererEvent, model: string) => callback(model);
@@ -680,20 +644,6 @@ declare global {
         ) => Promise<{ connected: boolean; error?: string; browserInfo?: unknown }>;
       };
 
-      ios: {
-        getPairingCode: (
-          regenerate?: boolean
-        ) => Promise<{ code: string; expiresAt: string } | null>;
-        getDevices: () => Promise<Array<{ id: string; name: string; lastSeen: string }>>;
-        getInfo: () => Promise<{ enabled: boolean; port: number }>;
-        toggle: (enabled: boolean) => Promise<{ success: boolean; error?: string }>;
-      };
-
-      agentHome: {
-        toggle: (enabled: boolean) => Promise<{ success: boolean; error?: string }>;
-        getStatus: () => Promise<{ connected: boolean; agentName: string }>;
-      };
-
       shell: {
         runCommand: (command: string) => Promise<string>;
       };
@@ -731,15 +681,6 @@ declare global {
             hasAttachment?: boolean;
             attachmentType?: 'photo' | 'voice' | 'audio';
             wasCompacted?: boolean;
-            media?: Array<{ type: string; filePath: string; mimeType: string }>;
-          }) => void
-        ) => () => void;
-        onIOSMessage: (
-          callback: (data: {
-            userMessage: string;
-            response: string;
-            sessionId: string;
-            deviceId: string;
             media?: Array<{ type: string; filePath: string; mimeType: string }>;
           }) => void
         ) => () => void;

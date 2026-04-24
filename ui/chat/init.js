@@ -17,8 +17,7 @@ async function initializeChat() {
   // Do NOT reload history on visibility restore: loadHistory wipes #messages
   // and re-renders from DB. If a send/stream is in flight when the user
   // minimizes, the in-DOM user bubble or streaming reply may not yet be
-  // persisted — the reload would erase them. Push events (scheduler, Telegram,
-  // iOS) keep the UI in sync without a reload.
+  // persisted — the reload would erase them. Push events (scheduler, Telegram) keep the UI in sync without a reload.
   document.addEventListener('visibilitychange', () => {
     document.body.classList.toggle('animations-paused', document.hidden);
   });
@@ -75,22 +74,6 @@ async function initializeChat() {
   // Listen for Telegram messages (cross-channel sync)
   window.pocketAgent.events.onTelegramMessage((data) => {
     handleTelegramMessage(data);
-  });
-
-  // Listen for iOS messages (cross-channel sync)
-  window.pocketAgent.events.onIOSMessage((data) => {
-    console.log('[Chat] Received iOS message:', data);
-    handleIOSMessage(data);
-  });
-
-  // Listen for session clears from iOS
-  window.pocketAgent.sessions.onCleared((sessionId) => {
-    console.log('[Chat] Session cleared from iOS:', sessionId);
-    if (sessionId === currentSessionId) {
-      disableAutoAnimate(); messagesDiv.innerHTML = ''; enableAutoAnimate();
-      showEmptyState();
-      updateStats();
-    }
   });
 
   // Listen for session changes (e.g., Telegram link/unlink)

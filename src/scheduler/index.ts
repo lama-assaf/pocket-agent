@@ -12,7 +12,6 @@ import {
   type NotificationChannels,
   type NotificationHandler,
   type ChatHandler,
-  type IOSSyncHandler,
 } from './notifications';
 
 // Re-export for backward compatibility
@@ -66,7 +65,6 @@ export class CronScheduler {
 
   private onNotification?: NotificationHandler;
   private onChatMessage?: ChatHandler;
-  private onIOSSync?: IOSSyncHandler;
 
   constructor() {}
 
@@ -77,7 +75,6 @@ export class CronScheduler {
     return {
       onNotification: this.onNotification,
       onChatMessage: this.onChatMessage,
-      onIOSSync: this.onIOSSync,
       telegramBot: this.telegramBot,
       memory: this.memory,
     };
@@ -436,11 +433,6 @@ export class CronScheduler {
       channels.onChatMessage(jobName, prompt, response, sessionId);
     }
 
-    // Send to iOS devices
-    if (channels.onIOSSync) {
-      channels.onIOSSync(jobName, prompt, response, sessionId);
-    }
-
     // Also send to Telegram if configured AND session has a linked chat
     if (channels.telegramBot && channels.memory) {
       const linkedChatId = channels.memory.getChatForSession(sessionId);
@@ -614,15 +606,6 @@ export class CronScheduler {
     handler: (jobName: string, prompt: string, response: string, sessionId: string) => void
   ): void {
     this.onChatMessage = handler;
-  }
-
-  /**
-   * Set iOS sync handler (for sending scheduled results to iOS devices)
-   */
-  setIOSSyncHandler(
-    handler: (jobName: string, prompt: string, response: string, sessionId: string) => void
-  ): void {
-    this.onIOSSync = handler;
   }
 
   /**

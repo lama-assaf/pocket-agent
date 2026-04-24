@@ -244,7 +244,7 @@ function formatContent(text) {
     // Wrap tables in scrollable container
     html = html.replace(/<table>/g, '<div class="table-wrapper"><table>');
     html = html.replace(/<\/table>/g, '</table></div>');
-    // Sanitize to prevent XSS from untrusted message sources (Telegram, iOS, agent responses)
+    // Sanitize to prevent XSS from untrusted message sources (Telegram, agent responses)
     html = DOMPurify.sanitize(html, {
       ADD_ATTR: ['data-path', 'target'],
     });

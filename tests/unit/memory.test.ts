@@ -47,7 +47,6 @@ describe('MemoryManager', () => {
       expect(stats).toHaveProperty('cronJobCount');
       expect(stats).toHaveProperty('summaryCount');
       expect(stats).toHaveProperty('estimatedTokens');
-      expect(stats).toHaveProperty('embeddedFactCount');
     });
 
     it('should create indexes', () => {
@@ -506,7 +505,6 @@ describe('MemoryManager', () => {
         expect(stats.cronJobCount).toBe(0);
         expect(stats.summaryCount).toBe(0);
         expect(stats.estimatedTokens).toBe(0);
-        expect(stats.embeddedFactCount).toBe(0);
       });
 
       it('should return correct counts', () => {

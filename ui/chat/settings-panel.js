@@ -230,9 +230,7 @@ function _stgPopulateFields() {
 
 function _stgUpdateToggles() {
   const toggleMap = {
-    'agentHome.enabled': { toggle: 'agentHome.enabled-toggle', config: 'agent-home-config' },
     'telegram.enabled': { toggle: 'telegram.enabled-toggle', config: 'telegram-config' },
-    'ios.enabled': { toggle: 'ios.enabled-toggle', config: 'ios-config' },
     'browser.enabled': { toggle: 'browser.enabled-toggle', config: 'browser-config' },
     'browser.useMyBrowser': { toggle: 'browser.useMyBrowser-toggle' },
     'pocketCli.autoCheck': { toggle: 'pocketCli.autoCheck-toggle', defaultTrue: true },
@@ -292,15 +290,6 @@ function _stgNavigateToSection(sectionId) {
     targetSection.classList.add('active');
   }
 
-  if (sectionId === 'agent_home') {
-    _stgInitAgentHome();
-  }
-
-  if (sectionId === 'ios') {
-    _stgRefreshIOSInfo();
-    _stgRefreshPairingCode();
-    _stgRefreshConnectedDevices();
-  }
 }
 
 function _stgSetupAutoSave() {
@@ -311,7 +300,6 @@ function _stgSetupAutoSave() {
     'auth-api-key', 'oauth-code',
     'telegram.botToken', 'telegram.allowedUserIds', 'telegram.defaultChatId',
     'chat.adminKey',
-    'agentHome.token'
   ];
 
   const inputs = root.querySelectorAll('input, select');
@@ -528,104 +516,6 @@ async function stgSaveTelegramSetting(inputId) {
     console.error('[Settings] Failed to save telegram setting:', err);
     _stgShowToast('Save failed, try again?', 'error');
   }
-}
-
-// ---- iOS ----
-
-async function stgToggleiOS() {
-  const currentValue = _stgSettings['ios.enabled'] === 'true';
-  const newValue = !currentValue;
-  try {
-    await window.pocketAgent.settings.set('ios.enabled', newValue.toString());
-    _stgSettings['ios.enabled'] = newValue.toString();
-    _stgUpdateToggles();
-    const result = await window.pocketAgent.ios.toggle(newValue);
-    if (result.success) {
-      _stgShowToast(newValue ? 'Mobile connection started!' : 'Mobile connection stopped', 'success');
-      if (newValue) setTimeout(() => { _stgRefreshIOSInfo(); _stgRefreshPairingCode(); _stgRefreshConnectedDevices(); }, 500);
-    } else {
-      _stgShowToast('Failed: ' + (result.error || 'Unknown error'), 'error');
-    }
-  } catch (err) {
-    console.error('[Settings] Failed to toggle iOS:', err);
-    _stgShowToast('Failed to toggle mobile connection', 'error');
-  }
-}
-
-async function stgCopyPairingCode() {
-  const codeEl = document.getElementById('ios-pairing-code');
-  const code = codeEl.textContent;
-  if (!code || code === '------') return;
-  try {
-    await navigator.clipboard.writeText(code);
-    codeEl.style.transform = 'scale(1.05)';
-    codeEl.style.color = 'var(--success)';
-    setTimeout(() => { codeEl.style.transform = 'scale(1)'; codeEl.style.color = 'var(--accent)'; }, 500);
-    _stgShowToast('Pairing code copied');
-  } catch (err) { _stgShowToast('Failed to copy', 'error'); }
-}
-
-async function stgCopyInstanceId() {
-  const el = document.getElementById('ios-instance-id');
-  const id = el.textContent;
-  if (!id || id === '--------') return;
-  try {
-    await navigator.clipboard.writeText(id);
-    el.style.transform = 'scale(1.05)';
-    el.style.color = 'var(--success)';
-    setTimeout(() => { el.style.transform = 'scale(1)'; el.style.color = 'var(--text-primary)'; }, 500);
-    _stgShowToast('Instance ID copied');
-  } catch (err) { _stgShowToast('Failed to copy', 'error'); }
-}
-
-async function _stgRefreshPairingCode(regenerate) {
-  try {
-    const result = await window.pocketAgent.ios.getPairingCode(!!regenerate);
-    if (result && result.code) {
-      document.getElementById('ios-pairing-code').textContent = result.code;
-      if (result.instanceId) document.getElementById('ios-instance-id').textContent = result.instanceId;
-    } else {
-      document.getElementById('ios-pairing-code').textContent = '------';
-    }
-  } catch (err) {
-    console.error('[Settings] Failed to get pairing code:', err);
-    const el = document.getElementById('ios-pairing-code');
-    if (el) el.textContent = '------';
-  }
-}
-
-async function stgRefreshPairingCode(regenerate) { _stgRefreshPairingCode(regenerate); }
-
-async function _stgRefreshIOSInfo() {
-  try {
-    const info = await window.pocketAgent.ios.getInfo();
-    if (info && info.instanceId) document.getElementById('ios-instance-id').textContent = info.instanceId;
-  } catch (err) { console.error('[Settings] Failed to get iOS info:', err); }
-}
-
-function _stgEscapeHtml(text) {
-  if (!text) return '';
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
-}
-
-async function _stgRefreshConnectedDevices() {
-  try {
-    const devices = await window.pocketAgent.ios.getDevices();
-    const container = document.getElementById('ios-devices');
-    if (!container) return;
-    if (devices && devices.length > 0) {
-      container.innerHTML = devices.map(d =>
-        '<div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border);">' +
-        '<span style="color: var(--text-primary); font-size: 13px;">' + _stgEscapeHtml(d.deviceName || 'Unknown Device') + '</span>' +
-        '<span style="color: var(--text-muted); font-size: 12px;">' + _stgEscapeHtml(d.sessionId || 'default') + '</span>' +
-        '</div>'
-      ).join('');
-    } else {
-      container.innerHTML = '<p style="color: var(--text-muted); font-size: 13px; text-align: center;">No devices connected</p>';
-    }
-  } catch (err) { /* iOS channel not running */ }
 }
 
 // ---- Chat Settings ----
@@ -1274,90 +1164,6 @@ function _stgApplyTheme(skinId) {
   }
 }
 
-// ─── Agent Home ─────────────────────────────────────────────────────
-
-async function stgToggleAgentHome() {
-  const currentValue = _stgSettings['agentHome.enabled'] === 'true';
-  const newValue = !currentValue;
-  try {
-    await window.pocketAgent.settings.set('agentHome.enabled', newValue.toString());
-    _stgSettings['agentHome.enabled'] = newValue.toString();
-    _stgUpdateToggles();
-    const result = await window.pocketAgent.agentHome.toggle(newValue);
-    if (result.success) {
-      _stgShowToast(newValue ? 'Agent Home connected!' : 'Agent Home disconnected', 'success');
-      if (newValue) setTimeout(() => _stgInitAgentHome(), 500);
-    } else {
-      _stgShowToast('Failed: ' + (result.error || 'Unknown error'), 'error');
-    }
-  } catch (err) {
-    console.error('[Settings] Failed to toggle Agent Home:', err);
-    _stgShowToast('Failed to toggle Agent Home', 'error');
-  }
-}
-
-async function _stgInitAgentHome() {
-  await stgTestAgentHome();
-}
-
-async function stgSaveAgentHomeSetting(inputId) {
-  const input = document.getElementById(inputId);
-  if (!input) return;
-  try {
-    await window.pocketAgent.settings.set(inputId, input.value);
-    _stgSettings[inputId] = input.value;
-    _stgShowToast('Saved!', 'success');
-
-    if (inputId === 'agentHome.token') {
-      if (input.value) {
-        // Auto-connect when token is saved and non-empty
-        if (_stgSettings['agentHome.enabled'] !== 'true') {
-          await window.pocketAgent.settings.set('agentHome.enabled', 'true');
-          _stgSettings['agentHome.enabled'] = 'true';
-          _stgUpdateToggles();
-        }
-        await window.pocketAgent.agentHome.toggle(false);
-        const result = await window.pocketAgent.agentHome.toggle(true);
-        if (result.success) {
-          _stgShowToast('Agent Home connected!', 'success');
-          setTimeout(() => stgTestAgentHome(), 1000);
-        } else {
-          _stgShowToast('Failed to connect: ' + (result.error || 'Unknown error'), 'error');
-        }
-      } else {
-        // Token cleared — disconnect and disable
-        await window.pocketAgent.agentHome.toggle(false);
-        await window.pocketAgent.settings.set('agentHome.enabled', 'false');
-        _stgSettings['agentHome.enabled'] = 'false';
-        _stgUpdateToggles();
-        _stgShowToast('Agent Home disconnected', 'success');
-        stgTestAgentHome();
-      }
-    }
-  } catch (err) {
-    console.error('[Settings] Failed to save Agent Home setting:', err);
-    _stgShowToast('Failed to save', 'error');
-  }
-}
-
-async function stgTestAgentHome() {
-  const statusEl = document.getElementById('agent-home-status');
-  if (!statusEl) return;
-  try {
-    const status = await window.pocketAgent.agentHome.getStatus();
-    statusEl.className = 'auth-badge';
-    if (status.connected) {
-      statusEl.classList.add('oauth');
-      statusEl.textContent = 'Connected';
-    } else {
-      statusEl.classList.add('none');
-      statusEl.textContent = 'Disconnected';
-    }
-  } catch {
-    statusEl.className = 'auth-badge none';
-    statusEl.textContent = 'Error';
-  }
-}
 
 // Listen for open-settings from main process (tray menu, etc.)
 if (window.pocketAgent?.app?.onOpenSettings) {

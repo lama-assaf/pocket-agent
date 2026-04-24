@@ -38,7 +38,6 @@ export function formatToolName(name: string): string {
     remember: 'stashing in my cat brain',
     forget: 'knocking it off the shelf',
     list_facts: 'checking my memories',
-    memory_search: 'sniffing through archives',
 
     // Browser tool
     browser: 'pouncing on browser',

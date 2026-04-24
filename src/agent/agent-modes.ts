@@ -72,7 +72,6 @@ const MEMORY_TOOLS = [
   'mcp__pocket-agent__remember',
   'mcp__pocket-agent__forget',
   'mcp__pocket-agent__list_facts',
-  'mcp__pocket-agent__memory_search',
   'mcp__pocket-agent__daily_log',
 ];
 const SOUL_TOOLS = [

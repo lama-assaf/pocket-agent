@@ -6,7 +6,6 @@ const mockDeleteFact = vi.fn();
 const mockDeleteFactBySubject = vi.fn();
 const mockGetAllFacts = vi.fn();
 const mockGetFactsByCategory = vi.fn();
-const mockSearchFactsHybrid = vi.fn();
 const mockGetFactsMemoryUsage = vi.fn().mockReturnValue({ usedChars: 500, budgetChars: 3000, pct: 17 });
 
 // Create a mock MemoryManager instance
@@ -16,7 +15,6 @@ const mockMemoryManagerInstance = {
   deleteFactBySubject: mockDeleteFactBySubject,
   getAllFacts: mockGetAllFacts,
   getFactsByCategory: mockGetFactsByCategory,
-  searchFactsHybrid: mockSearchFactsHybrid,
   getFactsMemoryUsage: mockGetFactsMemoryUsage,
 };
 
@@ -34,8 +32,6 @@ import {
   handleForgetTool,
   getListFactsToolDefinition,
   handleListFactsTool,
-  getMemorySearchToolDefinition,
-  handleMemorySearchTool,
   getDailyLogToolDefinition,
   handleDailyLogTool,
   getMemoryTools,
@@ -458,133 +454,6 @@ describe('Memory Tools', () => {
     });
   });
 
-  // ============ MEMORY SEARCH TOOL DEFINITION ============
-
-  describe('getMemorySearchToolDefinition', () => {
-    it('should return correct tool name', () => {
-      const definition = getMemorySearchToolDefinition();
-      expect(definition.name).toBe('memory_search');
-    });
-
-    it('should return a description with usage guidance', () => {
-      const definition = getMemorySearchToolDefinition();
-      expect(definition.description).toContain('semantic + keyword');
-      expect(definition.description).toContain('proactively');
-    });
-
-    it('should have correct input schema structure', () => {
-      const definition = getMemorySearchToolDefinition();
-      expect(definition.input_schema.type).toBe('object');
-      expect(definition.input_schema.properties).toBeDefined();
-      expect(definition.input_schema.required).toEqual(['query']);
-    });
-
-    it('should define query property', () => {
-      const definition = getMemorySearchToolDefinition();
-      const queryProp = definition.input_schema.properties.query;
-      expect(queryProp.type).toBe('string');
-      expect(queryProp.description).toContain('Search query');
-    });
-  });
-
-  // ============ MEMORY SEARCH TOOL HANDLER ============
-
-  describe('handleMemorySearchTool', () => {
-    beforeEach(() => {
-      setMemoryManager(mockMemoryManagerInstance as unknown as MemoryManager);
-    });
-
-    it('should return search results', async () => {
-      const mockResults = [
-        {
-          fact: { id: 1, category: 'user_info', subject: 'job', content: 'Software engineer' },
-          score: 0.85,
-          vectorScore: 0.9,
-          keywordScore: 0.7,
-        },
-      ];
-      mockSearchFactsHybrid.mockResolvedValue(mockResults);
-
-      const result = await handleMemorySearchTool({ query: "user's job" });
-
-      const parsed = JSON.parse(result);
-      expect(parsed.success).toBe(true);
-      expect(parsed.count).toBe(1);
-      expect(parsed.results).toHaveLength(1);
-      expect(parsed.results[0]).toEqual({
-        id: 1,
-        category: 'user_info',
-        subject: 'job',
-        content: 'Software engineer',
-        score: 0.85,
-        vectorScore: 0.9,
-        keywordScore: 0.7,
-      });
-
-      expect(mockSearchFactsHybrid).toHaveBeenCalledWith("user's job");
-    });
-
-    it('should return empty results message when no matches found', async () => {
-      mockSearchFactsHybrid.mockResolvedValue([]);
-
-      const result = await handleMemorySearchTool({ query: 'nonexistent query' });
-
-      const parsed = JSON.parse(result);
-      expect(parsed.success).toBe(true);
-      expect(parsed.message).toBe('No relevant facts found');
-      expect(parsed.results).toEqual([]);
-    });
-
-    it('should return error when query is missing', async () => {
-      const result = await handleMemorySearchTool({});
-
-      const parsed = JSON.parse(result);
-      expect(parsed.error).toBe('Query is required');
-    });
-
-    it('should return error when query is empty string', async () => {
-      const result = await handleMemorySearchTool({ query: '' });
-
-      const parsed = JSON.parse(result);
-      expect(parsed.error).toBe('Query is required');
-    });
-
-    it('should return error when query is whitespace only', async () => {
-      const result = await handleMemorySearchTool({ query: '   ' });
-
-      const parsed = JSON.parse(result);
-      expect(parsed.error).toBe('Query is required');
-    });
-
-    it('should handle search errors', async () => {
-      mockSearchFactsHybrid.mockRejectedValue(new Error('Search failed'));
-
-      const result = await handleMemorySearchTool({ query: 'test query' });
-
-      const parsed = JSON.parse(result);
-      expect(parsed.error).toBe('Search failed');
-    });
-
-    it('should round scores to 2 decimal places', async () => {
-      const mockResults = [
-        {
-          fact: { id: 1, category: 'test', subject: 'test', content: 'test' },
-          score: 0.8567,
-          vectorScore: 0.9123,
-          keywordScore: 0.7891,
-        },
-      ];
-      mockSearchFactsHybrid.mockResolvedValue(mockResults);
-
-      const result = await handleMemorySearchTool({ query: 'test' });
-
-      const parsed = JSON.parse(result);
-      expect(parsed.results[0].score).toBe(0.86);
-      expect(parsed.results[0].vectorScore).toBe(0.91);
-      expect(parsed.results[0].keywordScore).toBe(0.79);
-    });
-  });
-
   // ============ GET MEMORY TOOLS ============
 
   describe('getMemoryTools', () => {
@@ -592,7 +461,7 @@ describe('Memory Tools', () => {
       const tools = getMemoryTools();
 
       expect(Array.isArray(tools)).toBe(true);
-      expect(tools).toHaveLength(5);
+      expect(tools).toHaveLength(4);
     });
 
     it('should include remember tool with handler', () => {
@@ -620,15 +489,6 @@ describe('Memory Tools', () => {
       expect(listFactsTool).toBeDefined();
       expect(listFactsTool!.handler).toBe(handleListFactsTool);
       expect(listFactsTool!.description).toContain('List all known facts');
-    });
-
-    it('should include memory_search tool with handler', () => {
-      const tools = getMemoryTools();
-      const searchTool = tools.find(t => t.name === 'memory_search');
-
-      expect(searchTool).toBeDefined();
-      expect(searchTool!.handler).toBe(handleMemorySearchTool);
-      expect(searchTool!.description).toContain('semantic + keyword');
     });
 
     it('should include daily_log tool with handler', () => {
@@ -766,14 +626,5 @@ describe('Memory Tools', () => {
       expect(parsed.facts).toHaveLength(100);
     });
 
-    it('should handle search with special characters in query', async () => {
-      mockSearchFactsHybrid.mockResolvedValue([]);
-
-      const result = await handleMemorySearchTool({ query: "user's job & preferences" });
-
-      const parsed = JSON.parse(result);
-      expect(parsed.success).toBe(true);
-      expect(mockSearchFactsHybrid).toHaveBeenCalledWith("user's job & preferences");
-    });
   });
 });
