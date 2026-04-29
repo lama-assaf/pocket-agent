@@ -44,7 +44,7 @@ function rejectPlan() {
     const feedbackInput = document.getElementById('plan-feedback-input');
     feedbackInput.classList.remove('hidden');
     feedbackInput.focus();
-    document.getElementById('plan-reject-btn').textContent = 'send revision';
+    document.getElementById('plan-reject-btn').textContent = 'Send revision';
     return;
   }
 

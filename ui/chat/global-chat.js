@@ -342,7 +342,7 @@ function renderGlobalChatMessages() {
   if (globalChatMessages.length === 0) {
     const empty = document.createElement('div');
     empty.className = 'global-chat-empty';
-    empty.textContent = "no one's here yet... say something!";
+    empty.textContent = "No one's here yet \u2014 say something!";
     container.appendChild(empty);
     return;
   }
@@ -793,7 +793,7 @@ function connectChatWs() {
     // Don't retry if username is reserved and admin key is wrong
     if (event.code === 4003) {
       console.warn('[Chat WS] Username reserved — admin key mismatch, not reconnecting');
-      showChatToast('username reserved — check admin key in settings');
+      showChatToast('Username reserved — check admin key in Settings');
       return;
     }
     // Exponential backoff with jitter
@@ -869,19 +869,19 @@ function sendGlobalChatMessage() {
     chatSendTimestamps.shift();
   }
   if (chatSendTimestamps.length >= CHAT_RATE_LIMIT_MAX) {
-    showChatToast('easy tiger, slow down');
+    showChatToast('Easy tiger, slow down');
     return;
   }
 
   // Client-side duplicate check
   if (text === lastChatMessageText) {
-    showChatToast('you just said that');
+    showChatToast('You just said that');
     return;
   }
 
   // Client-side link check
   if (chatHasBlockedLinks(text)) {
-    showChatToast("that link isn't allowed here");
+    showChatToast("That link isn't allowed here");
     return;
   }
 
@@ -893,7 +893,7 @@ function sendGlobalChatMessage() {
 
   // Check connection before clearing input
   if (!chatWs || chatWs.readyState !== WebSocket.OPEN) {
-    showChatToast('chat is offline — reconnecting...');
+    showChatToast('Chat is offline — reconnecting…');
     return;
   }
 

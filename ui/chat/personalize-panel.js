@@ -22,6 +22,7 @@ function showPersonalizePanel(tab) {
 
   chatView.classList.add('hidden');
   pzView.classList.add('active');
+  if (window._sidebarEnterPanelMode) window._sidebarEnterPanelMode();
 
   const sidebarBtn = document.getElementById('sidebar-personalize-btn');
   if (sidebarBtn) sidebarBtn.classList.add('active');
@@ -36,6 +37,7 @@ function hidePersonalizePanel() {
   if (!pzView) return;
   pzView.classList.remove('active');
   chatView.classList.remove('hidden');
+  if (window._sidebarExitPanelMode) window._sidebarExitPanelMode();
 
   const sidebarBtn = document.getElementById('sidebar-personalize-btn');
   if (sidebarBtn) sidebarBtn.classList.remove('active');

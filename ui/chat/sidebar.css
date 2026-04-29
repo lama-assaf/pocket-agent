@@ -1,9 +1,12 @@
-/* Sidebar */
+/* Sidebar — floats with rounded corners and a small margin so it sits
+   inset from the window edges. The main-content area mirrors the same
+   margin treatment so both feel like floating panels. */
 .sidebar {
   width: 220px;
   min-width: 220px;
+  margin: 8px 4px 8px 8px;
   background: var(--bg-secondary);
-  border-right: 1px solid var(--border);
+  border-radius: var(--radius);
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
@@ -121,7 +124,7 @@
 
 .sidebar-btn.active {
   color: var(--accent);
-  background: rgba(168, 85, 247, 0.1);
+  background: color-mix(in srgb, var(--accent) 10%, var(--bg-primary));
 }
 
 /* Sidebar bottom (pinned) */
@@ -214,17 +217,24 @@
   100% { background-position: -100% 0; }
 }
 
+/* .sidebar-session-icon — only visible when the sidebar is collapsed.
+   Hidden when expanded so sessions render as text-only labels. */
 .sidebar-session-icon {
-  display: flex;
+  display: none;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
   color: inherit;
 }
-
 .sidebar-session-icon svg {
   width: 14px;
   height: 14px;
+}
+.sidebar.collapsed .sidebar-session-icon {
+  display: inline-flex;
+}
+.sidebar.collapsed .sidebar-session.active .sidebar-session-icon {
+  color: var(--accent);
 }
 
 .sidebar-session-name {
@@ -328,18 +338,18 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
+  margin: 8px 8px 8px 4px;
+  background: var(--bg-primary);
+  border-radius: var(--radius);
   overflow: hidden;
 }
 
 /* Active session — placed last for specificity */
 .sidebar-session.active {
-  background: rgba(168, 85, 247, 0.1);
+  background: color-mix(in srgb, var(--accent) 10%, var(--bg-primary));
   color: var(--text-primary);
 }
 
-.sidebar-session.active .sidebar-session-icon {
-  color: var(--accent);
-}
 
 .sidebar-session.active .sidebar-session-name {
   color: var(--text-primary);

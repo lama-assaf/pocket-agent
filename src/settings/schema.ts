@@ -340,7 +340,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     category: 'appearance',
     label: 'UI Skin',
     description:
-      'Visual theme for the app (dracula, light, dawn, midnight, nord, mocha, rosepine, gruvbox, solarized, onedark)',
+      'Visual theme for the app (dracula, cream, light, dawn, midnight, nord, mocha, rosepine, gruvbox, solarized, onedark)',
     type: 'string',
   },
 

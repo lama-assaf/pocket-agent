@@ -82,17 +82,28 @@
 
 .modal-close {
   margin-left: auto;
+  width: 28px;
+  height: 28px;
   background: transparent;
-  border: none;
+  border: 1px solid color-mix(in srgb, var(--text-muted) 28%, transparent);
+  border-radius: 100vw;
   color: var(--text-muted);
   cursor: pointer;
-  padding: 4px;
+  padding: 0;
   display: flex;
   align-items: center;
   justify-content: center;
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease;
 }
 
-.modal-close:hover { color: var(--text-primary); }
+.modal-close:hover {
+  background: color-mix(in srgb, var(--accent-shadow) 14%, transparent);
+  border-color: var(--accent-shadow);
+  color: var(--accent-shadow);
+}
 
 .modal-body {
   padding: 16px;
@@ -263,7 +274,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(168, 85, 247, 0.1);
+  background: rgba(217, 58, 99, 0.1);
   backdrop-filter: blur(4px);
   display: none;
   align-items: center;

@@ -34,17 +34,18 @@
   background: var(--text-muted);
 }
 
-/* Scroll Buttons */
+/* Scroll Buttons — small round shell pill, drops on press. */
 .scroll-btn {
   position: absolute;
   right: 24px;
   width: 36px;
   height: 36px;
-  border-radius: 50%;
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border);
+  border-radius: 100vw;
+  background: var(--bg-primary);
+  border: 1px solid color-mix(in srgb, var(--text-muted) 30%, transparent);
   color: var(--text-muted);
   cursor: pointer;
+  box-shadow: 0 3px 0 0 color-mix(in srgb, var(--text-muted) 25%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -55,9 +56,14 @@
 }
 
 .scroll-btn:hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
-  border-color: var(--text-muted);
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: 0 3px 0 0 var(--accent-shadow);
+}
+
+.scroll-btn:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 0 var(--accent-shadow);
 }
 
 .scroll-btn.visible {
@@ -314,7 +320,7 @@
 .message-copy-btn:hover {
   opacity: 1 !important;
   color: var(--accent);
-  background: rgba(168, 85, 247, 0.1);
+  background: color-mix(in srgb, var(--accent) 10%, var(--bg-primary));
 }
 
 .message-copy-btn.copied {
@@ -335,7 +341,7 @@
 
 /* Search highlight */
 mark.search-highlight {
-  background: rgba(168, 85, 247, 0.4);
+  background: color-mix(in srgb, var(--accent) 25%, var(--bg-primary));
   color: inherit;
   border-radius: 2px;
   padding: 0 2px;

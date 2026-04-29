@@ -14,6 +14,7 @@ function showBrainPanel(tab) {
 
   chatView.classList.add('hidden');
   brainView.classList.add('active');
+  if (window._sidebarEnterPanelMode) window._sidebarEnterPanelMode();
 
   // Mark sidebar button active
   const sidebarBtn = document.getElementById('sidebar-brain-btn');
@@ -39,6 +40,7 @@ function hideBrainPanel() {
 
   brainView.classList.remove('active');
   chatView.classList.remove('hidden');
+  if (window._sidebarExitPanelMode) window._sidebarExitPanelMode();
 
   // Unmark sidebar button
   const sidebarBtn = document.getElementById('sidebar-brain-btn');

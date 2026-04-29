@@ -173,7 +173,7 @@ async function obRefreshPermissions() {
       const iconClass = s.granted ? 'granted' : 'missing';
       const iconSvg = s.granted ? OB_ICONS.check : OB_ICONS.minus;
       const hint = (!s.granted && s.type === 'full-disk-access')
-        ? '<p style="color: var(--text-muted); margin-top: 2px;">may show as missing even when granted. this is normal.</p>'
+        ? '<p style="color: var(--text-muted); margin-top: 2px;">May show as missing even when granted — this is normal.</p>'
         : '';
       const actionHtml = s.granted
         ? ''

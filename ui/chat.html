@@ -3,11 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' wss://pocket-agent-chat-production.up.railway.app https://pocket-agent-chat-production.up.railway.app https://cdn.jsdelivr.net;">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; font-src 'self'; img-src 'self' data: https:; connect-src 'self' wss://pocket-agent-chat-production.up.railway.app https://pocket-agent-chat-production.up.railway.app https://cdn.jsdelivr.net;">
   <title>Pocket Agent</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&family=Cal+Sans&display=swap" rel="stylesheet">
+
+
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/notyf@3/notyf.min.css">
   <script src="https://cdn.jsdelivr.net/npm/notyf@3/notyf.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -95,16 +94,16 @@
     <!-- Progress bar (thin line below titlebar) -->
     <div class="ob-progress-bar" id="ob-progress-bar"><div class="ob-progress-fill" id="ob-progress-fill"></div></div>
     <!-- Top nav (back left, skip right) -->
-    <div class="ob-top-nav" id="ob-top-nav"><a id="ob-nav-back" class="hidden">back</a><span class="ob-nav-spacer"></span><a id="ob-nav-skip" class="hidden">skip</a></div>
+    <div class="ob-top-nav" id="ob-top-nav"><a id="ob-nav-back" class="hidden">Back</a><span class="ob-nav-spacer"></span><a id="ob-nav-skip" class="hidden">Skip</a></div>
 
     <div class="ob-logo"></div>
 
     <h1>Pocket Agent</h1>
-    <p class="ob-subtitle">i'm Franky, your new 24/7 assistant</p>
+    <p class="ob-subtitle">I'm Frankie, your new 24/7 assistant</p>
 
     <!-- Step: Welcome -->
     <div class="ob-step active" id="ob-step-welcome">
-      <p class="ob-welcome-text">let's get you set up. it only takes a minute. we'll secure your keys, connect an AI provider, and personalize your experience.</p>
+      <p class="ob-welcome-text">Let's get you set up. It only takes a minute. We'll secure your keys, connect an AI provider, and personalize your experience.</p>
       <div class="ob-button-row">
         <button class="ob-btn primary" onclick="obShowStep('ob-step-keychain')">
           Begin Setup
@@ -114,7 +113,7 @@
 
     <!-- Step: Keychain -->
     <div class="ob-step" id="ob-step-keychain">
-      <p class="ob-step-desc" id="ob-keychain-info-text">pocket agent uses your system's secure storage to protect API keys.</p>
+      <p class="ob-step-desc" id="ob-keychain-info-text">Pocket Agent uses your system's secure storage to protect API keys.</p>
       <div class="ob-button-row">
         <button class="ob-btn primary" id="ob-keychain-btn" onclick="obInitKeychain()">
           Secure My Keys
@@ -124,7 +123,7 @@
 
     <!-- Step: macOS Permissions -->
     <div class="ob-step" id="ob-step-permissions">
-      <p class="ob-step-desc">these optional permissions help me work better on your Mac. you can always change them later in System Settings.</p>
+      <p class="ob-step-desc">These optional permissions help me work better on your Mac. You can always change them later in System Settings.</p>
       <div id="ob-permissions-list"></div>
       <div class="ob-button-row">
         <button class="ob-btn secondary" id="ob-perm-refresh-btn" onclick="obRefreshPermissions()">
@@ -145,7 +144,7 @@
       saved — no manual model choice needed during onboarding.
     -->
     <div class="ob-step" id="ob-step-auth">
-      <p class="ob-step-desc">how would you like to connect?</p>
+      <p class="ob-step-desc">How would you like to connect?</p>
       <div class="ob-oauth-row">
         <button class="ob-btn primary" id="ob-claude-oauth-btn" onclick="obStartClaudeOAuth()">
           Sign in with Claude
@@ -208,10 +207,10 @@
       after the user clicks "Sign in with Claude" above.
     -->
     <div class="ob-step" id="ob-step-oauth-code">
-      <p class="ob-step-desc">paste the authorization code from your browser</p>
+      <p class="ob-step-desc">Paste the authorization code from your browser</p>
       <div class="ob-form-group">
         <label>Authorization Code</label>
-        <input type="text" id="ob-oauth-code" placeholder="paste the magic code here...">
+        <input type="text" id="ob-oauth-code" placeholder="Paste the authorization code">
         <p class="ob-hint">After signing in, you'll see a code. Copy and paste it above.</p>
       </div>
       <div class="ob-button-row">
@@ -224,9 +223,9 @@
 
     <!-- Step: Your Name -->
     <div class="ob-step" id="ob-step-name">
-      <div class="ob-step-label">what should I call you?</div>
+      <div class="ob-step-label">What should I call you?</div>
       <div class="ob-form-group">
-        <input type="text" id="ob-name-input" placeholder="your name">
+        <input type="text" id="ob-name-input" placeholder="Your name">
       </div>
       <div class="ob-button-row">
         <button class="ob-btn primary" onclick="obSaveName()">
@@ -237,10 +236,10 @@
 
     <!-- Step: Your Location -->
     <div class="ob-step" id="ob-step-location">
-      <div class="ob-step-label">where are you based?</div>
+      <div class="ob-step-label">Where are you based?</div>
       <div class="ob-form-group">
         <div class="ob-autocomplete-wrapper">
-          <input type="text" id="ob-location-input" placeholder="type a city name..." autocomplete="off">
+          <input type="text" id="ob-location-input" placeholder="Type a city name…" autocomplete="off">
           <div class="ob-autocomplete-dropdown" id="ob-location-dropdown"></div>
         </div>
       </div>
@@ -254,9 +253,9 @@
 
     <!-- Step: Your Occupation -->
     <div class="ob-step" id="ob-step-occupation">
-      <div class="ob-step-label">what do you do?</div>
+      <div class="ob-step-label">What do you do?</div>
       <div class="ob-form-group">
-        <input type="text" id="ob-occupation-input" placeholder="developer, designer, student...">
+        <input type="text" id="ob-occupation-input" placeholder="Developer, designer, student…">
       </div>
       <div class="ob-button-row">
         <button class="ob-btn primary" onclick="obSaveOccupation()">
@@ -267,11 +266,11 @@
 
     <!-- Step: Your Birthday -->
     <div class="ob-step" id="ob-step-birthday">
-      <div class="ob-step-label">when's your birthday?</div>
+      <div class="ob-step-label">When's your birthday?</div>
       <div class="ob-form-group">
         <div class="ob-birthday-row">
           <select id="ob-birthday-month">
-            <option value="">month</option>
+            <option value="">Month</option>
             <option value="January">January</option>
             <option value="February">February</option>
             <option value="March">March</option>
@@ -286,7 +285,7 @@
             <option value="December">December</option>
           </select>
           <select id="ob-birthday-day">
-            <option value="">day</option>
+            <option value="">Day</option>
           </select>
         </div>
       </div>
@@ -299,7 +298,7 @@
 
     <!-- Step: Agent Name -->
     <div class="ob-step" id="ob-step-agent-name">
-      <div class="ob-step-label">what would you like to call me?</div>
+      <div class="ob-step-label">What would you like to call me?</div>
       <div class="ob-form-group">
         <input type="text" id="ob-agent-name-input" placeholder="Franky" value="Franky">
       </div>
@@ -312,9 +311,9 @@
 
     <!-- Step: Your Goals -->
     <div class="ob-step" id="ob-step-goals">
-      <div class="ob-step-label">what are you working toward?</div>
+      <div class="ob-step-label">What are you working toward?</div>
       <div class="ob-form-group">
-        <textarea id="ob-goals-input" rows="4" placeholder="launch my startup, learn piano..."></textarea>
+        <textarea id="ob-goals-input" rows="4" placeholder="Launch my startup, learn piano…"></textarea>
       </div>
       <div class="ob-button-row">
         <button class="ob-btn primary" onclick="obSaveGoals()">
@@ -325,9 +324,9 @@
 
     <!-- Step: Your Struggles -->
     <div class="ob-step" id="ob-step-struggles">
-      <div class="ob-step-label">what are your biggest struggles?</div>
+      <div class="ob-step-label">What are your biggest struggles?</div>
       <div class="ob-form-group">
-        <textarea id="ob-struggles-input" rows="4" placeholder="time management, staying focused..."></textarea>
+        <textarea id="ob-struggles-input" rows="4" placeholder="Time management, staying focused…"></textarea>
       </div>
       <div class="ob-button-row">
         <button class="ob-btn primary" onclick="obSaveStruggles()">
@@ -338,9 +337,9 @@
 
     <!-- Step: Fun Facts -->
     <div class="ob-step" id="ob-step-funfacts">
-      <div class="ob-step-label">anything else I should know?</div>
+      <div class="ob-step-label">Anything else I should know?</div>
       <div class="ob-form-group">
-        <textarea id="ob-funfacts-input" rows="4" placeholder="I have a dog named Max, I'm vegetarian..."></textarea>
+        <textarea id="ob-funfacts-input" rows="4" placeholder="I have a dog named Max, I'm vegetarian…"></textarea>
       </div>
       <div class="ob-button-row">
         <button class="ob-btn primary" onclick="obSaveFunFacts()">
@@ -351,7 +350,7 @@
 
     <!-- Step: Pocket CLI -->
     <div class="ob-step" id="ob-step-cli">
-      <div class="ob-step-desc">pocket CLI lets your agent interact with real services like Twitter, YouTube, Hacker News, and more.</div>
+      <div class="ob-step-desc">Pocket CLI lets your agent interact with real services like Twitter, YouTube, Hacker News, and more.</div>
       <div class="ob-button-row">
         <button class="ob-btn primary" id="ob-cli-install-btn" onclick="obInstallCli()">
           Install Pocket CLI
@@ -361,7 +360,7 @@
 
     <!-- Step: Success -->
     <div class="ob-step" id="ob-step-success">
-      <div class="ob-step-desc">you're all set! everything's configured, let's start chatting</div>
+      <div class="ob-step-desc">You're all set! Everything's configured — let's start chatting</div>
       <div class="ob-button-row">
         <button class="ob-btn primary" onclick="obFinishSetup()">
           Let's Chat!
@@ -379,13 +378,13 @@
   <!-- Plan Approval Overlay -->
   <div class="plan-approval-overlay" id="plan-approval-overlay">
     <div class="plan-approval-panel">
-      <div class="plan-approval-header">plan ready for review</div>
+      <div class="plan-approval-header">Plan ready for review</div>
       <div class="plan-approval-body" id="plan-approval-body"></div>
       <div class="plan-approval-actions">
-        <textarea class="plan-feedback-input hidden" id="plan-feedback-input" placeholder="feedback..." rows="2"></textarea>
+        <textarea class="plan-feedback-input hidden" id="plan-feedback-input" placeholder="Feedback…" rows="2"></textarea>
         <div class="button-row-right">
-          <button class="plan-btn plan-btn-reject" id="plan-reject-btn">revise</button>
-          <button class="plan-btn plan-btn-approve" id="plan-approve-btn">approve</button>
+          <button class="plan-btn plan-btn-reject" id="plan-reject-btn">Revise</button>
+          <button class="plan-btn plan-btn-approve" id="plan-approve-btn">Approve</button>
         </div>
       </div>
     </div>
@@ -469,7 +468,7 @@
           <div id="mention-highlight"></div>
           <textarea
             id="message-input"
-            placeholder="what's on your mind?"
+            placeholder="What's on your mind?"
             rows="1"
           ></textarea>
         </div>
@@ -488,7 +487,7 @@
           <button class="background-tasks-toggle" id="bg-tasks-toggle-btn">
             <span class="bg-task-pulse"></span>
             <span class="bg-task-count">0</span>
-            <span>background</span>
+            <span>Background</span>
           </button>
           <div id="background-tasks-dropdown">
             <div class="bg-dropdown-header">
@@ -561,40 +560,26 @@
     <div class="settings-header">
       <h1><span>Settings</span></h1>
       <div class="header-actions">
-        <button class="secondary" onclick="playNormalClick(); hideSettingsPanel()">Back</button>
+        <button onclick="playNormalClick(); hideSettingsPanel()">Back</button>
         <button id="reboot-btn" class="reboot" onclick="playNormalClick(); stgRestartAgent()" disabled>Reboot</button>
       </div>
     </div>
 
     <div class="settings-container">
       <nav class="settings-sidebar">
-        <div class="settings-nav-item active" data-section="auth">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path stroke-width="1.5" d="M12 4V2m7 20a7 7 0 1 0-14 0"/><path stroke-width="2" d="M9.5 7.5h.01m4.98 0h.01"/><path stroke-width="1.5" d="M5.5 6.667c0-.62 0-.93.068-1.185a2 2 0 0 1 1.414-1.414C7.237 4 7.547 4 8.167 4h7.666c.62 0 .93 0 1.185.068a2 2 0 0 1 1.414 1.414c.068.255.068.565.068 1.185c0 1.24 0 1.86-.136 2.368a4 4 0 0 1-2.829 2.829c-.508.136-1.128.136-2.368.136h-2.334c-1.24 0-1.86 0-2.368-.136a4 4 0 0 1-2.829-2.829C5.5 8.527 5.5 7.907 5.5 6.667"/></g></svg>
-          LLM
+        <div class="settings-nav-item active" data-section="auth">LLM
         </div>
-        <div class="settings-nav-item" data-section="telegram">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21.048 3.053C18.87.707 2.486 6.453 2.5 8.55c.015 2.379 6.398 3.11 8.167 3.607c1.064.299 1.349.604 1.594 1.72c1.111 5.052 1.67 7.566 2.94 7.622c2.027.09 7.972-16.158 5.847-18.447Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M11.5 12.5L15 9"/></g></svg>
-          Telegram
+        <div class="settings-nav-item" data-section="telegram">Telegram
         </div>
-        <div class="settings-nav-item" data-section="browser">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12.5 19v3m-2 0h4"/><circle cx="7" cy="7" r="7" stroke-linecap="round" transform="matrix(-1 0 0 1 20.5 2)"/><path stroke-linejoin="round" d="M8.5 4c.654.038.992.359 1.573.973c1.05 1.11 2.1 1.202 2.8.832c1.049-.555.167-1.453 1.399-1.94c.803-.32.915-1.185.468-1.865M20 10c-1.5 0-1.766 1.247-3 1c-2.5-.5-3.208.059-3.208 1.251s0 1.192-.52 2.086c-.338.582-.457 1.163.217 1.663"/><path stroke-linecap="round" d="M6.5 2a9.85 9.85 0 0 0-3 7.083C3.5 14.56 7.977 19 13.5 19a10 10 0 0 0 7-2.835"/></g></svg>
-          Browser
+        <div class="settings-nav-item" data-section="browser">Browser
         </div>
-        <div class="settings-nav-item" data-section="chat">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7.5 8.5h9m-9 4H13m-11-2c0-.77.013-1.523.04-2.25c.083-2.373.125-3.56 1.09-4.533c.965-.972 2.186-1.024 4.626-1.129A100 100 0 0 1 12 2.5c1.48 0 2.905.03 4.244.088c2.44.105 3.66.157 4.626 1.13c.965.972 1.007 2.159 1.09 4.532a64 64 0 0 1 0 4.5c-.083 2.373-.125 3.56-1.09 4.533c-.965.972-2.186 1.024-4.626 1.129q-1.102.047-2.275.07c-.74.014-1.111.02-1.437.145s-.6.358-1.148.828l-2.179 1.87A.73.73 0 0 1 8 20.77v-2.348l-.244-.01c-2.44-.105-3.66-.157-4.626-1.13c-.965-.972-1.007-2.159-1.09-4.532A64 64 0 0 1 2 10.5"/></svg>
-          Chat
+        <div class="settings-nav-item" data-section="chat">Chat
         </div>
-        <div class="settings-nav-item" data-section="skins">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5" d="M17.58 9.71a6 6 0 0 0-7.16 3.58m7.16-3.58A6 6 0 1 1 12 19.972M17.58 9.71a6 6 0 1 0-11.16 0m4 3.58A6 6 0 0 0 10 15.5c0 1.777.773 3.374 2 4.472m-1.58-6.682a6.01 6.01 0 0 1-4-3.58m0 0A6 6 0 1 0 12 19.972"/></svg>
-          Skins
+        <div class="settings-nav-item" data-section="skins">Skins
         </div>
-        <div class="settings-nav-item" data-section="pocket_cli">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"><path d="m7 7l1.227 1.057C8.742 8.502 9 8.724 9 9s-.258.498-.773.943L7 11m4 0h3"/><path d="M12 21c3.75 0 5.625 0 6.939-.955a5 5 0 0 0 1.106-1.106C21 17.625 21 15.749 21 12s0-5.625-.955-6.939a5 5 0 0 0-1.106-1.106C17.625 3 15.749 3 12 3s-5.625 0-6.939.955A5 5 0 0 0 3.955 5.06C3 6.375 3 8.251 3 12s0 5.625.955 6.939a5 5 0 0 0 1.106 1.106C6.375 21 8.251 21 12 21"/></g></svg>
-          Pocket CLI
+        <div class="settings-nav-item" data-section="pocket_cli">Pocket CLI
         </div>
-        <div class="settings-nav-item" data-section="updates">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="m15.167 1l.598 1.118c.404.755.606 1.133.472 1.295c-.133.162-.573.031-1.454-.23A9.8 9.8 0 0 0 12 2.78c-5.247 0-9.5 4.128-9.5 9.22a8.97 8.97 0 0 0 1.27 4.61M8.834 23l-.598-1.118c-.404-.756-.606-1.134-.472-1.295c.133-.162.573-.032 1.454.23c.88.261 1.815.402 2.783.402c5.247 0 9.5-4.128 9.5-9.22a8.97 8.97 0 0 0-1.27-4.609"/></svg>
-          Updates
+        <div class="settings-nav-item" data-section="updates">Updates
         </div>
       </nav>
 
@@ -609,8 +594,8 @@
               <div class="auth-option-header">
                 <span class="auth-option-title">Login with Claude</span>
                 <div class="flex-row" style="gap: 8px;">
-                  <span class="risk-badge">Use at own risk <span class="risk-info">i</span><span class="risk-tooltip">Anthropic may restrict accounts using unofficial OAuth integrations. This is not an officially supported auth method. Use at your own risk.</span></span>
-                  <span id="auth-status" class="auth-badge loading">checking...</span>
+                  <span class="risk-badge">Use at own risk<span class="risk-tooltip">Anthropic may restrict accounts using unofficial OAuth integrations. This is not an officially supported auth method. Use at your own risk.</span></span>
+                  <span id="auth-status" class="auth-badge loading">Checking…</span>
                   <button id="oauth-btn" class="oauth-btn" onclick="playNormalClick(); stgHandleAuthAction()">Sign in</button>
                 </div>
               </div>
@@ -638,7 +623,7 @@
               <div class="auth-option-header">
                 <span class="auth-option-title">Login with OpenAI</span>
                 <div class="flex-row" style="gap: 8px;">
-                  <span id="openai-auth-status" class="auth-badge loading">checking...</span>
+                  <span id="openai-auth-status" class="auth-badge loading">Checking…</span>
                   <button id="openai-oauth-btn" class="oauth-btn" onclick="playNormalClick(); stgHandleOpenAIAuth()">Sign in</button>
                 </div>
               </div>
@@ -794,17 +779,11 @@
     </div>
     <div class="brain-container">
       <nav class="brain-sidebar">
-        <div class="brain-nav-item active" data-tab="facts">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5"><path stroke-linejoin="round" d="M16.998 7.127Q17.48 7 18 7a4 4 0 1 1-1.027 7.867m.025-7.74L17 7a4 4 0 0 0-7.91-.85m7.908.977A4 4 0 0 1 16.465 9m.508 5.867q.027-.18.027-.367a2.5 2.5 0 0 0-2-2.45m1.973 2.817A2.5 2.5 0 0 1 14.5 17H14a4 4 0 0 0-4 4M9.09 6.15a4 4 0 0 0-4.932 4.97M9.09 6.15A4 4 0 0 1 11.465 8m-7.306 3.12A3.001 3.001 0 0 0 5 17a3 3 0 0 0 2.83-2m-3.671-3.88q.136.467.376.88"/><path d="M11.836 11.744c-.51.491-1.383.576-2.129.157c-.746-.42-1.127-1.21-.972-1.901"/></g></svg>
-          My Brain
+        <div class="brain-nav-item active" data-tab="facts">My Brain
         </div>
-        <div class="brain-nav-item" data-tab="soul">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" stroke-width="1.5"/><path stroke-width="1.5" d="M9.5 9.5a2.5 2.5 0 1 1 3.912 2.064C12.728 12.032 12 12.672 12 13.5"/><path stroke-width="1.8" d="M12 17h.009"/></g></svg>
-          My Approach
+        <div class="brain-nav-item" data-tab="soul">My Approach
         </div>
-        <div class="brain-nav-item" data-tab="logs">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"><path d="M16 2v4M8 2v4m5-2h-2C7.229 4 5.343 4 4.172 5.172S3 8.229 3 12v2c0 3.771 0 5.657 1.172 6.828S7.229 22 11 22h2c3.771 0 5.657 0 6.828-1.172S21 17.771 21 14v-2c0-3.771 0-5.657-1.172-6.828S16.771 4 13 4M3 10h18"/><path d="M10 18.5v-4.653c0-.191-.137-.347-.305-.347H9m5 4.998l1.486-4.606a.3.3 0 0 0-.286-.392H13"/></g></svg>
-          Daily Logs
+        <div class="brain-nav-item" data-tab="logs">Daily Logs
         </div>
       </nav>
       <div class="brain-content">
@@ -821,8 +800,8 @@
         </table>
         <div id="brain-facts-empty" class="brain-empty hidden">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 7h8m-8 4h4m1 10.5V21c0-2.828 0-4.243.879-5.121C14.757 15 16.172 15 19 15h.5m.5-1.657V10c0-3.771 0-5.657-1.172-6.828S15.771 2 12 2S6.343 2 5.172 3.172S4 6.229 4 10v4.544c0 3.245 0 4.868.886 5.967a4 4 0 0 0 .603.603C6.59 22 8.211 22 11.456 22c.705 0 1.058 0 1.381-.114q.1-.036.197-.082c.31-.148.559-.397 1.058-.896l4.736-4.736c.579-.578.867-.867 1.02-1.235c.152-.368.152-.776.152-1.594"/></svg>
-          <p>my brain is empty!</p>
-          <small>tell me things about yourself and i'll remember them</small>
+          <p>Your memory is empty</p>
+          <small>Tell me things about yourself and I'll remember them</small>
         </div>
         <span id="brain-facts-count" class="hidden"></span>
       </div>
@@ -836,8 +815,8 @@
         <div class="soul-cards" id="brain-soul-cards"></div>
         <div id="brain-soul-empty" class="brain-empty hidden">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" stroke-width="1.5"/><path stroke-width="1.5" d="M9.5 9.5a2.5 2.5 0 1 1 3.912 2.064C12.728 12.032 12 12.672 12 13.5"/><path stroke-width="1.8" d="M12 17h.009"/></g></svg>
-          <p>no approach notes yet</p>
-          <small>as we chat, i'll learn how to work best with you</small>
+          <p>No approach notes yet</p>
+          <small>As we chat, I'll learn how to work best with you</small>
         </div>
         <span id="brain-soul-count" class="hidden"></span>
       </div>
@@ -854,8 +833,8 @@
         </table>
         <div id="brain-logs-empty" class="brain-empty hidden">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"><path d="M16 2v4M8 2v4m5-2h-2C7.229 4 5.343 4 4.172 5.172S3 8.229 3 12v2c0 3.771 0 5.657 1.172 6.828S7.229 22 11 22h2c3.771 0 5.657 0 6.828-1.172S21 17.771 21 14v-2c0-3.771 0-5.657-1.172-6.828S16.771 4 13 4M3 10h18"/><path d="M10 18.5v-4.653c0-.191-.137-.347-.305-.347H9m5 4.998l1.486-4.606a.3.3 0 0 0-.286-.392H13"/></g></svg>
-          <p>no daily logs yet!</p>
-          <small>i'll start journaling as we chat</small>
+          <p>No daily logs yet</p>
+          <small>I'll start journaling as we chat</small>
         </div>
         <span id="brain-logs-count" class="hidden"></span>
       </div>
@@ -894,25 +873,15 @@
     </div>
     <div class="pz-container">
       <nav class="pz-sidebar">
-        <div class="pz-nav-item active" data-tab="agent-name">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path stroke-width="1.5" d="M12 4V2m7 20a7 7 0 1 0-14 0"/><path stroke-width="2" d="M9.5 7.5h.01m4.98 0h.01"/><path stroke-width="1.5" d="M5.5 6.667c0-.62 0-.93.068-1.185a2 2 0 0 1 1.414-1.414C7.237 4 7.547 4 8.167 4h7.666c.62 0 .93 0 1.185.068a2 2 0 0 1 1.414 1.414c.068.255.068.565.068 1.185c0 1.24 0 1.86-.136 2.368a4 4 0 0 1-2.829 2.829c-.508.136-1.128.136-2.368.136h-2.334c-1.24 0-1.86 0-2.368-.136a4 4 0 0 1-2.829-2.829C5.5 8.527 5.5 7.907 5.5 6.667"/></g></svg>
-          Agent Details
+        <div class="pz-nav-item active" data-tab="agent-name">Agent Details
         </div>
-        <div class="pz-nav-item" data-tab="profile">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"><path d="M17 8.5a5 5 0 1 0-10 0a5 5 0 0 0 10 0"/><path d="M19 20.5a7 7 0 1 0-14 0"/></g></svg>
-          Your Details
+        <div class="pz-nav-item" data-tab="profile">Your Details
         </div>
-        <div class="pz-nav-item" data-tab="personality">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7.5 8.5h9m-9 4H13m-11-2c0-.77.013-1.523.04-2.25c.083-2.373.125-3.56 1.09-4.533c.965-.972 2.186-1.024 4.626-1.129A100 100 0 0 1 12 2.5c1.48 0 2.905.03 4.244.088c2.44.105 3.66.157 4.626 1.13c.965.972 1.007 2.159 1.09 4.532a64 64 0 0 1 0 4.5c-.083 2.373-.125 3.56-1.09 4.533c-.965.972-2.186 1.024-4.626 1.129q-1.102.047-2.275.07c-.74.014-1.111.02-1.437.145s-.6.358-1.148.828l-2.179 1.87A.73.73 0 0 1 8 20.77v-2.348l-.244-.01c-2.44-.105-3.66-.157-4.626-1.13c-.965-.972-1.007-2.159-1.09-4.532A64 64 0 0 1 2 10.5"/></svg>
-          How I Act
+        <div class="pz-nav-item" data-tab="personality">How I Act
         </div>
-        <div class="pz-nav-item" data-tab="world">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12.5 19v3m-2 0h4"/><circle cx="7" cy="7" r="7" stroke-linecap="round" transform="matrix(-1 0 0 1 20.5 2)"/><path stroke-linejoin="round" d="M8.5 4c.654.038.992.359 1.573.973c1.05 1.11 2.1 1.202 2.8.832c1.049-.555.167-1.453 1.399-1.94c.803-.32.915-1.185.468-1.865M20 10c-1.5 0-1.766 1.247-3 1c-2.5-.5-3.208.059-3.208 1.251s0 1.192-.52 2.086c-.338.582-.457 1.163.217 1.663"/><path stroke-linecap="round" d="M6.5 2a9.85 9.85 0 0 0-3 7.083C3.5 14.56 7.977 19 13.5 19a10 10 0 0 0 7-2.835"/></g></svg>
-          Your World
+        <div class="pz-nav-item" data-tab="world">Your World
         </div>
-        <div class="pz-nav-item" data-tab="system-prompt">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 12c0 5.523-4.477 10-10 10S2 17.523 2 12S6.477 2 12 2s10 4.477 10 10Z"/><path stroke-linecap="round" d="M12 13a2 2 0 1 0 0-4a2 2 0 0 0 0 4Zm0 0v3"/></g></svg>
-          System Prompt
+        <div class="pz-nav-item" data-tab="system-prompt">System Prompt
         </div>
       </nav>
       <div class="pz-content">
@@ -935,11 +904,11 @@
           <div class="pz-profile-content">
             <div class="pz-form-section">
               <div class="pz-form-grid">
-                <div class="pz-form-group"><label>Your Name</label><input type="text" id="pz-profile-name" placeholder="what should I call you?"></div>
-                <div class="pz-form-group"><label>Occupation</label><input type="text" id="pz-profile-occupation" placeholder="what do you do?"></div>
-                <div class="pz-form-group"><label>Location</label><div class="pz-autocomplete-wrapper"><input type="text" id="pz-profile-location" placeholder="where are you based?" autocomplete="off"><div class="pz-autocomplete-dropdown" id="pz-location-dropdown"></div></div><span class="hint">Type a city name to search</span></div>
-                <div class="pz-form-group"><label>Timezone</label><select id="pz-profile-timezone"><option value="">pick a timezone...</option></select><span class="hint">Auto-filled when you select a location</span></div>
-                <div class="pz-form-group"><label>Birthday</label><div class="pz-birthday-picker"><select id="pz-profile-birthday-month"><option value="">month</option><option value="January">January</option><option value="February">February</option><option value="March">March</option><option value="April">April</option><option value="May">May</option><option value="June">June</option><option value="July">July</option><option value="August">August</option><option value="September">September</option><option value="October">October</option><option value="November">November</option><option value="December">December</option></select><select id="pz-profile-birthday-day"><option value="">day</option></select></div></div>
+                <div class="pz-form-group"><label>Your Name</label><input type="text" id="pz-profile-name" placeholder="What should I call you?"></div>
+                <div class="pz-form-group"><label>Occupation</label><input type="text" id="pz-profile-occupation" placeholder="What do you do?"></div>
+                <div class="pz-form-group"><label>Location</label><div class="pz-autocomplete-wrapper"><input type="text" id="pz-profile-location" placeholder="Where are you based?" autocomplete="off"><div class="pz-autocomplete-dropdown" id="pz-location-dropdown"></div></div><span class="hint">Type a city name to search</span></div>
+                <div class="pz-form-group"><label>Timezone</label><select id="pz-profile-timezone"><option value="">Pick a timezone…</option></select><span class="hint">Auto-filled when you select a location</span></div>
+                <div class="pz-form-group"><label>Birthday</label><div class="pz-birthday-picker"><select id="pz-profile-birthday-month"><option value="">Month</option><option value="January">January</option><option value="February">February</option><option value="March">March</option><option value="April">April</option><option value="May">May</option><option value="June">June</option><option value="July">July</option><option value="August">August</option><option value="September">September</option><option value="October">October</option><option value="November">November</option><option value="December">December</option></select><select id="pz-profile-birthday-day"><option value="">Day</option></select></div></div>
               </div>
             </div>
           </div>
@@ -949,7 +918,7 @@
         <!-- How I Act Tab -->
         <div class="pz-tab" id="pz-tab-personality">
           <div class="pz-section-header"><h2>How I Act</h2><p>My personality, communication style, and vibes</p></div>
-          <div class="pz-editor-container"><textarea class="pz-editor" id="pz-personality-editor" placeholder="waking up..."></textarea></div>
+          <div class="pz-editor-container"><textarea class="pz-editor" id="pz-personality-editor" placeholder="Waking up…"></textarea></div>
           <div class="pz-action-bar"><span class="info">Reboot me to apply changes!</span><div class="buttons"><button onclick="playNormalClick(); pzSavePersonality()">Save</button></div></div>
         </div>
 
@@ -962,13 +931,13 @@
             <button class="pz-mode-tab" data-world-tab="funfacts">Fun Facts</button>
           </div>
           <div class="pz-world-tab-content" data-world-panel="goals">
-            <textarea id="pz-world-goals" rows="10" placeholder="what are you working toward?&#10;&#10;e.g. launch my startup, get fit, learn piano"></textarea>
+            <textarea id="pz-world-goals" rows="10" placeholder="What are you working toward?&#10;&#10;e.g. launch my startup, get fit, learn piano"></textarea>
           </div>
           <div class="pz-world-tab-content" data-world-panel="struggles" style="display:none;">
-            <textarea id="pz-world-struggles" rows="10" placeholder="what are you dealing with?&#10;&#10;e.g. time management, staying focused, burnout"></textarea>
+            <textarea id="pz-world-struggles" rows="10" placeholder="What are you dealing with?&#10;&#10;e.g. time management, staying focused, burnout"></textarea>
           </div>
           <div class="pz-world-tab-content" data-world-panel="funfacts" style="display:none;">
-            <textarea id="pz-world-funfacts" rows="10" placeholder="interests, hobbies, people in your life&#10;&#10;e.g. I have a golden retriever named Max&#10;my partner's name is Sarah&#10;I'm vegetarian, oat milk latte lover"></textarea>
+            <textarea id="pz-world-funfacts" rows="10" placeholder="Interests, hobbies, people in your life&#10;&#10;e.g. I have a golden retriever named Max&#10;my partner's name is Sarah&#10;I'm vegetarian, oat milk latte lover"></textarea>
           </div>
           <div class="pz-action-bar"><span class="info">Reboot me to apply changes!</span><div class="buttons"><button onclick="playNormalClick(); pzSaveWorld()">Save</button></div></div>
         </div>
@@ -992,8 +961,8 @@
       <div class="modal-header">
         <div class="modal-icon pixel-cat"></div>
         <div class="modal-title">
-          <h2>who made me?</h2>
-          <p>the human behind franky</p>
+          <h2>Who made me?</h2>
+          <p>The human behind Frankie</p>
         </div>
         <button class="modal-close" id="about-close-btn">
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M18 6L6 18m12 0L6 6"/></svg>
@@ -1001,9 +970,9 @@
       </div>
       <div class="modal-body">
         <div class="about-content">
-          <p>i was built by <strong>Ken Kai</strong> - he's been obsessed with AI and AI development for over 10 years now</p>
-          <p>he runs a youtube channel where he shares everything he learns, and teaches on skool too</p>
-          <p>if you want to learn more about AI dev, agents, and building cool stuff like me - check him out:</p>
+          <p>I was built by <strong>Ken Kai</strong> — he's been obsessed with AI and AI development for over 10 years now.</p>
+          <p>He runs a YouTube channel where he shares everything he learns, and teaches on Skool too.</p>
+          <p>If you want to learn more about AI dev, agents, and building cool stuff like me, check him out:</p>
         </div>
         <div class="about-links">
           <a class="about-link" id="about-link-youtube">

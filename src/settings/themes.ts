@@ -32,12 +32,37 @@ export interface ThemeDefinition {
 }
 
 export const THEMES: Record<string, ThemeDefinition> = {
-  // Dracula is the default — CSS variables.css matches these values,
-  // so null palette works. Explicit palette kept for completeness.
+  // Dracula — the default skin. Null palette — ui/shared/variables.css
+  // IS the dracula baseline, so picking this skin clears all overrides.
   dracula: {
     id: 'dracula',
     name: 'Dracula',
     palette: null,
+  },
+
+  // Cream (Clensae / ecomm-king) — warm cocoa light theme.
+  cream: {
+    id: 'cream',
+    name: 'Cream',
+    palette: {
+      'bg-primary': '#fff1b8',
+      'bg-secondary': '#fff8e0',
+      'bg-tertiary': '#ffe49a',
+      border: '#7a443247' /* faded umber (rgba 28%) */,
+      'text-primary': '#2a1912',
+      'text-secondary': '#33201a',
+      'text-muted': '#7a4432',
+      accent: '#d93a63',
+      'accent-secondary': '#ff94ac',
+      'accent-hover': '#b82a57',
+      error: '#821a3c',
+      success: '#5a7f3a',
+      warning: '#c9821f',
+      orange: '#c9821f',
+      'user-bubble': '#d93a63',
+      'user-bubble-solid': '#d93a63',
+      'assistant-bubble': '#fff1b8',
+    },
   },
 
   // ── Light themes ──────────────────────────────────────────────
@@ -46,8 +71,8 @@ export const THEMES: Record<string, ThemeDefinition> = {
     id: 'light',
     name: 'Light',
     palette: {
-      'bg-primary': '#ffffff',
-      'bg-secondary': '#f9f9f9',
+      'bg-primary': '#f9f9f9',
+      'bg-secondary': '#ffffff',
       'bg-tertiary': '#f2f2f7',
       border: '#e5e5ea',
       'text-primary': '#1c1c1e',
@@ -71,8 +96,8 @@ export const THEMES: Record<string, ThemeDefinition> = {
     id: 'dawn',
     name: 'Rosé Pine Dawn',
     palette: {
-      'bg-primary': '#faf4ed',
-      'bg-secondary': '#fffaf3',
+      'bg-primary': '#fffaf3',
+      'bg-secondary': '#faf4ed',
       'bg-tertiary': '#f2e9e1',
       border: '#dfdad9',
       'text-primary': '#575279',
@@ -91,15 +116,15 @@ export const THEMES: Record<string, ThemeDefinition> = {
     },
   },
 
-  // ── Dark themes ───────────────────────────────────────────────
+  // ── Dark themes ───────────────────────────────
 
   // GitHub Dark — github.com color scheme
   midnight: {
     id: 'midnight',
     name: 'Midnight',
     palette: {
-      'bg-primary': '#0d1117',
-      'bg-secondary': '#161b22',
+      'bg-primary': '#161b22',
+      'bg-secondary': '#0d1117',
       'bg-tertiary': '#1c2128',
       border: '#30363d',
       'text-primary': '#e6edf3',
@@ -123,8 +148,8 @@ export const THEMES: Record<string, ThemeDefinition> = {
     id: 'nord',
     name: 'Nord',
     palette: {
-      'bg-primary': '#2e3440',
-      'bg-secondary': '#3b4252',
+      'bg-primary': '#3b4252',
+      'bg-secondary': '#2e3440',
       'bg-tertiary': '#434c5e',
       border: '#4c566a',
       'text-primary': '#eceff4',
@@ -148,8 +173,8 @@ export const THEMES: Record<string, ThemeDefinition> = {
     id: 'mocha',
     name: 'Catppuccin Mocha',
     palette: {
-      'bg-primary': '#1e1e2e',
-      'bg-secondary': '#181825',
+      'bg-primary': '#181825',
+      'bg-secondary': '#1e1e2e',
       'bg-tertiary': '#313244',
       border: '#45475a',
       'text-primary': '#cdd6f4',
@@ -173,8 +198,8 @@ export const THEMES: Record<string, ThemeDefinition> = {
     id: 'rosepine',
     name: 'Rosé Pine',
     palette: {
-      'bg-primary': '#191724',
-      'bg-secondary': '#1f1d2e',
+      'bg-primary': '#1f1d2e',
+      'bg-secondary': '#191724',
       'bg-tertiary': '#26233a',
       border: '#403d52',
       'text-primary': '#e0def4',
@@ -198,8 +223,8 @@ export const THEMES: Record<string, ThemeDefinition> = {
     id: 'gruvbox',
     name: 'Gruvbox',
     palette: {
-      'bg-primary': '#282828',
-      'bg-secondary': '#1d2021',
+      'bg-primary': '#1d2021',
+      'bg-secondary': '#282828',
       'bg-tertiary': '#3c3836',
       border: '#504945',
       'text-primary': '#ebdbb2',
@@ -223,8 +248,8 @@ export const THEMES: Record<string, ThemeDefinition> = {
     id: 'solarized',
     name: 'Solarized Dark',
     palette: {
-      'bg-primary': '#002b36',
-      'bg-secondary': '#073642',
+      'bg-primary': '#073642',
+      'bg-secondary': '#002b36',
       'bg-tertiary': '#073642',
       border: '#586e75',
       'text-primary': '#fdf6e3',
@@ -248,8 +273,8 @@ export const THEMES: Record<string, ThemeDefinition> = {
     id: 'onedark',
     name: 'One Dark',
     palette: {
-      'bg-primary': '#282c34',
-      'bg-secondary': '#21252b',
+      'bg-primary': '#21252b',
+      'bg-secondary': '#282c34',
       'bg-tertiary': '#2c313a',
       border: '#3e4451',
       'text-primary': '#abb2bf',

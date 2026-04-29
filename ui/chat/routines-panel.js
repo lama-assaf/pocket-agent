@@ -14,6 +14,7 @@ function showRoutinesPanel() {
 
   chatView.classList.add('hidden');
   routinesView.classList.add('active');
+  if (window._sidebarEnterPanelMode) window._sidebarEnterPanelMode();
 
   const sidebarBtn = document.getElementById('sidebar-routines-btn');
   if (sidebarBtn) sidebarBtn.classList.add('active');
@@ -29,6 +30,7 @@ function hideRoutinesPanel() {
 
   routinesView.classList.remove('active');
   chatView.classList.remove('hidden');
+  if (window._sidebarExitPanelMode) window._sidebarExitPanelMode();
 
   const sidebarBtn = document.getElementById('sidebar-routines-btn');
   if (sidebarBtn) sidebarBtn.classList.remove('active');
@@ -147,7 +149,7 @@ async function _rtnLoadJobs() {
     const jobs = allJobs.filter(job => (job.schedule_type || 'cron') !== 'at');
 
     if (jobs.length === 0) {
-      jobsList.innerHTML = '<div class="rtn-empty"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l2 2"/></g></svg><p>nothing scheduled yet!</p></div>';
+      jobsList.innerHTML = '<div class="rtn-empty"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l2 2"/></g></svg><p>Nothing scheduled yet</p></div>';
       return;
     }
 

@@ -158,7 +158,7 @@
 /* Subagent active state - purple/pink vibe */
 .status-indicator.subagent-active {
   border-color: var(--accent);
-  background: linear-gradient(135deg, rgba(168, 85, 247, 0.1) 0%, rgba(236, 72, 153, 0.1) 100%);
+  background: linear-gradient(135deg, rgba(217, 58, 99, 0.1) 0%, rgba(236, 72, 153, 0.1) 100%);
 }
 
 .status-indicator.subagent-active .status-spinner {
@@ -168,11 +168,11 @@
 .status-indicator.subagent-active .status-action {
   background: linear-gradient(
     90deg,
-    #a855f7 0%,
-    #ec4899 25%,
-    #a855f7 50%,
-    #ec4899 75%,
-    #a855f7 100%
+    var(--accent) 0%,
+    var(--accent-secondary) 25%,
+    var(--accent) 50%,
+    var(--accent-secondary) 75%,
+    var(--accent) 100%
   );
   background-size: 200% 100%;
   -webkit-background-clip: text;
@@ -325,13 +325,13 @@
 /* Plan mode status indicator */
 .status-indicator.plan-mode-active {
   border-color: var(--accent);
-  background: linear-gradient(135deg, rgba(168, 85, 247, 0.12) 0%, rgba(139, 92, 246, 0.08) 100%);
+  background: linear-gradient(135deg, rgba(217, 58, 99, 0.12) 0%, rgba(139, 92, 246, 0.08) 100%);
 }
 
 .status-indicator.plan-mode-active .status-action {
   background: linear-gradient(
     90deg,
-    #a855f7 0%,
+    var(--accent) 0%,
     #8b5cf6 50%,
     var(--accent) 100%
   );

@@ -16,7 +16,8 @@
 #brain-view .brain-header {
   background: var(--bg-secondary);
   padding: 10px 16px;
-  border-bottom: 1px solid var(--border);
+ 
+  border-radius: var(--radius-sm);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -39,23 +40,7 @@
   gap: 8px;
 }
 
-#brain-view .brain-header-actions button {
-  padding: 6px 14px;
-  background: var(--bg-tertiary);
-  color: var(--text-secondary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 500;
-  transition: all 0.2s ease;
-  box-shadow: none;
-}
-
-#brain-view .brain-header-actions button:hover {
-  background: var(--border);
-  color: var(--text-primary);
-}
+/* Header buttons inherit the cinamon-pill look from shared/buttons.css. */
 
 /* Container (sidebar + content) */
 #brain-view .brain-container {
@@ -67,49 +52,25 @@
 /* Nav sidebar */
 #brain-view .brain-sidebar {
   width: 180px;
+  margin: 8px 8px 8px 0;
   background: var(--bg-secondary);
-  border-right: 1px solid var(--border);
-  padding: 16px 0;
+  border-radius: var(--radius-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 8px 8px;
   flex-shrink: 0;
   overflow-y: auto;
 }
 
-#brain-view .brain-nav-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 20px;
-  color: var(--text-secondary);
-  cursor: pointer;
-  font-family: 'Cal Sans', sans-serif;
-  font-size: 13px;
-  font-weight: 500;
-  transition: all 0.15s ease;
-  border-left: 3px solid transparent;
-}
-
-#brain-view .brain-nav-item:hover {
-  background: var(--bg-tertiary);
-  color: var(--text-primary);
-}
-
-#brain-view .brain-nav-item.active {
-  background: linear-gradient(90deg, rgba(168, 85, 247, 0.1) 0%, transparent 100%);
-  color: var(--text-primary);
-  border-left-color: var(--accent);
-}
-
-#brain-view .brain-nav-item svg {
-  width: 16px;
-  height: 16px;
-  opacity: 0.7;
-}
+/* .brain-nav-item visuals come from shared/nav.css. */
 
 /* Brain Content */
 #brain-view .brain-content {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
+  padding: 8px 0 32px;
 }
 
 #brain-view .brain-content::-webkit-scrollbar {
@@ -137,7 +98,8 @@
 /* Facts Table */
 #brain-view .facts-table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0 2px;
 }
 
 #brain-view .facts-table thead {
@@ -155,18 +117,34 @@
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  border-bottom: 1px solid var(--border);
+}
+#brain-view .facts-table thead th:first-child {
+  border-top-left-radius: var(--radius);
+  border-bottom-left-radius: var(--radius);
+}
+#brain-view .facts-table thead th:last-child {
+  border-top-right-radius: var(--radius);
+  border-bottom-right-radius: var(--radius);
 }
 
 #brain-view .facts-table td {
   padding: 10px 16px;
   font-size: 13px;
-  border-bottom: 1px solid var(--border);
   vertical-align: top;
 }
 
+/* Hover fills the entire row with rounded corners on the first/last cell. */
+#brain-view .facts-table tbody tr { transition: background-color 150ms ease; }
 #brain-view .facts-table tbody tr:hover td {
-  background: var(--bg-secondary);
+  background: var(--bg-tertiary);
+}
+#brain-view .facts-table tbody tr:hover td:first-child {
+  border-top-left-radius: var(--radius-sm);
+  border-bottom-left-radius: var(--radius-sm);
+}
+#brain-view .facts-table tbody tr:hover td:last-child {
+  border-top-right-radius: var(--radius-sm);
+  border-bottom-right-radius: var(--radius-sm);
 }
 
 #brain-view .facts-table .fact-category {
@@ -194,55 +172,30 @@
   text-align: center;
 }
 
-#brain-view .fact-delete-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-sm);
-  color: var(--text-muted);
-  cursor: pointer;
-  transition: all 0.15s ease;
-  opacity: 0;
-}
-
-#brain-view .facts-table tbody tr:hover .fact-delete-btn {
-  opacity: 1;
-}
-
-#brain-view .fact-delete-btn:hover {
-  background: rgba(239, 68, 68, 0.1);
-  color: var(--error);
-}
-
-#brain-view .fact-delete-btn svg {
-  width: 14px;
-  height: 14px;
-}
+/* .fact-delete-btn visuals come from shared/icon-buttons.css. */
+#brain-view .fact-delete-btn { opacity: 0; }
+#brain-view .facts-table tbody tr:hover .fact-delete-btn { opacity: 1; }
 
 /* Soul Cards */
+/* Soul — flat list with hover-fill rows, matching the table treatment. */
 #brain-view .soul-cards {
-  padding: 16px;
+  padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 2px;
 }
 
 #brain-view .soul-card {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 14px 16px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 12px 16px;
   position: relative;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition: background-color 150ms ease;
 }
 
 #brain-view .soul-card:hover {
-  border-color: var(--accent);
-  box-shadow: 0 4px 16px rgba(168, 85, 247, 0.1);
+  background: var(--bg-tertiary);
 }
 
 #brain-view .soul-card-name {
@@ -266,42 +219,20 @@
   color: var(--text-muted);
 }
 
+/* .soul-delete-btn visuals come from shared/icon-buttons.css. */
 #brain-view .soul-delete-btn {
   position: absolute;
   top: 12px;
   right: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-sm);
-  color: var(--text-muted);
-  cursor: pointer;
-  transition: all 0.15s ease;
   opacity: 0;
 }
-
-#brain-view .soul-card:hover .soul-delete-btn {
-  opacity: 1;
-}
-
-#brain-view .soul-delete-btn:hover {
-  background: rgba(239, 68, 68, 0.1);
-  color: var(--error);
-}
-
-#brain-view .soul-delete-btn svg {
-  width: 14px;
-  height: 14px;
-}
+#brain-view .soul-card:hover .soul-delete-btn { opacity: 1; }
 
 /* Daily Logs Table */
 #brain-view .logs-table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0 2px;
 }
 
 #brain-view .logs-table thead {
@@ -319,18 +250,34 @@
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  border-bottom: 1px solid var(--border);
+}
+#brain-view .logs-table thead th:first-child {
+  border-top-left-radius: var(--radius);
+  border-bottom-left-radius: var(--radius);
+}
+#brain-view .logs-table thead th:last-child {
+  border-top-right-radius: var(--radius);
+  border-bottom-right-radius: var(--radius);
 }
 
 #brain-view .logs-table td {
   padding: 10px 16px;
   font-size: 13px;
-  border-bottom: 1px solid var(--border);
   vertical-align: top;
 }
 
+/* Hover fills the entire row with rounded corners on the first/last cell. */
+#brain-view .logs-table tbody tr { transition: background-color 150ms ease; }
 #brain-view .logs-table tbody tr:hover td {
-  background: var(--bg-secondary);
+  background: var(--bg-tertiary);
+}
+#brain-view .logs-table tbody tr:hover td:first-child {
+  border-top-left-radius: var(--radius-sm);
+  border-bottom-left-radius: var(--radius-sm);
+}
+#brain-view .logs-table tbody tr:hover td:last-child {
+  border-top-right-radius: var(--radius-sm);
+  border-bottom-right-radius: var(--radius-sm);
 }
 
 #brain-view .log-date {
@@ -341,18 +288,8 @@
   color: var(--accent);
 }
 
-#brain-view .log-date .now-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 1px 6px;
-  margin-left: 6px;
-  background: rgba(168, 85, 247, 0.12);
-  border: 1px solid rgba(168, 85, 247, 0.25);
-  border-radius: 8px;
-  font-size: 9px;
-  font-weight: 600;
-  -webkit-text-fill-color: var(--accent);
-}
+/* .now-badge visuals come from shared/badges.css (accent variant). */
+#brain-view .log-date .now-badge { margin-left: 6px; }
 
 #brain-view .log-content {
   color: var(--text-secondary);
@@ -365,34 +302,11 @@
   text-align: center;
 }
 
-#brain-view .log-delete-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-sm);
-  color: var(--text-muted);
-  cursor: pointer;
-  transition: all 0.15s ease;
-  opacity: 0;
-}
+/* .log-delete-btn visuals come from shared/icon-buttons.css. */
+#brain-view .log-delete-btn { opacity: 0; }
+#brain-view .logs-table tbody tr:hover .log-delete-btn { opacity: 1; }
 
-#brain-view .logs-table tbody tr:hover .log-delete-btn {
-  opacity: 1;
-}
-
-#brain-view .log-delete-btn:hover {
-  background: rgba(239, 68, 68, 0.1);
-  color: var(--error);
-}
-
-#brain-view .log-delete-btn svg {
-  width: 14px;
-  height: 14px;
-}
+/* SVG sizing comes from shared/icon-buttons.css. */
 
 /* Empty State */
 #brain-view .brain-empty {
@@ -430,13 +344,15 @@
 }
 
 /* Memory Capacity Bar */
+/* Capacity strip — rounded card spanning the full brain-content width. */
 #brain-view .memory-capacity {
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 10px 16px;
+  margin-bottom: 2px;
   background: var(--bg-secondary);
-  border-bottom: 1px solid var(--border);
+  border-radius: var(--radius);
   flex-shrink: 0;
 }
 
@@ -467,11 +383,11 @@
 }
 
 #brain-view .memory-capacity-fill.warning {
-  background: #f59e0b;
+  background: var(--warning);
 }
 
 #brain-view .memory-capacity-fill.critical {
-  background: #ef4444;
+  background: var(--accent-shadow);
 }
 
 #brain-view .memory-capacity-text {

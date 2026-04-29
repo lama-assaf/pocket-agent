@@ -3,11 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src https://fonts.gstatic.com; img-src 'self' data:;">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; font-src 'self'; img-src 'self' data:;">
   <title>Personalize</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&family=Cal+Sans&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/notyf@3/notyf.min.css">
   <script src="https://cdn.jsdelivr.net/npm/notyf@3/notyf.min.js"></script>
   <link rel="stylesheet" href="shared/variables.css">
@@ -17,7 +16,6 @@
     header {
       background: var(--bg-secondary);
       padding: 10px 16px;
-      border-bottom: 1px solid var(--border);
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -38,71 +36,14 @@
 
     .header-actions { display: flex; gap: 8px; }
 
-    .header-actions button {
-      padding: 6px 14px;
-      background: linear-gradient(135deg, var(--accent) 0%, var(--accent-secondary) 100%);
-      color: white;
-      border: none;
-      border-radius: var(--radius-sm);
-      cursor: pointer;
-      font-size: 13px;
-      font-weight: 500;
-      transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
-      box-shadow: 0 2px 8px rgba(168, 85, 247, 0.25);
-    }
+    /* Header buttons inherit the cinamon-pill look from shared/buttons.css. */
 
-    .header-actions button:hover {
-      background: linear-gradient(135deg, var(--accent-hover) 0%, var(--accent) 100%);
-      transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(168, 85, 247, 0.35);
-    }
-
-    .header-actions button:active { transform: translateY(0); }
-
-    .header-actions button.secondary {
-      background: var(--bg-tertiary);
-      color: var(--text-secondary);
-      border: 1px solid var(--border);
-      box-shadow: none;
-    }
-
-    .header-actions button.secondary:hover {
-      background: var(--border);
-      color: var(--text-primary);
-      transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-    }
-
-    .header-actions button.reboot {
-      background: var(--bg-tertiary);
-      color: var(--text-muted);
-      border: 1px solid var(--border);
-      box-shadow: none;
-      opacity: 0.5;
-      cursor: not-allowed;
-      transition: all 0.3s ease;
-    }
-
-    .header-actions button.reboot:disabled { opacity: 0.5; cursor: not-allowed; }
-
-    .header-actions button.reboot.active {
-      opacity: 1;
-      cursor: pointer;
-      color: var(--text-primary);
-      border-color: var(--accent);
-      box-shadow: 0 0 12px rgba(168, 85, 247, 0.4), 0 0 24px rgba(168, 85, 247, 0.2);
-      animation: rebootGlow 2s ease-in-out infinite;
-    }
-
-    .header-actions button.reboot.active:hover {
-      background: var(--border);
-      transform: translateY(-2px);
-      box-shadow: 0 0 16px rgba(168, 85, 247, 0.5), 0 0 32px rgba(168, 85, 247, 0.3);
-    }
-
+    /* Reboot button: inherits the cinamon pill (disabled = dim) from shared/buttons.css.
+       When changes pending, JS adds .active for the pulsing glow. */
+    .header-actions button.reboot.active { animation: rebootGlow 2s ease-in-out infinite; }
     @keyframes rebootGlow {
-      0%, 100% { box-shadow: 0 0 12px rgba(168, 85, 247, 0.4), 0 0 24px rgba(168, 85, 247, 0.2); }
-      50% { box-shadow: 0 0 16px rgba(168, 85, 247, 0.6), 0 0 32px rgba(168, 85, 247, 0.3); }
+      0%, 100% { box-shadow: 0 3px 0 0 var(--accent-shadow), 0 0 12px rgba(217, 58, 99, 0.45); }
+      50% { box-shadow: 0 3px 0 0 var(--accent-shadow), 0 0 18px rgba(217, 58, 99, 0.65); }
     }
 
     .container { flex: 1; display: flex; overflow: hidden; }
@@ -110,9 +51,13 @@
     /* Sidebar */
     .sidebar {
       width: 180px;
+      margin: 8px 8px 8px 0;
       background: var(--bg-secondary);
-      border-right: 1px solid var(--border);
-      padding: 16px 0;
+      border-radius: var(--radius-sm);
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      padding: 4px 8px 8px;
       flex-shrink: 0;
     }
 
@@ -133,7 +78,7 @@
     .nav-item:hover { background: var(--bg-tertiary); color: var(--text-primary); }
 
     .nav-item.active {
-      background: linear-gradient(90deg, rgba(168, 85, 247, 0.1) 0%, transparent 100%);
+      background: linear-gradient(90deg, rgba(217, 58, 99, 0.1) 0%, transparent 100%);
       color: var(--text-primary);
       border-left-color: var(--accent);
     }
@@ -141,7 +86,7 @@
     .nav-item svg { width: 16px; height: 16px; opacity: 0.7; }
 
     /* Content */
-    .content { flex: 1; display: flex; flex-direction: column; overflow: hidden; padding: 24px; }
+    .content { flex: 1; display: flex; flex-direction: column; overflow: hidden; padding: 20px 24px 32px; }
 
     .tab-content { display: none; flex: 1; flex-direction: column; overflow: hidden; }
     .tab-content.active { display: flex; }
@@ -150,25 +95,19 @@
     .section-header h2 { font-family: 'Cal Sans', sans-serif; font-size: 15px; font-weight: 600; margin-bottom: 4px; }
     .section-header p { font-size: 13px; color: var(--text-secondary); }
 
+    /* Editor container blends into the page; the inner textarea inherits
+       the shell-cream form-input look from shared/forms.css. */
     .editor-container {
       flex: 1;
       display: flex;
       flex-direction: column;
       overflow: hidden;
-      background: var(--bg-secondary);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
     }
 
     textarea.editor {
       flex: 1;
       width: 100%;
       padding: 16px;
-      background: var(--bg-secondary);
-      color: var(--text-primary);
-      border: none;
-      outline: none;
-      resize: none;
       font-family: 'JetBrains Mono', monospace;
       font-size: 13px;
       line-height: 1.6;
@@ -180,14 +119,11 @@
     textarea.editor::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
     textarea.editor::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
 
-    /* Read-only display */
+    /* Read-only display blends into the page (no card chrome). */
     .readonly-display {
       flex: 1;
       overflow-y: auto;
-      padding: 16px;
-      background: var(--bg-secondary);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
+      padding: 16px 0;
       font-family: 'JetBrains Mono', monospace;
       font-size: 13px;
       line-height: 1.6;
@@ -199,52 +135,22 @@
     .readonly-display::-webkit-scrollbar-track { background: var(--bg-secondary); }
     .readonly-display::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
 
-    .readonly-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 4px 10px;
-      background: var(--bg-tertiary);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      font-size: 11px;
-      color: var(--text-muted);
-      margin-bottom: 12px;
-    }
-
+    /* .readonly-badge visuals come from shared/badges.css. */
+    .readonly-badge { margin-bottom: 12px; }
     .readonly-badge svg { width: 12px; height: 12px; }
 
     /* Name input */
     .name-input-container { margin-bottom: 20px; }
 
-    .name-input {
-      width: 100%;
-      max-width: 320px;
-      padding: 12px 16px;
-      background: var(--bg-secondary);
-      color: var(--text-primary);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-sm);
-      font-family: 'Roboto', sans-serif;
-      font-size: 18px;
-      font-weight: 600;
-      outline: none;
-      transition: border-color 0.15s ease;
-    }
-
-    .name-input:focus {
-      border-color: var(--accent);
-      box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.15), 0 0 20px rgba(168, 85, 247, 0.1);
-    }
-
-    .name-input::placeholder { color: var(--text-muted); }
+    /* .name-input inherits the shell-cream look from shared/forms.css. */
+    .name-input { width: 100%; max-width: 320px; padding: 12px 16px; font-size: 18px; font-weight: 600; }
 
     .action-bar {
       display: flex;
       align-items: center;
       justify-content: space-between;
       margin-top: 16px;
-      padding-top: 16px;
+      padding: 16px 0 6px;
       border-top: 1px solid var(--border);
     }
 
@@ -252,35 +158,15 @@
 
     .action-bar .buttons { display: flex; gap: 8px; }
 
-    .action-bar button {
-      padding: 8px 16px;
-      background: linear-gradient(135deg, var(--accent) 0%, var(--accent-secondary) 100%);
-      color: white;
-      border: none;
-      border-radius: var(--radius-sm);
-      cursor: pointer;
-      font-size: 13px;
-      font-weight: 500;
-      transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
-      box-shadow: 0 2px 8px rgba(168, 85, 247, 0.25);
-    }
-
-    .action-bar button:hover {
-      background: linear-gradient(135deg, var(--accent-hover) 0%, var(--accent) 100%);
-      transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(168, 85, 247, 0.35);
-    }
-
-    .action-bar button:active { transform: translateY(0); }
-    .action-bar button:disabled { opacity: 0.5; cursor: not-allowed; }
+    /* Save buttons inside .action-bar inherit the cinamon-pill look
+       from shared/buttons.css. */
 
     /* Form fields for profile */
+    /* Form sections blend into the page — no card chrome, just a margin
+       between sections. Inputs inside provide the only visual structure. */
     .form-section {
-      background: var(--bg-secondary);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 20px;
-      margin-bottom: 16px;
+      padding: 0;
+      margin-bottom: 24px;
     }
 
     .form-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
@@ -296,42 +182,21 @@
       letter-spacing: 0.05em;
     }
 
+    /* Form inputs / textareas inherit the shell-cream look from
+       shared/forms.css. Only size variants live here. */
     .form-group input,
     .form-group textarea {
       padding: 12px 14px;
-      background: var(--bg-tertiary);
-      color: var(--text-primary);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-sm);
-      font-family: 'Roboto', sans-serif;
       font-size: 15px;
-      line-height: 1.5;
-      outline: none;
-      transition: border-color 0.15s ease;
     }
-
-    .form-group input:focus,
-    .form-group textarea:focus {
-      border-color: var(--accent);
-      box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.15), 0 0 20px rgba(168, 85, 247, 0.1);
-    }
-
-    .form-group input::placeholder,
-    .form-group textarea::placeholder { color: var(--text-muted); }
 
     .form-group .hint { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
 
+    /* .form-group select inherits the shell-cream look from
+       shared/forms.css. Only size + chevron live here. */
     .form-group select {
       padding: 12px 36px 12px 14px;
-      background-color: var(--bg-tertiary);
-      color: var(--text-primary);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-sm);
-      font-family: 'Roboto', sans-serif;
       font-size: 15px;
-      outline: none;
-      cursor: pointer;
-      transition: border-color 0.15s ease;
       width: 100%;
       -webkit-appearance: none;
       -moz-appearance: none;
@@ -369,7 +234,6 @@
       padding: 10px 12px;
       cursor: pointer;
       font-size: 13px;
-      border-bottom: 1px solid var(--border);
       transition: background 0.1s ease;
     }
 
@@ -451,7 +315,7 @@
   <header>
     <h1><span>Personalize</span></h1>
     <div class="header-actions">
-      <button class="secondary" onclick="playNormalClick(); window.close()">Done</button>
+      <button onclick="playNormalClick(); window.close()">Done</button>
       <button id="reboot-btn" class="reboot" onclick="playNormalClick(); restartAgent()" disabled title="Reboot to apply changes">
         <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" class="inline-icon"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="m15.167 1l.598 1.118c.404.755.606 1.133.472 1.295c-.133.162-.573.031-1.454-.23A9.8 9.8 0 0 0 12 2.78c-5.247 0-9.5 4.128-9.5 9.22a8.97 8.97 0 0 0 1.27 4.61M8.834 23l-.598-1.118c-.404-.756-.606-1.134-.472-1.295c.133-.162.573-.032 1.454.23c.88.261 1.815.402 2.783.402c5.247 0 9.5-4.128 9.5-9.22a8.97 8.97 0 0 0-1.27-4.609"/></svg>
         Reboot
@@ -461,25 +325,15 @@
 
   <div class="container">
     <nav class="sidebar">
-      <div class="nav-item active" data-tab="agent-name">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path stroke-width="1.5" d="M12 4V2m7 20a7 7 0 1 0-14 0"/><path stroke-width="2" d="M9.5 7.5h.01m4.98 0h.01"/><path stroke-width="1.5" d="M5.5 6.667c0-.62 0-.93.068-1.185a2 2 0 0 1 1.414-1.414C7.237 4 7.547 4 8.167 4h7.666c.62 0 .93 0 1.185.068a2 2 0 0 1 1.414 1.414c.068.255.068.565.068 1.185c0 1.24 0 1.86-.136 2.368a4 4 0 0 1-2.829 2.829c-.508.136-1.128.136-2.368.136h-2.334c-1.24 0-1.86 0-2.368-.136a4 4 0 0 1-2.829-2.829C5.5 8.527 5.5 7.907 5.5 6.667"/></g></svg>
-        Agent's Name
+      <div class="nav-item active" data-tab="agent-name">Agent's Name
       </div>
-      <div class="nav-item" data-tab="profile">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"><path d="M17 8.5a5 5 0 1 0-10 0a5 5 0 0 0 10 0"/><path d="M19 20.5a7 7 0 1 0-14 0"/></g></svg>
-        Your Details
+      <div class="nav-item" data-tab="profile">Your Details
       </div>
-      <div class="nav-item" data-tab="personality">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7.5 8.5h9m-9 4H13m-11-2c0-.77.013-1.523.04-2.25c.083-2.373.125-3.56 1.09-4.533c.965-.972 2.186-1.024 4.626-1.129A100 100 0 0 1 12 2.5c1.48 0 2.905.03 4.244.088c2.44.105 3.66.157 4.626 1.13c.965.972 1.007 2.159 1.09 4.532a64 64 0 0 1 0 4.5c-.083 2.373-.125 3.56-1.09 4.533c-.965.972-2.186 1.024-4.626 1.129q-1.102.047-2.275.07c-.74.014-1.111.02-1.437.145s-.6.358-1.148.828l-2.179 1.87A.73.73 0 0 1 8 20.77v-2.348l-.244-.01c-2.44-.105-3.66-.157-4.626-1.13c-.965-.972-1.007-2.159-1.09-4.532A64 64 0 0 1 2 10.5"/></svg>
-        How I Act
+      <div class="nav-item" data-tab="personality">How I Act
       </div>
-      <div class="nav-item" data-tab="world">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12.5 19v3m-2 0h4"/><circle cx="7" cy="7" r="7" stroke-linecap="round" transform="matrix(-1 0 0 1 20.5 2)"/><path stroke-linejoin="round" d="M8.5 4c.654.038.992.359 1.573.973c1.05 1.11 2.1 1.202 2.8.832c1.049-.555.167-1.453 1.399-1.94c.803-.32.915-1.185.468-1.865M20 10c-1.5 0-1.766 1.247-3 1c-2.5-.5-3.208.059-3.208 1.251s0 1.192-.52 2.086c-.338.582-.457 1.163.217 1.663"/><path stroke-linecap="round" d="M6.5 2a9.85 9.85 0 0 0-3 7.083C3.5 14.56 7.977 19 13.5 19a10 10 0 0 0 7-2.835"/></g></svg>
-        Your World
+      <div class="nav-item" data-tab="world">Your World
       </div>
-      <div class="nav-item" data-tab="system-prompt">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 12c0 5.523-4.477 10-10 10S2 17.523 2 12S6.477 2 12 2s10 4.477 10 10Z"/><path stroke-linecap="round" d="M12 13a2 2 0 1 0 0-4a2 2 0 0 0 0 4Zm0 0v3"/></g></svg>
-        System Prompt
+      <div class="nav-item" data-tab="system-prompt">System Prompt
       </div>
     </nav>
 
@@ -520,16 +374,16 @@
             <div class="form-grid">
               <div class="form-group">
                 <label for="profile-name">Your Name</label>
-                <input type="text" id="profile-name" placeholder="what should I call you?">
+                <input type="text" id="profile-name" placeholder="What should I call you?">
               </div>
               <div class="form-group">
                 <label for="profile-occupation">Occupation</label>
-                <input type="text" id="profile-occupation" placeholder="what do you do?">
+                <input type="text" id="profile-occupation" placeholder="What do you do?">
               </div>
               <div class="form-group">
                 <label for="profile-location">Location</label>
                 <div class="autocomplete-wrapper">
-                  <input type="text" id="profile-location" placeholder="where are you based?" autocomplete="off">
+                  <input type="text" id="profile-location" placeholder="Where are you based?" autocomplete="off">
                   <div class="autocomplete-dropdown" id="location-dropdown"></div>
                 </div>
                 <span class="hint">Type a city name to search</span>
@@ -537,7 +391,7 @@
               <div class="form-group">
                 <label for="profile-timezone">Timezone</label>
                 <select id="profile-timezone">
-                  <option value="">pick a timezone...</option>
+                  <option value="">Pick a timezone…</option>
                 </select>
                 <span class="hint">Auto-filled when you select a location</span>
               </div>
@@ -545,7 +399,7 @@
                 <label>Birthday</label>
                 <div class="birthday-picker">
                   <select id="profile-birthday-month">
-                    <option value="">month</option>
+                    <option value="">Month</option>
                     <option value="January">January</option>
                     <option value="February">February</option>
                     <option value="March">March</option>
@@ -560,7 +414,7 @@
                     <option value="December">December</option>
                   </select>
                   <select id="profile-birthday-day">
-                    <option value="">day</option>
+                    <option value="">Day</option>
                   </select>
                 </div>
               </div>
@@ -582,7 +436,7 @@
           <p>My personality, communication style, and vibes</p>
         </div>
         <div class="editor-container">
-          <textarea class="editor" id="personality-editor" placeholder="waking up..."></textarea>
+          <textarea class="editor" id="personality-editor" placeholder="Waking up…"></textarea>
         </div>
         <div class="action-bar">
           <span class="info">Reboot me to apply changes!</span>
@@ -602,19 +456,19 @@
           <div class="form-section">
             <div class="form-group">
               <label for="world-goals">Goals</label>
-              <textarea id="world-goals" rows="4" placeholder="what are you working toward?&#10;&#10;e.g. launch my startup, get fit, learn piano"></textarea>
+              <textarea id="world-goals" rows="4" placeholder="What are you working toward?&#10;&#10;e.g. launch my startup, get fit, learn piano"></textarea>
             </div>
           </div>
           <div class="form-section">
             <div class="form-group">
               <label for="world-struggles">Struggles</label>
-              <textarea id="world-struggles" rows="4" placeholder="what are you dealing with?&#10;&#10;e.g. time management, staying focused, burnout"></textarea>
+              <textarea id="world-struggles" rows="4" placeholder="What are you dealing with?&#10;&#10;e.g. time management, staying focused, burnout"></textarea>
             </div>
           </div>
           <div class="form-section">
             <div class="form-group">
               <label for="world-funfacts">Fun Facts</label>
-              <textarea id="world-funfacts" rows="6" placeholder="interests, hobbies, people in your life&#10;&#10;e.g. I have a golden retriever named Max&#10;my partner's name is Sarah&#10;I'm vegetarian, oat milk latte lover"></textarea>
+              <textarea id="world-funfacts" rows="6" placeholder="Interests, hobbies, people in your life&#10;&#10;e.g. I have a golden retriever named Max&#10;my partner's name is Sarah&#10;I'm vegetarian, oat milk latte lover"></textarea>
             </div>
           </div>
         </div>

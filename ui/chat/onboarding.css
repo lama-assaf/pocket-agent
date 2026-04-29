@@ -225,7 +225,7 @@ body:not(.onboarding-active) #chat-view {
 
 .ob-auth-option.selected {
   border-color: var(--accent);
-  background: linear-gradient(135deg, rgba(168, 85, 247, 0.1) 0%, rgba(236, 72, 153, 0.1) 100%);
+  background: color-mix(in srgb, var(--accent) 12%, var(--bg-primary));
 }
 
 .ob-auth-option-icon {
@@ -272,29 +272,7 @@ body:not(.onboarding-active) #chat-view {
   gap: 6px;
 }
 
-.ob-auth-badge {
-  padding: 4px 8px;
-  background: var(--success);
-  color: white;
-  border-radius: 16px;
-  font-size: 10px;
-  font-weight: 500;
-  white-space: nowrap;
-}
-
-.ob-auth-badge.risk {
-  background: rgba(245, 158, 11, 0.10);
-  color: var(--warning);
-  border: 1px solid rgba(245, 158, 11, 0.18);
-  cursor: help;
-  position: relative;
-  transition: all 0.15s;
-}
-
-.ob-auth-badge.risk:hover {
-  background: rgba(245, 158, 11, 0.15);
-  border-color: rgba(245, 158, 11, 0.28);
-}
+/* .ob-auth-badge / .ob-auth-badge.risk visuals come from shared/badges.css. */
 
 .ob-auth-badge.risk .risk-info {
   display: inline-flex;
@@ -346,31 +324,9 @@ body:not(.onboarding-active) #chat-view {
   color: var(--text-secondary);
 }
 
-.ob-form-group input {
-  width: 100%;
-  padding: 12px 14px;
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  color: var(--text-primary);
-  font-size: 14px;
-  font-family: inherit;
-  outline: none;
-  transition: border-color 0.15s;
-}
-
-.ob-form-group input:focus {
-  border-color: var(--accent);
-}
-
-.ob-form-group input::placeholder {
-  color: var(--text-muted);
-}
-
-.ob-form-group input[type="password"] {
-  font-family: monospace;
-  letter-spacing: 1px;
-}
+/* .ob-form-group inputs inherit the shell-cream look from shared/forms.css. */
+.ob-form-group input { width: 100%; padding: 12px 14px; font-size: 14px; }
+.ob-form-group input[type="password"] { font-family: monospace; letter-spacing: 1px; }
 
 .ob-form-group .ob-hint {
   font-size: 12px;
@@ -411,17 +367,17 @@ body:not(.onboarding-active) #chat-view {
 }
 
 .ob-status.success {
-  background: rgba(34, 197, 94, 0.1);
+  background: color-mix(in srgb, var(--success) 12%, var(--bg-primary));
   color: var(--success);
 }
 
 .ob-status.error {
-  background: rgba(239, 68, 68, 0.1);
-  color: var(--error);
+  background: color-mix(in srgb, var(--accent-shadow) 12%, var(--bg-primary));
+  color: var(--accent-shadow);
 }
 
 .ob-status.info {
-  background: linear-gradient(135deg, rgba(168, 85, 247, 0.1) 0%, rgba(236, 72, 153, 0.1) 100%);
+  background: color-mix(in srgb, var(--accent) 12%, var(--bg-primary));
   color: var(--accent);
 }
 
@@ -451,44 +407,8 @@ body:not(.onboarding-active) #chat-view {
   font-family: inherit;
 }
 
-.ob-btn.primary {
-  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-secondary) 100%);
-  color: white;
-}
-
-.ob-btn.primary:hover:not(:disabled) {
-  background: linear-gradient(135deg, var(--accent-hover) 0%, var(--accent) 100%);
-  transform: translateY(-2px);
-}
-
-.ob-btn.primary:active:not(:disabled) {
-  transform: translateY(0);
-}
-
-.ob-btn.secondary {
-  background: var(--bg-tertiary);
-  color: var(--text-secondary);
-  border: 1px solid var(--border);
-}
-
-.ob-btn.secondary:hover {
-  background: var(--border);
-  color: var(--text-primary);
-  transform: translateY(-2px);
-}
-
-.ob-btn.secondary:active {
-  transform: translateY(0);
-}
-
-.ob-btn.oauth {
-  background: var(--orange);
-  color: white;
-}
-
-.ob-btn.oauth:hover:not(:disabled) {
-  background: #ea580c;
-}
+/* .ob-btn.primary -> cinamon pill, .ob-btn.secondary -> shell pill,
+   inherited from shared/buttons.css. */
 
 .ob-btn:disabled {
   opacity: 0.5;
@@ -538,13 +458,13 @@ body:not(.onboarding-active) #chat-view {
 }
 
 .ob-perm-icon.granted {
-  background: rgba(34, 197, 94, 0.15);
+  background: color-mix(in srgb, var(--success) 18%, var(--bg-primary));
   color: var(--success);
 }
 
 .ob-perm-icon.missing {
-  background: rgba(249, 115, 22, 0.15);
-  color: var(--orange);
+  background: color-mix(in srgb, var(--warning) 18%, var(--bg-primary));
+  color: var(--text-muted);
 }
 
 .ob-perm-icon svg {
@@ -702,29 +622,16 @@ body:not(.onboarding-active) #chat-view {
   background: var(--text-muted);
 }
 
-/* Textarea in form groups */
+/* Textarea in form groups inherits shell-cream look from shared/forms.css. */
 .ob-form-group textarea {
   width: 100%;
   padding: 12px 14px;
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  color: var(--text-primary);
   font-size: 14px;
-  font-family: inherit;
-  outline: none;
-  transition: border-color 0.15s;
   resize: vertical;
   line-height: 1.5;
 }
 
-.ob-form-group textarea:focus {
-  border-color: var(--accent);
-}
-
-.ob-form-group textarea::placeholder {
-  color: var(--text-muted);
-}
+/* Focus / placeholder styling comes from shared/forms.css. */
 
 /* Location autocomplete (onboarding) */
 .ob-autocomplete-wrapper {
@@ -849,7 +756,7 @@ body:not(.onboarding-active) #chat-view {
 .ob-success-icon {
   width: 64px;
   height: 64px;
-  background: linear-gradient(135deg, rgba(168, 85, 247, 0.15) 0%, rgba(236, 72, 153, 0.15) 100%);
+  background: linear-gradient(135deg, rgba(217, 58, 99, 0.15) 0%, rgba(236, 72, 153, 0.15) 100%);
   border-radius: 50%;
   display: flex;
   align-items: center;

@@ -53,6 +53,7 @@ function showSettingsPanel(tab) {
 
   chatView.classList.add('hidden');
   settingsView.classList.add('active');
+  if (window._sidebarEnterPanelMode) window._sidebarEnterPanelMode();
 
   // Mark sidebar button active
   const sidebarBtn = document.getElementById('sidebar-settings-btn');
@@ -73,6 +74,7 @@ function hideSettingsPanel() {
 
   settingsView.classList.remove('active');
   chatView.classList.remove('hidden');
+  if (window._sidebarExitPanelMode) window._sidebarExitPanelMode();
 
   // Unmark sidebar button
   const sidebarBtn = document.getElementById('sidebar-settings-btn');
@@ -599,7 +601,7 @@ async function _stgUpdateAuthStatus() {
 
   if (authMethod === 'oauth' && hasOAuth) {
     statusBadge.className = 'auth-badge loading';
-    statusBadge.textContent = 'checking...';
+    statusBadge.textContent = 'Checking…';
     authBtn.textContent = 'Sign Out';
     authBtn.className = 'logout-btn';
     if (anthropicKeyRow) anthropicKeyRow.classList.add('hidden');
@@ -717,7 +719,7 @@ async function _stgUpdateOpenAIAuthStatus() {
 
   if (isOAuth) {
     statusBadge.className = 'auth-badge loading';
-    statusBadge.textContent = 'checking...';
+    statusBadge.textContent = 'Checking…';
     authBtn.textContent = 'Sign Out';
     authBtn.className = 'logout-btn';
 
@@ -1091,23 +1093,26 @@ async function stgInstallUpdate() {
 // ---- Skin Picker ----
 
 const _STG_SKIN_DESCRIPTIONS = {
-  dracula: 'Classic Dracula', light: 'Clean & minimal', dawn: 'Rosé Pine Dawn',
+  dracula: 'Classic Dracula',
+  cream: 'Warm cream & cocoa',
+  light: 'Clean & minimal', dawn: 'Rosé Pine Dawn',
   midnight: 'GitHub dark', nord: 'Scandinavian frost',
   mocha: 'Catppuccin Mocha', rosepine: 'Rosé Pine', gruvbox: 'Retro warm',
   solarized: 'Solarized Dark', onedark: 'Atom One Dark',
 };
 
 const _STG_SKIN_PREVIEWS = {
-  dracula:   ['#282a36', '#21222c', '#bd93f9', '#ff79c6', '#f8f8f2'],
-  light:     ['#ffffff', '#f9f9f9', '#007aff', '#5856d6', '#1c1c1e'],
-  dawn:      ['#faf4ed', '#fffaf3', '#907aa9', '#56949f', '#575279'],
-  midnight:  ['#0d1117', '#161b22', '#58a6ff', '#79c0ff', '#e6edf3'],
-  nord:      ['#2e3440', '#3b4252', '#88c0d0', '#5e81ac', '#eceff4'],
-  mocha:     ['#1e1e2e', '#181825', '#89b4fa', '#cba6f7', '#cdd6f4'],
-  rosepine:  ['#191724', '#1f1d2e', '#c4a7e7', '#9ccfd8', '#e0def4'],
-  gruvbox:   ['#282828', '#1d2021', '#fabd2f', '#fe8019', '#ebdbb2'],
-  solarized: ['#002b36', '#073642', '#268bd2', '#2aa198', '#fdf6e3'],
-  onedark:   ['#282c34', '#21252b', '#61afef', '#c678dd', '#abb2bf'],
+  dracula:   ['#21222c', '#282a36', '#bd93f9', '#ff79c6', '#f8f8f2'],
+  cream:     ['#fff1b8', '#fff8e0', '#d93a63', '#ff94ac', '#33201a'],
+  light:     ['#f9f9f9', '#ffffff', '#007aff', '#5856d6', '#1c1c1e'],
+  dawn:      ['#fffaf3', '#faf4ed', '#907aa9', '#56949f', '#575279'],
+  midnight:  ['#161b22', '#0d1117', '#58a6ff', '#79c0ff', '#e6edf3'],
+  nord:      ['#3b4252', '#2e3440', '#88c0d0', '#5e81ac', '#eceff4'],
+  mocha:     ['#181825', '#1e1e2e', '#89b4fa', '#cba6f7', '#cdd6f4'],
+  rosepine:  ['#1f1d2e', '#191724', '#c4a7e7', '#9ccfd8', '#e0def4'],
+  gruvbox:   ['#1d2021', '#282828', '#fabd2f', '#fe8019', '#ebdbb2'],
+  solarized: ['#073642', '#002b36', '#268bd2', '#2aa198', '#fdf6e3'],
+  onedark:   ['#21252b', '#282c34', '#61afef', '#c678dd', '#abb2bf'],
 };
 
 async function _stgInitSkinPicker() {

@@ -572,7 +572,7 @@ function updateStatusIndicator(status, sessionId) {
       }
     }
   } else if (status.type === 'responding') {
-    actionEl.textContent = 'grooming my response... 🐈';
+    actionEl.textContent = 'Grooming my response… 🐈';
     detailEl.textContent = '';
     detailEl.classList.add('hidden');
     statusEl.classList.remove('subagent-active');
