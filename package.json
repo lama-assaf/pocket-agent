@@ -126,6 +126,7 @@
       "dist/**/*",
       "ui/**/*",
       "assets/**/*",
+      "gg-pixel.main.mjs",
       "package.json"
     ],
     "extraResources": [
