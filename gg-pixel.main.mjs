@@ -1,6 +1,6 @@
 import { initPixel } from "@kenkaiiii/gg-pixel";
 
-const key = process.env.GG_PIXEL_KEY || "pk_live_f0f0b8e539537487522cdd7db1b14b25";
+const key = process.env.GG_PIXEL_KEY || "pk_live_481c64dc8ca30105cb960479fe4f2791";
 if (key) {
   initPixel({
     projectKey: key,
