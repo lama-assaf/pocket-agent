@@ -94,6 +94,10 @@ const MODEL_CONTEXT_WINDOWS: Record<string, number> = {
   // MiniMax models
   'MiniMax-M2.7': 204_800,
   'MiniMax-M2.7-highspeed': 204_800,
+  // DeepSeek models — both V4 variants support 1M token context
+  // https://api-docs.deepseek.com/news/news260424
+  'deepseek-v4-pro': 1_000_000,
+  'deepseek-v4-flash': 1_000_000,
 };
 
 function getContextWindow(model: string): number {
@@ -1029,6 +1033,22 @@ export class ChatEngine {
       }
       while (newConversation.length > 0 && newConversation[0].role !== 'user') {
         newConversation.shift();
+      }
+
+      // Guard: if the role-filter yielded nothing (e.g. all messages are tool/system
+      // role), keep the original conversation to avoid silently wiping the context.
+      // Fall back to the naive 75% trim instead.
+      if (newConversation.length === 0) {
+        console.warn(
+          '[ChatEngine] compactConversation: smart context produced no user/assistant messages; falling back to naive trim'
+        );
+        const trimTo = Math.floor(maxContextMessages * 0.75);
+        const trimmed = conversation.slice(-trimTo);
+        while (trimmed.length > 0 && trimmed[0].role !== 'user') {
+          trimmed.shift();
+        }
+        this.conversationsBySession.set(sessionId, trimmed);
+        return false;
       }
 
       const newTokens = estimateConversationTokens(newConversation);

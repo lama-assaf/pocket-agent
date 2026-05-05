@@ -9,6 +9,7 @@
 import { createInterface } from 'readline';
 import puppeteer, { Browser, Page } from 'puppeteer-core';
 import { spawn } from 'child_process';
+import { validateBrowserUrl } from '../agent/safety';
 
 const DEFAULT_CDP_URL = 'http://localhost:9222';
 
@@ -123,8 +124,23 @@ async function ensurePage(): Promise<Page> {
   return page;
 }
 
-async function handleBrowser(args: Record<string, unknown>): Promise<string> {
+export async function handleBrowser(args: Record<string, unknown>): Promise<string> {
   const action = args.action as string;
+
+  // Validate dangerous URLs BEFORE attempting to connect to Chrome so the
+  // block engages even when the browser is offline.
+  if (action === 'navigate') {
+    const url = args.url as string;
+    if (!url) return JSON.stringify({ error: 'url required' });
+    const safety = validateBrowserUrl(url);
+    if (!safety.allowed) {
+      return JSON.stringify({
+        error: `Navigation blocked by safety filter: ${safety.reason}`,
+        blocked: true,
+        url,
+      });
+    }
+  }
 
   try {
     const p = await ensurePage();
@@ -132,7 +148,6 @@ async function handleBrowser(args: Record<string, unknown>): Promise<string> {
     switch (action) {
       case 'navigate': {
         const url = args.url as string;
-        if (!url) return JSON.stringify({ error: 'url required' });
         await p.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
         if (args.wait_for) await new Promise((r) => setTimeout(r, args.wait_for as number));
         return JSON.stringify({
@@ -362,17 +377,25 @@ async function handleRequest(request: MCPRequest): Promise<MCPResponse> {
   }
 }
 
-// Main loop
-const rl = createInterface({ input: process.stdin });
+// Main loop — only start when invoked as a CLI, not when imported by tests.
+function startServer(): void {
+  const rl = createInterface({ input: process.stdin });
 
-rl.on('line', async (line) => {
-  try {
-    const request = JSON.parse(line) as MCPRequest;
-    const response = await handleRequest(request);
-    console.log(JSON.stringify(response));
-  } catch (error) {
-    console.error('[MCP] Parse error:', error);
-  }
-});
+  rl.on('line', async (line) => {
+    try {
+      const request = JSON.parse(line) as MCPRequest;
+      const response = await handleRequest(request);
+      console.log(JSON.stringify(response));
+    } catch (error) {
+      console.error('[MCP] Parse error:', error);
+    }
+  });
 
-console.error('[MCP Browser] Server started');
+  console.error('[MCP Browser] Server started');
+}
+
+// Auto-start when run directly (e.g. via the MCP server entry point), but
+// not when imported by unit tests.
+if (process.env.NODE_ENV !== 'test' && process.env.VITEST !== 'true') {
+  startServer();
+}

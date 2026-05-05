@@ -105,6 +105,70 @@ describe('Telegram Formatting', () => {
         const result = markdownToTelegramHtml('visit [here](https://example.com) now');
         expect(result).toContain('<a href="https://example.com">here</a>');
       });
+
+      it('should allow http:// links', () => {
+        const result = markdownToTelegramHtml('[Example](http://example.com)');
+        expect(result).toBe('<a href="http://example.com">Example</a>');
+      });
+
+      it('should allow mailto: links', () => {
+        const result = markdownToTelegramHtml('[Email](mailto:user@example.com)');
+        expect(result).toBe('<a href="mailto:user@example.com">Email</a>');
+      });
+
+      it('should block javascript: scheme and render as plain text', () => {
+        const result = markdownToTelegramHtml('[Click](javascript:alert(1))');
+        expect(result).not.toContain('<a ');
+        expect(result).not.toContain('javascript:');
+        expect(result).toContain('Click');
+      });
+
+      it('should block data: scheme and render as plain text', () => {
+        const result = markdownToTelegramHtml('[Img](data:text/html,<script>evil</script>)');
+        expect(result).not.toContain('<a ');
+        expect(result).not.toContain('data:');
+        expect(result).toContain('Img');
+      });
+
+      it('should block vbscript: scheme and render as plain text', () => {
+        const result = markdownToTelegramHtml('[Run](vbscript:MsgBox(1))');
+        expect(result).not.toContain('<a ');
+        expect(result).not.toContain('vbscript:');
+        expect(result).toContain('Run');
+      });
+
+      it('should block file: scheme and render as plain text', () => {
+        const result = markdownToTelegramHtml('[File](/etc/passwd)');
+        // /etc/passwd has no allowed scheme, so it is blocked
+        expect(result).not.toContain('<a ');
+        expect(result).toContain('File');
+      });
+
+      it('should block file: with explicit scheme', () => {
+        const result = markdownToTelegramHtml('[Root](file:///etc/passwd)');
+        expect(result).not.toContain('<a ');
+        expect(result).not.toContain('file://');
+      });
+
+      it('should escape double-quotes and angle brackets in url attribute to prevent injection', () => {
+        // [x]("onmouseover=evil) — the url contains a quote that could break the attribute
+        const result = markdownToTelegramHtml('[x](https://example.com/path?x="<evil>")');
+        // Must not contain raw " or < or > inside the href attribute
+        expect(result).not.toMatch(/href="[^"]*"[^"]*"/);
+        expect(result).toContain('&quot;');
+        expect(result).toContain('&lt;');
+        expect(result).toContain('&gt;');
+      });
+
+      it('should block javascript: even with mixed case', () => {
+        const result = markdownToTelegramHtml('[x](JavaScript:alert(1))');
+        expect(result).not.toContain('<a ');
+      });
+
+      it('should block javascript: with leading whitespace/tab tricks', () => {
+        const result = markdownToTelegramHtml('[x](\tjavascript:alert(1))');
+        expect(result).not.toContain('<a ');
+      });
     });
 
     describe('headers', () => {

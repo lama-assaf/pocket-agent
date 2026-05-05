@@ -299,6 +299,12 @@ class ClaudeOAuthManager {
 
     const data = await response.json();
 
+    if (!data.access_token || typeof data.access_token !== 'string') {
+      throw new Error(
+        `Token refresh returned malformed response: missing or invalid access_token (got ${JSON.stringify(data.access_token)})`
+      );
+    }
+
     return {
       accessToken: data.access_token,
       refreshToken: data.refresh_token || refreshToken,

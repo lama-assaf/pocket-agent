@@ -14,25 +14,7 @@ import * as path from 'path';
 import Database from 'better-sqlite3';
 import { AgentManager } from '../agent/index.js';
 import { getCurrentSessionId } from './session-context';
-
-// Get database path
-function getDbPath(): string {
-  const homeDir = process.env.HOME || process.env.USERPROFILE || '';
-
-  const possiblePaths = [
-    path.join(homeDir, 'Library/Application Support/pocket-agent/pocket-agent.db'), // macOS
-    path.join(homeDir, '.config/pocket-agent/pocket-agent.db'), // Linux
-    path.join(homeDir, 'AppData/Roaming/pocket-agent/pocket-agent.db'), // Windows
-  ];
-
-  for (const p of possiblePaths) {
-    if (fs.existsSync(p)) {
-      return p;
-    }
-  }
-
-  return possiblePaths[0];
-}
+import { getDbPath } from '../utils/db-path';
 
 /**
  * Get database connection

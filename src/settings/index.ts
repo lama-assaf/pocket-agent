@@ -48,6 +48,7 @@ class SettingsManagerClass {
     this.createTable();
     this.loadDefaults();
     this.loadToCache();
+    this.migrateTokensToSafeStorage();
     this.initialized = true;
     console.log('[Settings] Initialized');
   }
@@ -110,6 +111,58 @@ class SettingsManagerClass {
       }
 
       this.cache.set(row.key, value);
+    }
+  }
+
+  /**
+   * Migrate plaintext OAuth tokens to safeStorage encryption.
+   *
+   * Earlier versions of the app may have stored auth.oauthToken and
+   * auth.refreshToken with encrypted=0 (plaintext). On startup we detect
+   * those rows and re-encrypt them so tokens are never stored in cleartext.
+   *
+   * Only runs if safeStorage encryption is available; otherwise tokens remain
+   * plaintext with a warning (better than silently breaking auth on systems
+   * without a keychain).
+   */
+  private migrateTokensToSafeStorage(): void {
+    if (!this.db) return;
+
+    const TOKEN_KEYS = ['auth.oauthToken', 'auth.refreshToken'];
+
+    const select = this.db.prepare(
+      'SELECT key, value, encrypted FROM settings WHERE key = ? AND encrypted = 0'
+    );
+
+    const update = this.db.prepare(`
+      INSERT INTO settings (key, value, encrypted, category, updated_at)
+      VALUES (?, ?, 1, 'auth', datetime('now'))
+      ON CONFLICT(key) DO UPDATE SET
+        value = excluded.value,
+        encrypted = 1,
+        updated_at = excluded.updated_at
+    `);
+
+    for (const key of TOKEN_KEYS) {
+      const row = select.get(key) as { key: string; value: string; encrypted: number } | undefined;
+      if (!row || !row.value) continue;
+
+      try {
+        const encryptedValue = this.encrypt(row.value);
+        if (encryptedValue === row.value) {
+          // encrypt() returned plaintext because safeStorage is unavailable — warn and skip
+          console.warn(
+            `[Settings] safeStorage unavailable; token ${key} stays plaintext. ` +
+              'Enable a system keychain to enable at-rest encryption.'
+          );
+          continue;
+        }
+        update.run(key, encryptedValue);
+        // Cache already holds the plaintext value — no change needed there
+        console.log(`[Settings] Migrated ${key} to safeStorage encryption`);
+      } catch (err) {
+        console.error(`[Settings] Failed to migrate ${key} to safeStorage:`, err);
+      }
     }
   }
 

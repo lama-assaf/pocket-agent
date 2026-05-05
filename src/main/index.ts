@@ -640,6 +640,12 @@ app.whenReady().then(async () => {
   console.log('[Main] App ready, starting initialization...');
 
   try {
+    // Initialize the browser manager with an Electron-supplied downloads dir
+    // so the CDP tier doesn't fall back to `process.cwd()` (which points at
+    // the app bundle in a packaged build). The browser module itself never
+    // imports Electron — we inject the path here.
+    getBrowserManager({ downloadPath: app.getPath('downloads') });
+
     // === Power Management ===
     // Let macOS manage power naturally — App Nap may coalesce timers by a few
     // seconds when the app is in the background, which is fine for minute-level

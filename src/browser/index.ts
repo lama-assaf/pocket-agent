@@ -15,6 +15,15 @@ import { SettingsManager } from '../settings';
 
 export * from './types';
 
+export interface BrowserManagerOptions {
+  /**
+   * Default directory for downloads when an action does not specify one.
+   * Injected from the Electron main process (e.g. `app.getPath('downloads')`)
+   * so the browser module never has to import Electron itself.
+   */
+  downloadPath?: string;
+}
+
 /**
  * BrowserManager - Orchestrates Electron and CDP tiers
  */
@@ -22,8 +31,17 @@ export class BrowserManager {
   private electronTier: ElectronTier | null = null;
   private cdpTier: CdpTier | null = null;
   private lastTier: BrowserTier = 'electron';
+  private downloadPath?: string;
 
-  constructor() {}
+  constructor(options: BrowserManagerOptions = {}) {
+    this.downloadPath = options.downloadPath;
+  }
+
+  /** Update the default downloads directory (propagates to existing tiers). */
+  setDownloadPath(downloadPath: string): void {
+    this.downloadPath = downloadPath;
+    if (this.cdpTier) this.cdpTier.setDownloadPath(downloadPath);
+  }
 
   /**
    * Get or create Electron tier (lazy init)
@@ -40,7 +58,7 @@ export class BrowserManager {
    */
   private getCdpTier(): CdpTier {
     if (!this.cdpTier) {
-      this.cdpTier = new CdpTier();
+      this.cdpTier = new CdpTier({ downloadPath: this.downloadPath });
     }
     return this.cdpTier;
   }
@@ -164,9 +182,12 @@ export class BrowserManager {
 // Singleton instance
 let browserManager: BrowserManager | null = null;
 
-export function getBrowserManager(): BrowserManager {
+export function getBrowserManager(options?: BrowserManagerOptions): BrowserManager {
   if (!browserManager) {
-    browserManager = new BrowserManager();
+    browserManager = new BrowserManager(options);
+  } else if (options?.downloadPath) {
+    // Late-binding: allow main process to set the path on the existing singleton
+    browserManager.setDownloadPath(options.downloadPath);
   }
   return browserManager;
 }

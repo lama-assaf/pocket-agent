@@ -9,13 +9,9 @@ import { createInterface } from 'readline';
 import Database from 'better-sqlite3';
 import * as fs from 'fs';
 import * as path from 'path';
+import { getDbPath } from '../utils/db-path';
 
-const DB_PATH =
-  process.platform === 'darwin'
-    ? path.join(process.env.HOME || '', 'Library/Application Support/pocket-agent/pocket-agent.db')
-    : process.platform === 'linux'
-      ? path.join(process.env.HOME || '', '.config/pocket-agent/pocket-agent.db')
-      : path.join(process.env.USERPROFILE || '', 'AppData/Roaming/pocket-agent/pocket-agent.db');
+const DB_PATH = getDbPath();
 
 // Types
 interface MCPRequest {

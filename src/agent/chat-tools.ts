@@ -15,6 +15,7 @@ import { getCustomTools, ToolsConfig } from '../tools';
 import { wrapToolHandler } from '../tools/diagnostics';
 import { createSubAgentTool } from '../tools/subagent';
 import { getStreamConfig } from './chat-providers';
+import { validateBashCommand, validateWritePath } from './safety';
 
 const execAsync = promisify(exec);
 const IS_WINDOWS = process.platform === 'win32';
@@ -73,6 +74,30 @@ function jsonSchemaToZod(
 }
 
 /**
+ * Wrap a write/edit AgentTool so its execute() runs validateWritePath before
+ * delegating to the underlying tool. Blocks writes to dangerous paths (e.g.
+ * /etc, ~/.ssh, /System) and returns a string explaining the block.
+ */
+function wrapWithWritePathSafety(tool: AgentTool): AgentTool {
+  const originalExecute = tool.execute.bind(tool);
+  return {
+    ...tool,
+    execute: async (args: unknown, context: ToolContext) => {
+      const filePath = (args as { file_path?: unknown })?.file_path;
+      if (typeof filePath === 'string' && filePath.length > 0) {
+        const safety = validateWritePath(filePath);
+        if (!safety.allowed) {
+          return `Write blocked by safety filter: ${safety.reason}`;
+        }
+      }
+      return originalExecute(args as never, context);
+    },
+  } as AgentTool;
+}
+
+const WRITE_TOOL_NAMES = new Set(['write', 'edit', 'Write', 'Edit']);
+
+/**
  * Build the AgentTool array for Chat mode.
  * Wraps each handler with diagnostics and returns AgentTool[] compatible with @kenkaiiii/gg-agent.
  */
@@ -104,7 +129,7 @@ export function getChatAgentTools(config: ToolsConfig, cwd: string): AgentTool[]
   const fileToolNames = new Set(['read', 'write', 'edit']);
   for (const t of coderNativeTools) {
     if (fileToolNames.has(t.name)) {
-      tools.push(t);
+      tools.push(WRITE_TOOL_NAMES.has(t.name) ? wrapWithWritePathSafety(t) : t);
     }
   }
 
@@ -151,8 +176,11 @@ export function getCoderAgentTools(config: ToolsConfig, cwd: string): AgentTool[
     });
   }
 
-  // Merge: coder native tools + MCP tools
-  return [...coderNativeTools, ...mcpTools];
+  // Merge: coder native tools (with write-path safety) + MCP tools
+  const safeCoderTools = coderNativeTools.map((t) =>
+    WRITE_TOOL_NAMES.has(t.name) ? wrapWithWritePathSafety(t) : t
+  );
+  return [...safeCoderTools, ...mcpTools];
 }
 
 /**
@@ -246,6 +274,11 @@ function buildShellCommandTool(): AgentTool {
             },
             timeout: timeoutMs,
           };
+
+      const safety = validateBashCommand(command);
+      if (!safety.allowed) {
+        return `Command blocked by safety filter: ${safety.reason}`;
+      }
 
       try {
         const { stdout, stderr } = await execAsync(command, shellOpts);

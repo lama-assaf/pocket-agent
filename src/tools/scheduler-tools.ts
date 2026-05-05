@@ -11,29 +11,15 @@
 
 import { getScheduler } from '../scheduler';
 import Database from 'better-sqlite3';
-import path from 'path';
 import fs from 'fs';
 import { getCurrentSessionId } from './session-context';
+import { getDbPath } from '../utils/db-path';
 import { parseSchedule, calculateNextRun } from '../utils/cron';
 import { formatDateTime, formatDuration, formatScheduleDisplay } from '../utils/date-format';
 
-// TODO: Consolidate direct DB access — use MemoryManager (src/memory/index.ts) instead.
-// MemoryManager.saveCronJob currently only supports basic cron fields (name, schedule, prompt,
-// channel, sessionId). It needs to be extended to support schedule_type, run_at, interval_ms,
-// delete_after_run, next_run_at, and job_type before this direct access can be removed.
-
-function getDbPath(): string {
-  const homeDir = process.env.HOME || process.env.USERPROFILE || '';
-  const possiblePaths = [
-    path.join(homeDir, 'Library/Application Support/pocket-agent/pocket-agent.db'),
-    path.join(homeDir, '.config/pocket-agent/pocket-agent.db'),
-    path.join(homeDir, 'AppData/Roaming/pocket-agent/pocket-agent.db'),
-  ];
-  for (const p of possiblePaths) {
-    if (fs.existsSync(p)) return p;
-  }
-  return possiblePaths[0];
-}
+// Note: Direct DB access is used here because MemoryManager.saveCronJob does not yet support
+// the extended cron fields (schedule_type, run_at, interval_ms, delete_after_run, next_run_at,
+// job_type). Once MemoryManager is extended, this can be migrated to use it instead.
 
 /**
  * Ensure the cron_jobs table has all required columns.

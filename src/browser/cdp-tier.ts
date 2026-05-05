@@ -10,8 +10,44 @@ import { BrowserAction, BrowserResult } from './types';
 import { getExtractionScript, getScrollScript, getVisibleTextScript } from './extract-scripts';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as os from 'os';
 
 const DEFAULT_CDP_URL = 'http://localhost:9222';
+
+export interface CdpTierOptions {
+  cdpUrl?: string;
+  /**
+   * Default directory to save downloads to when an action does not specify
+   * a `savePath`. In packaged Electron, callers should pass
+   * `app.getPath('downloads')` from the main process. The browser module
+   * itself never imports Electron — it just accepts an injected path.
+   *
+   * Falls back to `<homedir>/Downloads` (NOT `process.cwd()`, which would
+   * resolve to the app bundle / `/` in a packaged build).
+   */
+  downloadPath?: string;
+}
+
+/**
+ * Compute a safe default downloads directory for non-Electron callers / tests.
+ * Uses `~/Downloads` if it exists, otherwise the home dir itself. Never
+ * returns `process.cwd()` because that points at the app bundle when packaged.
+ */
+export function getDefaultDownloadPath(): string {
+  try {
+    const home = os.homedir();
+    if (!home) return os.tmpdir();
+    const candidate = path.join(home, 'Downloads');
+    try {
+      if (fs.existsSync(candidate)) return candidate;
+    } catch {
+      // ignore — fall through to home
+    }
+    return home;
+  } catch {
+    return os.tmpdir();
+  }
+}
 
 export class CdpTier {
   private browser: Browser | null = null;
@@ -19,13 +55,26 @@ export class CdpTier {
   private pages: Map<string, Page> = new Map(); // Track all pages by ID
   private currentUrl: string = '';
   private cdpUrl: string;
-  private downloadPath: string = process.cwd();
+  private downloadPath: string;
   private healthCheckInterval: ReturnType<typeof setInterval> | null = null;
   private reconnecting: boolean = false;
   private lastConnectionError: string | null = null;
 
-  constructor(cdpUrl: string = DEFAULT_CDP_URL) {
-    this.cdpUrl = cdpUrl;
+  constructor(cdpUrlOrOptions: string | CdpTierOptions = DEFAULT_CDP_URL) {
+    const opts: CdpTierOptions =
+      typeof cdpUrlOrOptions === 'string' ? { cdpUrl: cdpUrlOrOptions } : cdpUrlOrOptions;
+    this.cdpUrl = opts.cdpUrl ?? DEFAULT_CDP_URL;
+    this.downloadPath = opts.downloadPath ?? getDefaultDownloadPath();
+  }
+
+  /** Get the configured default download directory. */
+  getDownloadPath(): string {
+    return this.downloadPath;
+  }
+
+  /** Update the default download directory (used when wiring from main). */
+  setDownloadPath(downloadPath: string): void {
+    this.downloadPath = downloadPath;
   }
 
   /**

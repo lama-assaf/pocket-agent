@@ -594,6 +594,57 @@ describe('CdpTier', () => {
       expect(result.error).toBe('Either selector or url required for download');
     });
   });
+
+  describe('default download path', () => {
+    it('should NOT default to process.cwd()', () => {
+      const tier = new CdpTier();
+      // Critical guard: in a packaged Electron build process.cwd() points at
+      // the app bundle (or `/`), so the default must come from elsewhere.
+      expect(tier.getDownloadPath()).not.toBe(process.cwd());
+    });
+
+    it('should accept an injected downloadPath via options object', () => {
+      const injected = '/tmp/pocket-agent-test-downloads';
+      const tier = new CdpTier({ downloadPath: injected });
+      expect(tier.getDownloadPath()).toBe(injected);
+    });
+
+    it('should still accept a string (legacy cdpUrl) for backward compat', () => {
+      const tier = new CdpTier('http://localhost:9999');
+      // Falls back to home-derived default, not process.cwd()
+      expect(tier.getDownloadPath()).not.toBe(process.cwd());
+      expect(typeof tier.getDownloadPath()).toBe('string');
+      expect(tier.getDownloadPath().length).toBeGreaterThan(0);
+    });
+
+    it('should fall back to a home-derived path when none injected', async () => {
+      const os = await import('os');
+      const tier = new CdpTier();
+      const fallback = tier.getDownloadPath();
+      // Must be under the user's home dir (or tmp if home is unavailable),
+      // never the bundle / cwd.
+      const home = os.homedir();
+      expect(
+        fallback === home ||
+          fallback.startsWith(home) ||
+          fallback === os.tmpdir() ||
+          fallback.startsWith(os.tmpdir())
+      ).toBe(true);
+    });
+
+    it('setDownloadPath updates the configured directory', () => {
+      const tier = new CdpTier();
+      tier.setDownloadPath('/var/downloads');
+      expect(tier.getDownloadPath()).toBe('/var/downloads');
+    });
+  });
+
+  describe('getDefaultDownloadPath()', () => {
+    it('never returns process.cwd()', async () => {
+      const mod = await import('../../src/browser/cdp-tier');
+      expect(mod.getDefaultDownloadPath()).not.toBe(process.cwd());
+    });
+  });
 });
 
 describe('Edge Cases', () => {

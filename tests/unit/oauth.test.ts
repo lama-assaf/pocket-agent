@@ -262,6 +262,12 @@ class TestableOAuthManager {
 
     const data = await response.json();
 
+    if (!data.access_token || typeof data.access_token !== 'string') {
+      throw new Error(
+        `Token refresh returned malformed response: missing or invalid access_token (got ${JSON.stringify(data.access_token)})`
+      );
+    }
+
     return {
       accessToken: data.access_token,
       refreshToken: data.refresh_token || refreshToken,
@@ -1064,6 +1070,105 @@ describe('Singleton pattern', () => {
     const pending2 = ClaudeOAuth.isPending();
 
     expect(pending1).toBe(pending2);
+  });
+});
+
+describe('refreshAccessToken — malformed response guard (Part B)', () => {
+  let oauth: TestableOAuthManager;
+
+  beforeEach(() => {
+    oauth = new TestableOAuthManager();
+    mockSettingsStore.clear();
+    vi.clearAllMocks();
+    // Seed a valid refresh token and an existing access token
+    mockSettingsStore.set('auth.method', 'oauth');
+    mockSettingsStore.set('auth.oauthToken', 'existing-access-token');
+    mockSettingsStore.set('auth.refreshToken', 'existing-refresh-token');
+    mockSettingsStore.set('auth.tokenExpiresAt', (Date.now() - 1000).toString()); // expired
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should throw when refresh response is empty object {}', async () => {
+    mockNetFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({}),
+    });
+
+    await expect(
+      oauth.refreshAccessToken('existing-refresh-token')
+    ).rejects.toThrow('malformed response');
+  });
+
+  it('should throw when access_token is null', async () => {
+    mockNetFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ access_token: null, expires_in: 3600 }),
+    });
+
+    await expect(
+      oauth.refreshAccessToken('existing-refresh-token')
+    ).rejects.toThrow('malformed response');
+  });
+
+  it('should throw when access_token is a number (wrong type)', async () => {
+    mockNetFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ access_token: 42, expires_in: 3600 }),
+    });
+
+    await expect(
+      oauth.refreshAccessToken('existing-refresh-token')
+    ).rejects.toThrow('malformed response');
+  });
+
+  it('should NOT overwrite existing tokens when refresh response is malformed', async () => {
+    mockNetFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({}),
+    });
+
+    const result = await oauth.refreshTokenIfNeeded();
+
+    // refresh must fail
+    expect(result).toBe(false);
+
+    // existing tokens must be untouched
+    expect(mockSettingsStore.get('auth.oauthToken')).toBe('existing-access-token');
+    expect(mockSettingsStore.get('auth.refreshToken')).toBe('existing-refresh-token');
+  });
+
+  it('should never set auth.oauthToken to the string "undefined"', async () => {
+    // Simulate a response where access_token field is literally absent
+    mockNetFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ expires_in: 3600 }),
+    });
+
+    await oauth.refreshTokenIfNeeded();
+
+    // The value must never be the string "undefined"
+    const stored = mockSettingsStore.get('auth.oauthToken');
+    expect(stored).not.toBe('undefined');
+  });
+
+  it('should succeed and store valid string access_token', async () => {
+    mockNetFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          access_token: 'brand-new-token',
+          refresh_token: 'brand-new-refresh',
+          expires_in: 3600,
+        }),
+    });
+
+    const tokens = await oauth.refreshAccessToken('existing-refresh-token');
+
+    expect(tokens.accessToken).toBe('brand-new-token');
+    expect(typeof tokens.accessToken).toBe('string');
   });
 });
 

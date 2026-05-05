@@ -4,6 +4,41 @@
  */
 
 /**
+ * Sanitize a URL extracted from markdown for safe use in an HTML href attribute.
+ * Returns the escaped URL string for allowed schemes, or null for blocked ones.
+ * Allowed: http://, https://, mailto:
+ * Blocked: javascript:, data:, vbscript:, file:, and anything else
+ */
+function sanitizeLinkUrl(url: string): string | null {
+  const trimmed = url.trim();
+  // Check scheme (case-insensitive, strip whitespace/control chars that could sneak past)
+  const lower = trimmed.replace(/[\t\n\r]/g, '').toLowerCase();
+  // Blocked schemes
+  if (
+    lower.startsWith('javascript:') ||
+    lower.startsWith('data:') ||
+    lower.startsWith('vbscript:') ||
+    lower.startsWith('file:')
+  ) {
+    return null;
+  }
+  // Only allow explicit http(s) and mailto
+  if (
+    !lower.startsWith('http://') &&
+    !lower.startsWith('https://') &&
+    !lower.startsWith('mailto:')
+  ) {
+    return null;
+  }
+  // Escape characters that could break the HTML attribute
+  return trimmed
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+/**
  * Convert markdown to Telegram HTML format
  * Telegram supports: <b>, <i>, <u>, <s>, <code>, <pre>, <a href="">
  * IMPORTANT: Telegram does NOT support nested tags or tables!
@@ -39,7 +74,14 @@ export function markdownToTelegramHtml(text: string): string {
   result = result.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, linkText, url) => {
     const idx = protectedContent.length;
     const escapedText = linkText.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    protectedContent.push(`<a href="${url}">${escapedText}</a>`);
+    // Sanitize URL: only allow http(s):// and mailto: schemes
+    const sanitizedUrl = sanitizeLinkUrl(url);
+    if (sanitizedUrl === null) {
+      // Blocked scheme — render as plain text, no anchor
+      protectedContent.push(escapedText);
+    } else {
+      protectedContent.push(`<a href="${sanitizedUrl}">${escapedText}</a>`);
+    }
     return `@@PROTECTED«${idx}»@@`;
   });
 
