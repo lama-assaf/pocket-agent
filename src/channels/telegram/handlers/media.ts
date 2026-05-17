@@ -1,7 +1,7 @@
 /**
  * Telegram media handlers (photo, voice, audio)
  * Photos are saved locally for agent access via Read tool
- * Voice/audio are transcribed via Whisper API
+ * Voice/audio are transcribed locally with Whisper
  */
 
 import * as fs from 'fs';
@@ -10,7 +10,7 @@ import * as os from 'os';
 import { Context } from 'grammy';
 import { AgentManager } from '../../../agent';
 import { SettingsManager } from '../../../settings';
-import { transcribeAudio, isTranscriptionAvailable } from '../../../utils/transcribe';
+import { transcribeAudio } from '../../../utils/transcribe';
 import { MessageCallback } from '../types';
 import { withTyping } from '../utils/typing';
 
@@ -184,15 +184,6 @@ export async function handleVoiceMessage(ctx: Context, deps: MediaHandlerDeps): 
 
   if (!chatId || !voice) return;
 
-  // Check if transcription is available before processing
-  if (!isTranscriptionAvailable()) {
-    await ctx.reply(
-      'Voice notes require an OpenAI API key for transcription.\n\n' +
-        'Add your OpenAI key in Settings -> API Keys to enable voice messages.'
-    );
-    return;
-  }
-
   const { onMessageCallback, sendResponse } = deps;
 
   try {
@@ -302,20 +293,7 @@ export async function handleAudioMessage(ctx: Context, deps: MediaHandlerDeps): 
 
   if (!chatId || !audio) return;
 
-  // Check if transcription is available
-  if (!isTranscriptionAvailable()) {
-    await ctx.reply(
-      'Audio transcription requires an OpenAI API key.\n\n' +
-        'Add your OpenAI key in Settings -> API Keys to enable audio transcription.'
-    );
-    return;
-  }
-
-  // Check file size (Whisper has a 25MB limit)
-  if (audio.file_size && audio.file_size > 25 * 1024 * 1024) {
-    await ctx.reply('Audio file too large. Maximum size is 25MB for transcription.');
-    return;
-  }
+  // Local transcription currently only supports Telegram OGG/Opus audio.
 
   const { onMessageCallback, sendResponse } = deps;
 

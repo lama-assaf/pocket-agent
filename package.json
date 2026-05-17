@@ -151,6 +151,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.94.0",
+    "@huggingface/transformers": "^4.2.0",
     "@kenkaiiii/gg-agent": "^4.3.140",
     "@kenkaiiii/gg-ai": "^4.3.140",
     "@kenkaiiii/gg-pixel": "^4.3.88",
@@ -161,6 +162,7 @@
     "grammy": "^1.41.1",
     "node-cron": "^4.2.1",
     "officeparser": "^6.0.4",
+    "ogg-opus-decoder": "^1.7.3",
     "openai": "^6.27.0",
     "puppeteer-core": "^24.43.0",
     "ws": "^8.19.0"
