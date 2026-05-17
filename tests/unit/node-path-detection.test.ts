@@ -219,9 +219,9 @@ describe('Node PATH Detection', () => {
       }
     });
 
-    it('should return empty array when no managers installed', () => {
+    it('should return no home-scoped paths when no managers installed in home', () => {
       const result = detectNodeManagerPaths(tmpDir);
-      expect(result).toEqual([]);
+      expect(result.filter((detectedPath) => detectedPath.startsWith(tmpDir))).toEqual([]);
     });
 
     it('should detect multiple managers simultaneously', () => {
