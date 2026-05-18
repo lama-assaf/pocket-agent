@@ -318,7 +318,7 @@ describe('CdpTier', () => {
 
       expect(result.success).toBe(true);
       expect(mockPage.waitForSelector).toHaveBeenCalledWith('#input', { timeout: 5000 });
-      expect(mockPage.click).toHaveBeenCalledWith('#input', { clickCount: 3 });
+      expect(mockPage.click).toHaveBeenCalledWith('#input', { count: 3 });
       expect(mockPage.type).toHaveBeenCalledWith('#input', 'hello world');
     });
 

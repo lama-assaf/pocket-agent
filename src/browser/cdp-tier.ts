@@ -447,7 +447,7 @@ export class CdpTier {
       await page.waitForSelector(selector, { timeout: 5000 });
 
       // Clear existing value
-      await page.click(selector, { clickCount: 3 });
+      await page.click(selector, { count: 3 });
       await page.keyboard.press('Backspace');
 
       // Type new value
