@@ -58,7 +58,7 @@ function _rtnShowToast(message, type) {
       ]
     });
   }
-  _rtnNotyf[type === 'error' ? 'error' : 'success'](message);
+  _rtnNotyf[type === 'error' ? 'error' : 'success'](window.cleanToastMessage ? window.cleanToastMessage(message) : message);
 }
 
 // ---- Helpers ----

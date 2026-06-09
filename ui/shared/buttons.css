@@ -13,10 +13,14 @@
    CINAMON PILL — primary CTAs.
    Catches:
      - any naked <button> (no class) — Save / Submit / Test / Apply / etc.
+     - a naked button mid-action that gained the .validating state class
+       (Test → Testing…); without this it would fall out of :not([class])
+       and collapse to default browser button styling.
      - explicitly tagged primary CTAs across panels.
    #send-btn (chat send icon) is excluded — it's a 36×36 icon button.
    ============================================================ */
 button:not([class]):not(#send-btn),
+button.validating:not(#send-btn),
 .header-actions > button.reboot,
 .pz-header-actions > button.reboot,
 .ob-btn.primary,

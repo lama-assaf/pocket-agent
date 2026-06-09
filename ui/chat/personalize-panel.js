@@ -8,7 +8,7 @@ let _pzAgentModes = [];
 
 function _pzShowToast(msg, type) {
   if (!_pzNotyf) _pzNotyf = new Notyf({ duration: 3000, position: { x: 'right', y: 'bottom' }, dismissible: true, types: [{ type: 'success', background: '#4ade80' }, { type: 'error', background: '#f87171' }] });
-  _pzNotyf[type === 'error' ? 'error' : 'success'](msg);
+  _pzNotyf[type === 'error' ? 'error' : 'success'](window.cleanToastMessage ? window.cleanToastMessage(msg) : msg);
 }
 
 // ---- Show / Hide ----

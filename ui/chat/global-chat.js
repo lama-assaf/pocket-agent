@@ -928,11 +928,15 @@ const notyf = new Notyf({
   ]
 });
 function showChatToast(msg) {
-  notyf.error(msg);
+  notyf.error(window.cleanToastMessage ? window.cleanToastMessage(msg) : msg);
 }
 
 function showTierToast(msg) {
-  notyf.open({ type: 'success', message: msg, duration: 3500 });
+  notyf.open({
+    type: 'success',
+    message: window.cleanToastMessage ? window.cleanToastMessage(msg) : msg,
+    duration: 3500,
+  });
 }
 
 function updateHeaderTierBadge() {

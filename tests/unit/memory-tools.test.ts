@@ -461,7 +461,7 @@ describe('Memory Tools', () => {
       const tools = getMemoryTools();
 
       expect(Array.isArray(tools)).toBe(true);
-      expect(tools).toHaveLength(4);
+      expect(tools).toHaveLength(6);
     });
 
     it('should include remember tool with handler', () => {

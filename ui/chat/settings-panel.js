@@ -103,7 +103,7 @@ function _stgShowToast(message, type) {
       ]
     });
   }
-  _stgNotyf[type === 'error' ? 'error' : 'success'](message);
+  _stgNotyf[type === 'error' ? 'error' : 'success'](window.cleanToastMessage ? window.cleanToastMessage(message) : message);
 }
 
 // ---- Initialization ----
@@ -220,9 +220,19 @@ function _stgPopulateFields() {
       } else {
         let value = _stgSettings[key];
         if (value === '[]') value = '';
-        if (input.type === 'password' && value === '••••••••') {
-          input.placeholder = '••••••••  (key saved)';
-          continue;
+        if (input.type === 'password') {
+          // Remember the field's original placeholder once so we can restore it
+          // when the key is removed (otherwise the "key saved" hint sticks).
+          if (input.dataset.basePlaceholder === undefined) {
+            input.dataset.basePlaceholder = input.placeholder || '';
+          }
+          if (value === '••••••••') {
+            input.placeholder = '••••••••  (key saved)';
+            input.value = '';
+            continue;
+          }
+          // No stored key — show the original placeholder, empty field.
+          input.placeholder = input.dataset.basePlaceholder;
         }
         input.value = value;
       }
@@ -397,7 +407,13 @@ async function stgDeleteKey(keyId, inputId) {
     await window.pocketAgent.settings.set(keyId, '');
     _stgSettings[keyId] = '';
     const input = document.getElementById(actualInputId);
-    if (input) input.value = '';
+    if (input) {
+      input.value = '';
+      // Restore the original placeholder so the field no longer reads "key saved".
+      if (input.dataset.basePlaceholder !== undefined) {
+        input.placeholder = input.dataset.basePlaceholder;
+      }
+    }
     const deleteBtn = document.getElementById(`${actualInputId}-delete`);
     if (deleteBtn) deleteBtn.classList.remove('visible');
     _stgShowToast('Key removed!', 'success');
@@ -443,8 +459,7 @@ async function stgValidateKey(provider) {
     } catch (err) {
       _stgShowToast('Validation failed: ' + err.message, 'error');
     }
-    button.classList.remove('validating');
-    button.textContent = 'Test';
+    _stgResetTestButton(button);
     return;
   }
 
@@ -480,7 +495,18 @@ async function stgValidateKey(provider) {
     _stgShowToast('Validation failed: ' + err.message, 'error');
   }
 
+  _stgResetTestButton(button);
+}
+
+/**
+ * Restore a Test button to its idle state. Removing the 'validating' class can
+ * leave an empty class="" attribute, which still fails the naked-button CSS
+ * selector (button:not([class])) and drops the pill styling — so strip the
+ * attribute entirely when no classes remain.
+ */
+function _stgResetTestButton(button) {
   button.classList.remove('validating');
+  if (button.classList.length === 0) button.removeAttribute('class');
   button.textContent = 'Test';
 }
 

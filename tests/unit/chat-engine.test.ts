@@ -127,7 +127,7 @@ vi.mock('@kenkaiiii/gg-ai', () => ({
 vi.mock('../../src/settings', () => ({
   SettingsManager: {
     get: vi.fn((key: string) => {
-      if (key === 'agent.model') return 'claude-opus-4-7';
+      if (key === 'agent.model') return 'claude-opus-4-8';
       if (key === 'agent.thinkingLevel') return 'normal';
       return undefined;
     }),
@@ -195,6 +195,10 @@ function createEngine() {
     getFactsForContext: vi.fn(() => ''),
     getSoulContext: vi.fn(() => ''),
     getDailyLogsContext: vi.fn(() => ''),
+    embedQuery: vi.fn(async () => null),
+    retrieveRelevantFacts: vi.fn(() => ''),
+    retrieveRelevantSoul: vi.fn(() => ''),
+    retrieveRelevantRollups: vi.fn(() => ''),
     saveMessage: vi.fn(() => 1),
     getSmartContext: vi.fn(async () => ({ recentMessages: [], rollingSummary: null })),
     getSessionMode: vi.fn(() => 'general'),
@@ -234,7 +238,7 @@ describe('ChatEngine', () => {
 
     // Reset default mock implementations
     vi.mocked(SettingsManager.get).mockImplementation((key: string) => {
-      if (key === 'agent.model') return 'claude-opus-4-7';
+      if (key === 'agent.model') return 'claude-opus-4-8';
       if (key === 'agent.thinkingLevel') return 'normal';
       return undefined;
     });
@@ -312,7 +316,7 @@ describe('ChatEngine', () => {
 
       await engine.processMessage('hi', 'desktop', 'test-session');
 
-      expect(capturedAgentOptions!.model).toBe('claude-opus-4-7');
+      expect(capturedAgentOptions!.model).toBe('claude-opus-4-8');
     });
 
     it('passes provider from getStreamConfig to Agent', async () => {
@@ -340,7 +344,7 @@ describe('ChatEngine', () => {
   describe('Thinking level mapping', () => {
     it('maps "normal" thinking to "medium"', async () => {
       vi.mocked(SettingsManager.get).mockImplementation((key: string) => {
-        if (key === 'agent.model') return 'claude-opus-4-7';
+        if (key === 'agent.model') return 'claude-opus-4-8';
         if (key === 'agent.thinkingLevel') return 'normal';
         return undefined;
       });
@@ -354,7 +358,7 @@ describe('ChatEngine', () => {
 
     it('maps "extended" thinking to "high"', async () => {
       vi.mocked(SettingsManager.get).mockImplementation((key: string) => {
-        if (key === 'agent.model') return 'claude-opus-4-7';
+        if (key === 'agent.model') return 'claude-opus-4-8';
         if (key === 'agent.thinkingLevel') return 'extended';
         return undefined;
       });
@@ -368,7 +372,7 @@ describe('ChatEngine', () => {
 
     it('maps "minimal" thinking to "low"', async () => {
       vi.mocked(SettingsManager.get).mockImplementation((key: string) => {
-        if (key === 'agent.model') return 'claude-opus-4-7';
+        if (key === 'agent.model') return 'claude-opus-4-8';
         if (key === 'agent.thinkingLevel') return 'minimal';
         return undefined;
       });
@@ -382,7 +386,7 @@ describe('ChatEngine', () => {
 
     it('disables thinking when level is "none"', async () => {
       vi.mocked(SettingsManager.get).mockImplementation((key: string) => {
-        if (key === 'agent.model') return 'claude-opus-4-7';
+        if (key === 'agent.model') return 'claude-opus-4-8';
         if (key === 'agent.thinkingLevel') return 'none';
         return undefined;
       });
@@ -450,9 +454,9 @@ describe('ChatEngine', () => {
   // ─── System Prompt Building ─────────────────────────────────────────
 
   describe('System prompt building', () => {
-    it('builds system prompt with static and dynamic parts', () => {
+    it('builds system prompt with static and dynamic parts', async () => {
       const { engine } = createEngine();
-      const { staticPrompt, dynamicPrompt } = engine.buildSystemPrompt();
+      const { staticPrompt, dynamicPrompt } = await engine.buildSystemPrompt();
 
       expect(staticPrompt).toContain('Frankie');
       expect(staticPrompt).toContain('Test system guidelines');
@@ -464,15 +468,15 @@ describe('ChatEngine', () => {
       expect(engine.getDeveloperPrompt()).toBe('Test system guidelines');
     });
 
-    it('includes identity in static prompt', () => {
+    it('includes identity in static prompt', async () => {
       const { engine } = createEngine();
-      const { staticPrompt } = engine.buildSystemPrompt();
+      const { staticPrompt } = await engine.buildSystemPrompt();
       expect(staticPrompt).toContain('# Frankie');
     });
 
-    it('includes temporal context in dynamic prompt', () => {
+    it('includes temporal context in dynamic prompt', async () => {
       const { engine } = createEngine();
-      const { dynamicPrompt } = engine.buildSystemPrompt();
+      const { dynamicPrompt } = await engine.buildSystemPrompt();
       expect(dynamicPrompt).toContain('Current Time');
     });
   });
@@ -605,7 +609,7 @@ describe('ChatEngine', () => {
         (args) => typeof args[0] === 'string' && args[0].includes('Session config')
       );
       expect(configLog).toBeDefined();
-      expect(configLog![0]).toContain('claude-opus-4-7');
+      expect(configLog![0]).toContain('claude-opus-4-8');
       expect(configLog![0]).toContain('anthropic');
 
       consoleSpy.mockRestore();
@@ -755,7 +759,7 @@ describe('ChatEngine', () => {
   });
 
   describe('Context window resolution', () => {
-    it('returns 1_000_000 context window for deepseek-v4-pro', async () => {
+    it('returns the registry context window for deepseek-v4-pro', async () => {
       vi.mocked(SettingsManager.get).mockImplementation((key: string) => {
         if (key === 'agent.model') return 'deepseek-v4-pro';
         if (key === 'agent.thinkingLevel') return 'none';
@@ -767,10 +771,10 @@ describe('ChatEngine', () => {
 
       const result = await engine.processMessage('hi', 'desktop', 'test-session');
 
-      expect(result.contextWindow).toBe(1_000_000);
+      expect(result.contextWindow).toBe(1_048_576);
     });
 
-    it('returns 1_000_000 context window for deepseek-v4-flash', async () => {
+    it('returns the registry context window for deepseek-v4-flash', async () => {
       vi.mocked(SettingsManager.get).mockImplementation((key: string) => {
         if (key === 'agent.model') return 'deepseek-v4-flash';
         if (key === 'agent.thinkingLevel') return 'none';
@@ -782,10 +786,10 @@ describe('ChatEngine', () => {
 
       const result = await engine.processMessage('hi', 'desktop', 'test-session');
 
-      expect(result.contextWindow).toBe(1_000_000);
+      expect(result.contextWindow).toBe(1_048_576);
     });
 
-    it('returns 1_000_000 context window for claude-opus-4-7 (baseline check)', async () => {
+    it('returns 1_000_000 context window for claude-opus-4-8 (baseline check)', async () => {
       setDefaultAgentEvents('Hello');
       const { engine } = createEngine();
 

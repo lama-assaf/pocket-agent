@@ -9,6 +9,7 @@ const __dirname = path.dirname(__filename);
 import { AgentManager } from '../agent';
 import { resolveAndPersistModel } from '../agent/resolve-model';
 import { MemoryManager } from '../memory';
+import { setTransformersCacheDir } from '../utils/transformers-env';
 import { createScheduler, CronScheduler } from '../scheduler';
 import { createTelegramBot, TelegramBot } from '../channels/telegram';
 import { SettingsManager } from '../settings';
@@ -694,6 +695,12 @@ app.whenReady().then(async () => {
     const userDataPath = app.getPath('userData');
     const dbPath = path.join(userDataPath, 'pocket-agent.db');
     console.log('[Main] DB path:', dbPath);
+
+    // Pin transformers.js model cache (embeddings + Whisper) to userData so the
+    // ~25MB models live alongside the database instead of the library default.
+    // Must run before MemoryManager construction, which kicks off the embedding
+    // backfill. Models still download lazily on first use, just into this dir.
+    setTransformersCacheDir(path.join(userDataPath, 'models'));
 
     // Initialize settings first (uses same DB)
     console.log('[Main] Initializing settings...');

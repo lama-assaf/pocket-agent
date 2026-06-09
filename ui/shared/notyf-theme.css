@@ -1,31 +1,36 @@
-/* Notyf toast theme — ecomm-king cream/cocoa.
-   Toasts read as a warm bean card with a shell-cream message,
-   matching the rest of the app. */
+/* Notyf toast theme.
+   Toasts are overlays that float above every skin, so they use fixed,
+   vivid surfaces with white text instead of theme vars. The previous
+   version keyed the message color off --bg-primary, which is dark on
+   dark skins (e.g. Dracula) — producing dark text on a dark toast that
+   was barely legible. Solid saturated backgrounds + white text keep
+   toasts readable on light AND dark skins. */
 .notyf__toast {
-  background: var(--text-secondary);
-  border: 1px solid color-mix(in srgb, var(--bg-primary) 12%, transparent);
+  background: #2b2f3a;            /* neutral dark fallback (untyped toasts) */
+  border: 1px solid rgba(255, 255, 255, 0.10);
   border-radius: 14px;
   padding: 0;
   font-family: 'Roboto', 'Helveticaneue', -apple-system, BlinkMacSystemFont, sans-serif;
   font-size: 13px;
   font-weight: 500;
   box-shadow:
-    0 8px 24px rgba(35, 16, 12, 0.18),
-    0 0 0 1px color-mix(in srgb, var(--bg-primary) 8%, transparent) inset;
+    0 8px 24px rgba(0, 0, 0, 0.28),
+    0 0 0 1px rgba(255, 255, 255, 0.06) inset;
   min-width: 200px;
   max-width: 360px;
   overflow: visible;
 }
 .notyf__toast--success {
+  background: #15803d;            /* green-700 — AA contrast with white */
   box-shadow:
-    0 8px 24px rgba(90, 127, 58, 0.20),
-    0 0 0 1px rgba(90, 127, 58, 0.30) inset;
+    0 8px 24px rgba(21, 128, 61, 0.28),
+    0 0 0 1px rgba(255, 255, 255, 0.12) inset;
 }
 .notyf__toast--error {
-  background: var(--accent-shadow);
+  background: #b91c1c;            /* red-700 — AA contrast with white */
   box-shadow:
-    0 8px 24px rgba(130, 26, 60, 0.25),
-    0 0 0 1px rgba(255, 248, 224, 0.10) inset;
+    0 8px 24px rgba(185, 28, 28, 0.28),
+    0 0 0 1px rgba(255, 255, 255, 0.12) inset;
 }
 .notyf__ripple { display: none; }
 .notyf__wrapper {
@@ -42,18 +47,18 @@
   justify-content: center;
 }
 .notyf__toast--success .notyf__icon {
-  background: linear-gradient(135deg, rgba(90,127,58,0.30), rgba(90,127,58,0.15));
+  background: linear-gradient(135deg, rgba(255,255,255,0.28), rgba(255,255,255,0.12));
 }
 .notyf__toast--error .notyf__icon {
-  background: linear-gradient(135deg, rgba(255,148,172,0.35), rgba(255,148,172,0.18));
+  background: linear-gradient(135deg, rgba(255,255,255,0.28), rgba(255,255,255,0.12));
 }
 .notyf__message {
-  color: var(--bg-primary);
+  color: #ffffff;
   line-height: 1.4;
 }
 .notyf__dismiss { margin-right: 0; }
 .notyf__dismiss-btn {
-  color: var(--bg-primary);
-  opacity: 0.55;
+  color: #ffffff;
+  opacity: 0.7;
 }
 .notyf__dismiss-btn:hover { opacity: 1; }

@@ -55,38 +55,9 @@ export const PROVIDER_CONFIGS: Record<ProviderType, ProviderConfig> = {
   },
 };
 
-// Model to provider mapping
-export const MODEL_PROVIDERS: Record<string, ProviderType> = {
-  // Anthropic models
-  'claude-opus-4-7': 'anthropic',
-  'claude-opus-4-6': 'anthropic',
-  'claude-opus-4-5-20251101': 'anthropic',
-  'claude-sonnet-4-6': 'anthropic',
-  'claude-haiku-4-5-20251001': 'anthropic',
-  // Moonshot/Kimi models
-  'kimi-k2.6': 'moonshot',
-  // Z.AI GLM models
-  'glm-5.1': 'glm',
-  'glm-5-turbo': 'glm',
-  'glm-4.7': 'glm',
-  'glm-4.7-flash': 'glm',
-  // Xiaomi/MiMo models
-  'mimo-v2-pro': 'xiaomi',
-  // OpenAI models
-  'gpt-5.5': 'openai',
-  'gpt-5.5-pro': 'openai',
-  'gpt-5.4': 'openai',
-  'gpt-5.4-mini': 'openai',
-  'gpt-5.3-codex': 'openai',
-  'codex-mini-latest': 'openai',
-  // MiniMax models
-  'MiniMax-M2.7': 'minimax',
-  'MiniMax-M2.7-highspeed': 'minimax',
-  // DeepSeek models
-  'deepseek-v4-pro': 'deepseek',
-  'deepseek-v4-flash': 'deepseek',
-};
-
-export function getProviderForModel(model: string): ProviderType {
-  return MODEL_PROVIDERS[model] || 'anthropic';
-}
+/**
+ * Map a model id to its provider. Backed by the gg-core model registry via the
+ * model-catalog adapter — unknown or unsupported-provider models fall back to
+ * 'anthropic'. Re-exported here so existing imports of `./providers` keep working.
+ */
+export { getProviderForModel } from './model-catalog';

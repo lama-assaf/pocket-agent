@@ -69,7 +69,7 @@ function _brainShowToast(message, type) {
       ]
     });
   }
-  _brainNotyf[type === 'error' ? 'error' : 'success'](message);
+  _brainNotyf[type === 'error' ? 'error' : 'success'](window.cleanToastMessage ? window.cleanToastMessage(message) : message);
 }
 
 // ---- Init ----

@@ -1,6 +1,8 @@
 import { ipcMain } from 'electron';
 import { AgentManager } from '../../agent';
 import { resolveAndPersistModel } from '../../agent/resolve-model';
+import { SUPPORTED_MODELS } from '../../agent/model-catalog';
+import type { ProviderType } from '../../agent/providers';
 import { SettingsManager, SETTINGS_SCHEMA } from '../../settings';
 import { THEMES } from '../../settings/themes';
 import { createTelegramBot } from '../../channels/telegram';
@@ -13,62 +15,32 @@ import type { IPCDependencies } from './types';
  * Single source of truth for the model list.
  */
 export function getAvailableModels(): Array<{ id: string; name: string; provider: string }> {
-  const models: Array<{ id: string; name: string; provider: string }> = [];
-  const authMethod = SettingsManager.get('auth.method');
-  const hasOAuth = authMethod === 'oauth' && SettingsManager.get('auth.oauthToken');
-  const hasAnthropicKey = SettingsManager.get('anthropic.apiKey');
-  if (hasOAuth || hasAnthropicKey) {
-    models.push(
-      { id: 'claude-opus-4-7', name: 'Opus 4.7', provider: 'anthropic' },
-      { id: 'claude-sonnet-4-6', name: 'Sonnet 4.6', provider: 'anthropic' },
-      { id: 'claude-haiku-4-5-20251001', name: 'Haiku 4.5', provider: 'anthropic' }
-    );
-  }
-  const hasMoonshotKey = SettingsManager.get('moonshot.apiKey');
-  if (hasMoonshotKey) {
-    models.push({ id: 'kimi-k2.6', name: 'Kimi K2.6', provider: 'moonshot' });
-  }
-  const hasGlmKey = SettingsManager.get('glm.apiKey');
-  if (hasGlmKey) {
-    models.push(
-      { id: 'glm-5.1', name: 'GLM 5.1', provider: 'glm' },
-      { id: 'glm-5-turbo', name: 'GLM 5 Turbo', provider: 'glm' },
-      { id: 'glm-4.7', name: 'GLM 4.7', provider: 'glm' },
-      { id: 'glm-4.7-flash', name: 'GLM 4.7 Flash', provider: 'glm' }
-    );
-  }
-  const hasXiaomiKey = SettingsManager.get('xiaomi.apiKey');
-  if (hasXiaomiKey) {
-    models.push({ id: 'mimo-v2-pro', name: 'MiMo-V2-Pro', provider: 'xiaomi' });
-  }
-  const hasOpenAIKey = SettingsManager.get('openai.apiKey');
-  const hasOpenAIOAuth = SettingsManager.get('openai.auth.method') === 'oauth';
-  if (hasOpenAIKey || hasOpenAIOAuth) {
-    models.push(
-      { id: 'gpt-5.5', name: 'GPT-5.5', provider: 'openai' },
-      { id: 'gpt-5.5-pro', name: 'GPT-5.5 Pro', provider: 'openai' },
-      { id: 'gpt-5.4', name: 'GPT-5.4', provider: 'openai' },
-      { id: 'gpt-5.4-mini', name: 'GPT-5.4 Mini', provider: 'openai' },
-      { id: 'gpt-5.3-codex', name: 'GPT-5.3 Codex', provider: 'openai' },
-      { id: 'codex-mini-latest', name: 'Codex Mini', provider: 'openai' }
-    );
-  }
-  const hasMiniMaxKey = SettingsManager.get('minimax.apiKey');
-  if (hasMiniMaxKey) {
-    models.push(
-      { id: 'MiniMax-M2.7', name: 'MiniMax M2.7', provider: 'minimax' },
-      { id: 'MiniMax-M2.7-highspeed', name: 'MiniMax M2.7 Highspeed', provider: 'minimax' }
-    );
-  }
-  const hasDeepSeekKey = SettingsManager.get('deepseek.apiKey');
-  if (hasDeepSeekKey) {
-    models.push(
-      { id: 'deepseek-v4-pro', name: 'DeepSeek V4 Pro', provider: 'deepseek' },
-      { id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash', provider: 'deepseek' }
-    );
-  }
+  const hasAnthropic =
+    (SettingsManager.get('auth.method') === 'oauth' && !!SettingsManager.get('auth.oauthToken')) ||
+    !!SettingsManager.get('anthropic.apiKey');
+  const hasOpenAI =
+    !!SettingsManager.get('openai.apiKey') || SettingsManager.get('openai.auth.method') === 'oauth';
 
-  return models;
+  // Which providers have credentials configured right now. The model list is
+  // built from the gg-core registry (via SUPPORTED_MODELS) and filtered to
+  // these, so names/ids always track the canonical catalog.
+  const providerConfigured: Record<ProviderType, boolean> = {
+    anthropic: hasAnthropic,
+    openai: hasOpenAI,
+    moonshot: !!SettingsManager.get('moonshot.apiKey'),
+    glm: !!SettingsManager.get('glm.apiKey'),
+    xiaomi: !!SettingsManager.get('xiaomi.apiKey'),
+    minimax: !!SettingsManager.get('minimax.apiKey'),
+    deepseek: !!SettingsManager.get('deepseek.apiKey'),
+  };
+
+  return SUPPORTED_MODELS.filter((m) => providerConfigured[m.provider as ProviderType]).map(
+    (m) => ({
+      id: m.id,
+      name: m.name,
+      provider: m.provider,
+    })
+  );
 }
 
 /**

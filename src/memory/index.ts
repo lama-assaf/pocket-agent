@@ -19,7 +19,19 @@ import {
   getDailyLogsMemoryUsage as _getDailyLogsMemoryUsage,
   deleteDailyLog as _deleteDailyLog,
   pruneOldDailyLogs as _pruneOldDailyLogs,
+  rollUpDailyLogs as _rollUpDailyLogs,
+  getRollupsForContext as _getRollupsForContext,
+  getDailyLogOnThisDay as _getDailyLogOnThisDay,
+  getAllRollups as _getAllRollups,
 } from './daily-logs';
+import type { DailyLogRollup } from './daily-logs';
+import { summarizeText } from './summarizer';
+import { selectResurfaceCandidate as _selectResurfaceCandidate } from './resurfacing';
+import type { ResurfaceCandidate } from './resurfacing';
+import {
+  exportMemory as _exportMemory,
+  exportMemoryMarkdown as _exportMemoryMarkdown,
+} from './export';
 import {
   createSoulCache,
   setSoulAspect as _setSoulAspect,
@@ -29,6 +41,7 @@ import {
   deleteSoulAspectById as _deleteSoulAspectById,
   getSoulContext as _getSoulContext,
   getSoulMemoryUsage as _getSoulMemoryUsage,
+  updateSoulAspect as _updateSoulAspect,
 } from './soul';
 import type { SoulCache, SoulAspect } from './soul';
 import {
@@ -58,8 +71,18 @@ import {
   getFactsByCategory as _getFactsByCategory,
   getFactCategories as _getFactCategories,
   decayFactImportance as _decayFactImportance,
+  updateFact as _updateFact,
+  setFactSensitive as _setFactSensitive,
 } from './facts';
 import type { FactsCache, Fact } from './facts';
+import { embedText } from './embeddings';
+import {
+  retrieveRelevantFacts as _retrieveRelevantFacts,
+  retrieveRelevantSoul as _retrieveRelevantSoul,
+  retrieveRelevantRollups as _retrieveRelevantRollups,
+  semanticSearchFacts as _semanticSearchFacts,
+  findNearDuplicateFacts as _findNearDuplicateFacts,
+} from './semantic';
 import {
   type Session,
   createSession as _createSession,
@@ -85,9 +108,10 @@ export type { Session } from './sessions';
 export type { Message, SmartContextOptions, SmartContext, SummarizerFn } from './messages';
 export type { Fact } from './facts';
 export type { CronJob } from './cron-jobs';
-export type { DailyLog } from './daily-logs';
+export type { DailyLog, DailyLogRollup } from './daily-logs';
 export type { TelegramChatSession } from './telegram-sessions';
 export type { SoulAspect } from './soul';
+export type { ResurfaceCandidate } from './resurfacing';
 
 export class MemoryManager {
   private db: Database.Database;
@@ -107,7 +131,25 @@ export class MemoryManager {
     // Run importance decay on startup (reduces importance for stale facts)
     _decayFactImportance(this.db);
 
-    // Prune daily logs older than 3 days — only the rolling window is kept
+    // Roll up old daily logs into durable summaries BEFORE pruning, then prune.
+    // Runs in the background so startup is never blocked by an LLM call.
+    void this.rollUpThenPrune();
+  }
+
+  /**
+   * Roll up daily logs older than the retention window into weekly/monthly
+   * summaries, then prune the raw logs. Summaries persist indefinitely.
+   */
+  private async rollUpThenPrune(): Promise<void> {
+    try {
+      if (!this.db.open) return;
+      await _rollUpDailyLogs(this.db, (prompt, maxTokens) => summarizeText(prompt, maxTokens));
+    } catch (e) {
+      console.warn('[Memory] Daily log rollup skipped:', e);
+    }
+    // Prune daily logs older than 3 days — only the rolling window is kept.
+    // Guard against a connection closed while the async rollup was in flight.
+    if (!this.db.open) return;
     _pruneOldDailyLogs(this.db, 3);
   }
 
@@ -366,6 +408,67 @@ export class MemoryManager {
       this.db.exec('ALTER TABLE sessions ADD COLUMN working_directory TEXT');
       console.log('[Memory] Migrated sessions table: added working_directory column');
     }
+
+    // Migration: add embedding BLOB column to facts for semantic recall
+    const factsColsForEmbedding = this.db.pragma('table_info(facts)') as Array<{ name: string }>;
+    if (!factsColsForEmbedding.some((c) => c.name === 'embedding')) {
+      this.db.exec('ALTER TABLE facts ADD COLUMN embedding BLOB');
+      console.log('[Memory] Migrated facts table: added embedding column');
+    }
+
+    // Migration: add sensitive flag to facts (excluded from resurfacing/cloud)
+    if (!factsColsForEmbedding.some((c) => c.name === 'sensitive')) {
+      this.db.exec('ALTER TABLE facts ADD COLUMN sensitive INTEGER DEFAULT 0');
+      console.log('[Memory] Migrated facts table: added sensitive column');
+    }
+
+    // Migration: add embedding BLOB column to soul for semantic recall
+    const soulColsForEmbedding = this.db.pragma('table_info(soul)') as Array<{ name: string }>;
+    if (!soulColsForEmbedding.some((c) => c.name === 'embedding')) {
+      this.db.exec('ALTER TABLE soul ADD COLUMN embedding BLOB');
+      console.log('[Memory] Migrated soul table: added embedding column');
+    }
+
+    // Daily log rollups (weekly/monthly summaries that persist past pruning)
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS daily_log_rollups (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        period_type TEXT NOT NULL CHECK(period_type IN ('week', 'month')),
+        period_start TEXT NOT NULL,
+        period_end TEXT NOT NULL,
+        content TEXT NOT NULL,
+        embedding BLOB,
+        created_at TEXT DEFAULT ((strftime('%Y-%m-%dT%H:%M:%fZ')))
+      );
+      CREATE INDEX IF NOT EXISTS idx_rollups_period ON daily_log_rollups(period_type, period_start);
+
+      -- Key/value store for memory maintenance bookkeeping (consolidation/resurfacing timestamps)
+      CREATE TABLE IF NOT EXISTS memory_meta (
+        key TEXT PRIMARY KEY,
+        value TEXT,
+        updated_at TEXT DEFAULT ((strftime('%Y-%m-%dT%H:%M:%fZ')))
+      );
+    `);
+
+    // Backfill embeddings for rows missing them, in the background (fire-and-forget).
+    this.backfillEmbeddings();
+  }
+
+  /**
+   * One-time background backfill: embed facts/soul rows whose embedding IS NULL.
+   * Runs lazily so it never blocks startup or a chat turn.
+   */
+  private backfillEmbeddings(): void {
+    void (async () => {
+      try {
+        if (!this.db.open) return;
+        const { backfillMissingEmbeddings } = await import('./semantic');
+        if (!this.db.open) return;
+        await backfillMissingEmbeddings(this.db);
+      } catch (e) {
+        console.warn('[Memory] Embedding backfill skipped:', e);
+      }
+    })();
   }
 
   /**
@@ -660,6 +763,26 @@ export class MemoryManager {
     return _getDailyLogsContext(this.db, days);
   }
 
+  async rollUpDailyLogs(): Promise<number> {
+    return _rollUpDailyLogs(this.db, (prompt, maxTokens) => summarizeText(prompt, maxTokens));
+  }
+
+  getRollupsForContext(budgetChars: number = 600): string {
+    return _getRollupsForContext(this.db, budgetChars);
+  }
+
+  getDailyLogOnThisDay(): { rollups: DailyLogRollup[]; logs: DailyLog[] } {
+    return _getDailyLogOnThisDay(this.db);
+  }
+
+  getAllRollups(): DailyLogRollup[] {
+    return _getAllRollups(this.db);
+  }
+
+  selectResurfaceCandidate(now: Date = new Date()): ResurfaceCandidate | null {
+    return _selectResurfaceCandidate(this.db, now);
+  }
+
   // ============ MESSAGE METHODS ============
 
   saveMessage(
@@ -702,12 +825,66 @@ export class MemoryManager {
     return _getFactsForContext(this.db, this.factsCache);
   }
 
+  // ============ SEMANTIC RECALL ============
+
+  /**
+   * Embed a query string for semantic retrieval. Returns null on failure so
+   * callers can fall back to wholesale context.
+   */
+  async embedQuery(text: string): Promise<Float32Array | null> {
+    try {
+      if (!text || text.trim().length === 0) return null;
+      return await embedText(text);
+    } catch (e) {
+      console.warn('[Memory] Query embedding failed:', e);
+      return null;
+    }
+  }
+
+  retrieveRelevantFacts(queryEmbedding: Float32Array, k: number, budgetChars: number): string {
+    return _retrieveRelevantFacts(this.db, queryEmbedding, k, budgetChars);
+  }
+
+  retrieveRelevantSoul(
+    queryEmbedding: Float32Array,
+    k: number,
+    budgetChars: number,
+    alwaysInclude: string[] = []
+  ): string {
+    return _retrieveRelevantSoul(this.db, queryEmbedding, k, budgetChars, alwaysInclude);
+  }
+
+  retrieveRelevantRollups(queryEmbedding: Float32Array, k: number, budgetChars: number): string {
+    return _retrieveRelevantRollups(this.db, queryEmbedding, k, budgetChars);
+  }
+
+  semanticSearchFacts(queryEmbedding: Float32Array, k = 6): Array<Fact & { score: number }> {
+    return _semanticSearchFacts(this.db, queryEmbedding, k) as Array<Fact & { score: number }>;
+  }
+
+  findNearDuplicateFacts(
+    threshold = 0.82
+  ): Array<Array<{ id: number; subject: string; content: string }>> {
+    return _findNearDuplicateFacts(this.db, threshold);
+  }
+
   getFactsMemoryUsage(): { usedChars: number; budgetChars: number; pct: number } {
     return _getFactsMemoryUsage(this.db);
   }
 
   deleteFact(id: number): boolean {
     return _deleteFact(this.db, id, this.factsCache);
+  }
+
+  updateFact(
+    id: number,
+    fields: { category?: string; subject?: string; content?: string }
+  ): boolean {
+    return _updateFact(this.db, id, fields, this.factsCache);
+  }
+
+  setFactSensitive(id: number, sensitive: boolean): boolean {
+    return _setFactSensitive(this.db, id, sensitive, this.factsCache);
   }
 
   deleteFactBySubject(category: string, subject: string): boolean {
@@ -846,6 +1023,10 @@ export class MemoryManager {
     return _deleteSoulAspectById(this.db, id, this.soulCache);
   }
 
+  updateSoulAspect(id: number, fields: { aspect?: string; content?: string }): boolean {
+    return _updateSoulAspect(this.db, id, fields, this.soulCache);
+  }
+
   getSoulContext(): string {
     return _getSoulContext(this.db, this.soulCache);
   }
@@ -860,6 +1041,53 @@ export class MemoryManager {
     pct: number;
   } {
     return _getDailyLogsMemoryUsage(this.db, days);
+  }
+
+  // ============ EXPORT ============
+
+  exportMemory(): import('./export').MemoryExport {
+    return _exportMemory(this.db);
+  }
+
+  exportMemoryMarkdown(): string {
+    return _exportMemoryMarkdown(_exportMemory(this.db));
+  }
+
+  // ============ MEMORY META (key/value bookkeeping) ============
+
+  getMeta(key: string): string | null {
+    const row = this.db.prepare('SELECT value FROM memory_meta WHERE key = ?').get(key) as
+      | { value: string | null }
+      | undefined;
+    return row?.value ?? null;
+  }
+
+  setMeta(key: string, value: string): void {
+    this.db
+      .prepare(
+        `INSERT INTO memory_meta (key, value, updated_at)
+         VALUES (?, ?, (strftime('%Y-%m-%dT%H:%M:%fZ')))
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`
+      )
+      .run(key, value);
+  }
+
+  // ============ CONSOLIDATION ============
+
+  async consolidateMemory(
+    opts: {
+      force?: boolean;
+      reflect?: boolean;
+    } = {}
+  ): Promise<{
+    ran: boolean;
+    factsDeleted: number;
+    factsAdded: number;
+    soulDeleted: number;
+    soulAdded: number;
+  }> {
+    const { consolidateMemory } = await import('./consolidation');
+    return consolidateMemory(this, opts);
   }
 
   close(): void {

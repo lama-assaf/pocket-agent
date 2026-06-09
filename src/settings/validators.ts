@@ -167,7 +167,7 @@ export async function validateXiaomiKey(apiKey: string): Promise<ValidationResul
       Authorization: `Bearer ${apiKey}`,
     },
     body: {
-      model: 'mimo-v2-pro',
+      model: 'mimo-v2.5-pro',
       max_tokens: 10,
       messages: [{ role: 'user', content: 'Hi' }],
     },
@@ -187,7 +187,7 @@ export async function validateMiniMaxKey(apiKey: string): Promise<ValidationResu
       'anthropic-version': '2023-06-01',
     },
     body: {
-      model: 'MiniMax-M2.7',
+      model: 'MiniMax-M3',
       max_tokens: 10,
       messages: [{ role: 'user', content: 'Hi' }],
     },

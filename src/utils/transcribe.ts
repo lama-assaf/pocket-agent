@@ -4,6 +4,7 @@
  */
 
 import type { AutomaticSpeechRecognitionPipeline } from '@huggingface/transformers';
+import { applyTransformersEnv } from './transformers-env';
 
 const TARGET_SAMPLE_RATE = 16000;
 const MODEL_ID = 'Xenova/whisper-tiny.en';
@@ -90,7 +91,8 @@ async function getTranscriber(): Promise<AutomaticSpeechRecognitionPipeline> {
   if (!loadPromise) {
     loadPromise = (async () => {
       console.log(`[Transcribe] Loading local Whisper model: ${MODEL_ID}`);
-      const { pipeline } = await import('@huggingface/transformers');
+      const { pipeline, env } = await import('@huggingface/transformers');
+      applyTransformersEnv(env);
       const instance = await pipeline('automatic-speech-recognition', MODEL_ID, {
         dtype: 'fp32',
       });

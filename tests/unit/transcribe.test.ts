@@ -11,6 +11,7 @@ const mockFree = vi.fn();
 
 vi.mock('@huggingface/transformers', () => ({
   pipeline: mockPipeline,
+  env: {},
 }));
 
 vi.mock('ogg-opus-decoder', () => {

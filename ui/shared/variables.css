@@ -19,7 +19,7 @@
   --border: #44475a;
   --text-primary: #f8f8f2;
   --text-secondary: #bfc7d5;
-  --text-muted: #6272a4;
+  --text-muted: #7d8ab3;   /* lightened from #6272a4 for AA contrast on dark bg */
   --accent: #bd93f9;
   --accent-secondary: #ff79c6;
   --accent-hover: #caa9fa;

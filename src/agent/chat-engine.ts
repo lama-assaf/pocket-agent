@@ -17,6 +17,9 @@ import type {
   StreamResponse,
 } from '@kenkaiiii/gg-ai';
 import { MemoryManager, type Message as MemoryMessage } from '../memory';
+import { FACTS_CHAR_BUDGET } from '../memory/facts';
+import { SOUL_CHAR_BUDGET } from '../memory/soul';
+import { consolidateMemory } from '../memory/consolidation';
 import { ToolsConfig, setCurrentSessionId, runWithSessionId } from '../tools';
 import { SettingsManager } from '../settings';
 import { SYSTEM_GUIDELINES } from '../config/system-guidelines';
@@ -24,6 +27,8 @@ import { getModeConfig, buildRoutingInstructions } from './agent-modes';
 import type { AgentModeId } from './agent-modes';
 import { getStreamConfig } from './chat-providers';
 import { resolveModel } from './resolve-model';
+import { getProviderForModel } from './providers';
+import { getContextWindow } from './model-catalog';
 import { getChatAgentTools, getCoderAgentTools } from './chat-tools';
 import {
   buildSystemPrompt as buildCoderSystemPrompt,
@@ -68,40 +73,13 @@ const MAX_TOOL_ITERATIONS = 20;
 const BASE_CONTEXT_MESSAGES = 80;
 const BASE_CONTEXT_WINDOW = 200_000;
 
-// Model context window sizes (tokens)
-const MODEL_CONTEXT_WINDOWS: Record<string, number> = {
-  // Anthropic models
-  'claude-opus-4-7': 1_000_000,
-  'claude-opus-4-6': 1_000_000,
-  'claude-sonnet-4-6': 1_000_000,
-  'claude-haiku-4-5-20251001': 200_000,
-  // Moonshot/Kimi models
-  'kimi-k2.6': 256_000,
-  // Z.AI GLM models
-  'glm-5.1': 204_800,
-  'glm-5-turbo': 204_800,
-  'glm-4.7': 200_000,
-  'glm-4.7-flash': 200_000,
-  // Xiaomi/MiMo models
-  'mimo-v2-pro': 1_000_000,
-  // OpenAI models
-  'gpt-5.5': 1_000_000,
-  'gpt-5.5-pro': 1_000_000,
-  'gpt-5.4': 1_050_000,
-  'gpt-5.4-mini': 400_000,
-  'gpt-5.3-codex': 400_000,
-  'codex-mini-latest': 200_000,
-  // MiniMax models
-  'MiniMax-M2.7': 204_800,
-  'MiniMax-M2.7-highspeed': 204_800,
-  // DeepSeek models — both V4 variants support 1M token context
-  // https://api-docs.deepseek.com/news/news260424
-  'deepseek-v4-pro': 1_000_000,
-  'deepseek-v4-flash': 1_000_000,
-};
-
-function getContextWindow(model: string): number {
-  return MODEL_CONTEXT_WINDOWS[model] ?? 200_000;
+/**
+ * Resolve a model's context window via the gg-core registry. Passing the
+ * resolved provider lets gg-core apply the correct ChatGPT Codex transport
+ * window when an OpenAI OAuth `accountId` is present.
+ */
+function contextWindowFor(model: string, accountId?: string): number {
+  return getContextWindow(model, { provider: getProviderForModel(model), accountId });
 }
 
 /**
@@ -109,7 +87,7 @@ function getContextWindow(model: string): number {
  * 200K models → 80 messages, 1M models → 400 messages, etc.
  */
 function getMaxContextMessages(model: string): number {
-  const contextWindow = getContextWindow(model);
+  const contextWindow = contextWindowFor(model);
   const scale = contextWindow / BASE_CONTEXT_WINDOW;
   return Math.round(BASE_CONTEXT_MESSAGES * scale);
 }
@@ -343,7 +321,11 @@ export class ChatEngine {
           ? `${coderPrompt}\n\n${routingInstructions}`
           : coderPrompt;
       } else {
-        const { staticPrompt, dynamicPrompt } = this.buildSystemPrompt(sessionId, channel);
+        const { staticPrompt, dynamicPrompt } = await this.buildSystemPrompt(
+          sessionId,
+          channel,
+          finalMessage
+        );
         // The <!-- uncached --> marker tells gg-ai to split the system message:
         // everything before it gets cache_control (stays cached across turns),
         // everything after it is sent uncached (changes every turn).
@@ -631,7 +613,7 @@ export class ChatEngine {
             ? this.pendingMediaBySession.get(sessionId)
             : undefined,
         contextTokens: lastTurnContextTokens,
-        contextWindow: getContextWindow(model),
+        contextWindow: contextWindowFor(model, streamConfig.accountId),
       };
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
@@ -733,10 +715,15 @@ export class ChatEngine {
   /**
    * Build system prompt split into static (cacheable) and dynamic (per-turn) parts.
    */
-  buildSystemPrompt(
+  async buildSystemPrompt(
     sessionId?: string,
-    channel?: string
-  ): { staticPrompt: string; dynamicPrompt: string } {
+    channel?: string,
+    userMessage?: string
+  ): Promise<{ staticPrompt: string; dynamicPrompt: string }> {
+    // Embed the current message once for relevance-driven recall. Null when no
+    // message is supplied (display-only callers) or embedding is unavailable —
+    // in that case we fall back to the wholesale importance-sorted dumps.
+    const queryEmbedding = userMessage ? await this.memory.embedQuery(userMessage) : null;
     // === Static context (cacheable — hardcoded, never changes mid-session) ===
     const staticParts: string[] = [];
 
@@ -776,7 +763,20 @@ export class ChatEngine {
     const dynamicParts: string[] = [];
 
     // 1. Soul — behavioral guidance for working with this user (strongest signal)
-    const soul = this.memory.getSoulContext();
+    // top-5 relevance-ranked aspects (industry norm is 3–5 for memory injection),
+    // plus pinned aspects that apply every turn regardless of topic: identity-
+    // critical ones and cross-cutting behavioral rules (how to work with this
+    // user). These match the canonical aspect names suggested by soul_set.
+    const soul = queryEmbedding
+      ? this.memory.retrieveRelevantSoul(queryEmbedding, 5, SOUL_CHAR_BUDGET, [
+          'identity',
+          'core',
+          'mission',
+          'communication_style',
+          'boundaries',
+          'working_style',
+        ]) || this.memory.getSoulContext()
+      : this.memory.getSoulContext();
     if (soul) {
       dynamicParts.push(soul);
       console.log(`[ChatEngine] Soul injected: ${soul.length} chars`);
@@ -789,8 +789,14 @@ export class ChatEngine {
       console.log(`[ChatEngine] User context injected: ${userContext.length} chars`);
     }
 
-    // 3. Facts — remembered information about the user (updated constantly)
-    const facts = this.memory.getFactsForContext();
+    // 3. Facts — remembered information about the user (relevance-driven, with
+    //    graceful fallback to the wholesale importance-sorted dump)
+    // top-8 relevance-ranked facts; the char budget remains a safety cap. Each
+    // fact is atomic (~30 words), so 8 stays well under the budget in practice.
+    const facts = queryEmbedding
+      ? this.memory.retrieveRelevantFacts(queryEmbedding, 8, FACTS_CHAR_BUDGET) ||
+        this.memory.getFactsForContext()
+      : this.memory.getFactsForContext();
     if (facts) {
       dynamicParts.push(facts);
       console.log(`[ChatEngine] Facts injected: ${facts.length} chars`);
@@ -803,6 +809,15 @@ export class ChatEngine {
       if (dailyLogs) {
         dynamicParts.push(dailyLogs);
         console.log(`[ChatEngine] Daily logs injected: ${dailyLogs.length} chars`);
+      }
+
+      // 4b. "Earlier" — relevant weekly/monthly rollups (long-horizon recall)
+      if (queryEmbedding) {
+        const rollups = this.memory.retrieveRelevantRollups(queryEmbedding, 2, 600);
+        if (rollups) {
+          dynamicParts.push(rollups);
+          console.log(`[ChatEngine] Rollups injected: ${rollups.length} chars`);
+        }
       }
     }
 
@@ -857,7 +872,7 @@ export class ChatEngine {
     const sessionMode = this.memory.getSessionMode(sessionId) as AgentModeId;
 
     console.log(
-      `[ChatEngine] Loading session ${sessionId} — ${messageCount} stored msgs, limit: ${maxMessages} (model: ${effectiveModel}, context: ${getContextWindow(effectiveModel).toLocaleString()} tokens)`
+      `[ChatEngine] Loading session ${sessionId} — ${messageCount} stored msgs, limit: ${maxMessages} (model: ${effectiveModel}, context: ${contextWindowFor(effectiveModel).toLocaleString()} tokens)`
     );
 
     if (messageCount <= maxMessages) {
@@ -1002,7 +1017,7 @@ export class ChatEngine {
     if (!conversation || conversation.length === 0) return false;
 
     // Token-based compaction: use ggcoder's shouldCompact (80% threshold, 16K output reserve)
-    const contextWindow = getContextWindow(model);
+    const contextWindow = contextWindowFor(model);
     if (!shouldCompact(conversation, contextWindow)) return false;
 
     const estimatedTokens = estimateConversationTokens(conversation);
@@ -1091,293 +1106,48 @@ export class ChatEngine {
     // 10-minute cooldown
     if (Date.now() - this.lastCompactionTime < 600_000) return;
 
-    // Check usage
-    const factsUsage = this.memory.getFactsMemoryUsage();
-    const soulUsage = this.memory.getSoulMemoryUsage();
-
-    const factsOver = factsUsage.pct >= 80;
-    const soulOver = soulUsage.pct >= 80;
-
-    if (!factsOver && !soulOver) return;
-
-    // Build detail string
-    const detailParts: string[] = [];
-    if (factsOver) detailParts.push(`facts ${factsUsage.pct}%`);
-    if (soulOver) detailParts.push(`soul ${soulUsage.pct}%`);
-    const detail = detailParts.join(', ');
+    const factsBefore = this.memory.getFactsMemoryUsage();
+    const soulBefore = this.memory.getSoulMemoryUsage();
+    if (factsBefore.pct < 80 && soulBefore.pct < 80) return;
 
     try {
-      this.emitStatus({
-        type: 'memory_compacting',
-        sessionId,
-        message: 'scanning memory... 🔍',
-        toolInput: detail,
-      });
-
-      // Build compaction prompt with concrete char targets
-      const allFacts = factsOver ? this.memory.getAllFacts() : [];
-      const allSoul = soulOver ? this.memory.getAllSoulAspects() : [];
-
-      const now = Date.now();
-      const factsData = allFacts.map((f) => {
-        const lastAccess = f.last_accessed_at ? new Date(f.last_accessed_at).getTime() : 0;
-        const daysSinceAccess = lastAccess ? Math.round((now - lastAccess) / 86_400_000) : 999;
-        return {
-          id: f.id,
-          category: f.category,
-          subject: f.subject,
-          content: f.content,
-          importance: f.importance,
-          days_since_accessed: daysSinceAccess,
-        };
-      });
-      const soulData = allSoul.map((s) => ({
-        aspect: s.aspect,
-        content: s.content,
-      }));
-
-      const totalFactChars = factsData.reduce(
-        (sum, f) => sum + f.category.length + f.subject.length + f.content.length,
-        0
-      );
-      const totalSoulChars = soulData.reduce(
-        (sum, s) => sum + s.aspect.length + s.content.length,
-        0
-      );
-      const targetFactChars = Math.round(totalFactChars * 0.6);
-      const targetSoulChars = Math.round(totalSoulChars * 0.6);
-
-      const promptParts: string[] = [
-        'Compact these memory entries. Return ONLY raw JSON, no markdown fences.',
-        '',
-      ];
-
-      // Add concrete targets up front
-      if (factsOver) {
-        promptParts.push(
-          `FACTS: currently ${totalFactChars} chars across ${factsData.length} entries. Your upserted facts MUST total UNDER ${targetFactChars} chars (sum of category+subject+content for each).`
-        );
-      }
-      if (soulOver) {
-        promptParts.push(
-          `SOUL: currently ${totalSoulChars} chars across ${soulData.length} entries. Your upserted soul MUST total UNDER ${targetSoulChars} chars (sum of aspect+content for each).`
-        );
-      }
-
-      promptParts.push('');
-      promptParts.push('WHAT TO DROP (priority order):');
-      promptParts.push(
-        '- Each fact has "importance" (0-100, decays over time) and "days_since_accessed" (how many days since this fact was last relevant in conversation)'
-      );
-      promptParts.push(
-        '- DROP FIRST: low importance + high days_since_accessed — these are stale, rarely discussed topics'
-      );
-      promptParts.push(
-        '- DROP NEXT: duplicates and near-duplicates (same person/topic across multiple keys)'
-      );
-      promptParts.push(
-        '- KEEP: high importance OR recently accessed (days_since_accessed < 7) — these are actively discussed'
-      );
-      promptParts.push('');
-      promptParts.push('DEDUPLICATION:');
-      promptParts.push('- Same person/topic split across multiple subject keys → merge into ONE');
-      promptParts.push(
-        '- Near-duplicate subject names (e.g. "Ken\'s mum" vs "Ken_mum") → keep only one'
-      );
-      promptParts.push('- Overlapping info across entries → consolidate');
-      promptParts.push('');
-      promptParts.push('COMPRESSION:');
-      promptParts.push('- Each fact content: MAX 10 words. Telegram-style. No filler.');
-      promptParts.push('- Prefer fewer entries with dense info over many granular ones');
-      promptParts.push('');
-
-      const responseShape: string[] = [];
-
-      if (factsOver) {
-        promptParts.push(
-          `## Facts (${factsData.length} entries, ${totalFactChars} chars → target <${targetFactChars} chars)`
-        );
-        promptParts.push(JSON.stringify(factsData, null, 2));
-        promptParts.push('');
-        responseShape.push(
-          '"facts": { "delete_ids": [<ids to remove>], "upsert": [{ "category": "...", "subject": "...", "content": "..." }] }'
-        );
-      }
-
-      if (soulOver) {
-        promptParts.push(
-          `## Soul (${soulData.length} entries, ${totalSoulChars} chars → target <${targetSoulChars} chars)`
-        );
-        promptParts.push(JSON.stringify(soulData, null, 2));
-        promptParts.push('');
-        responseShape.push(
-          '"soul": { "delete_aspects": ["<aspect names to remove>"], "upsert": [{ "aspect": "...", "content": "..." }] }'
-        );
-      }
-
-      promptParts.push('## Expected JSON response format');
-      promptParts.push('{');
-      promptParts.push('  ' + responseShape.join(',\n  '));
-      promptParts.push('}');
-
-      const compactionPrompt = promptParts.join('\n');
-
-      // Make LLM call
-      this.emitStatus({
-        type: 'memory_compacting',
-        sessionId,
-        message: 'compacting memories... 🧹',
-        toolInput: detail,
-      });
-
-      const streamCfg = await getStreamConfig(model);
-      const result = ggStream({
-        provider: streamCfg.provider,
-        model,
-        maxTokens: 2048,
-        messages: [{ role: 'user', content: compactionPrompt }],
-        apiKey: streamCfg.apiKey,
-        baseUrl: streamCfg.baseUrl,
-        accountId: streamCfg.accountId,
-      });
-
-      const response: StreamResponse = await result.response;
-      const textParts = (
-        Array.isArray(response.message.content)
-          ? response.message.content
-          : [{ type: 'text' as const, text: response.message.content }]
-      ).filter((p): p is TextContent => p.type === 'text');
-      const responseText = textParts.map((p) => p.text).join('');
-
-      if (!responseText) {
-        console.log('[ChatEngine] Memory compaction returned empty response, skipping');
-        return;
-      }
-
-      // Extract JSON (handle both raw JSON and markdown-fenced JSON)
-      let jsonStr = responseText.trim();
-      const fencedMatch = jsonStr.match(/```(?:json)?\s*\n([\s\S]*?)\n\s*```/);
-      if (fencedMatch) {
-        jsonStr = fencedMatch[1].trim();
-      } else {
-        // Fallback: find the first { and last } to extract JSON object
-        const firstBrace = jsonStr.indexOf('{');
-        const lastBrace = jsonStr.lastIndexOf('}');
-        if (firstBrace !== -1 && lastBrace > firstBrace) {
-          jsonStr = jsonStr.slice(firstBrace, lastBrace + 1);
-        }
-      }
-
-      const compactionResult = JSON.parse(jsonStr) as {
-        facts?: {
-          delete_ids?: number[];
-          upsert?: Array<{ category: string; subject: string; content: string }>;
-        };
-        soul?: {
-          delete_aspects?: string[];
-          upsert?: Array<{ aspect: string; content: string }>;
-        };
+      // Use a summarizer bound to the active session model for this in-turn call.
+      const summarizer = async (prompt: string, maxTokens = 2048): Promise<string> => {
+        const streamCfg = await getStreamConfig(model);
+        const result = ggStream({
+          provider: streamCfg.provider,
+          model,
+          maxTokens,
+          messages: [{ role: 'user', content: prompt }],
+          apiKey: streamCfg.apiKey,
+          baseUrl: streamCfg.baseUrl,
+          accountId: streamCfg.accountId,
+        });
+        const response: StreamResponse = await result.response;
+        const textParts = (
+          Array.isArray(response.message.content)
+            ? response.message.content
+            : [{ type: 'text' as const, text: response.message.content }]
+        ).filter((p): p is TextContent => p.type === 'text');
+        return textParts.map((p) => p.text).join('');
       };
 
-      // Apply fact compaction — upsert first (safe), then delete old ones
-      let factsDeleted = 0;
-      let factsAdded = 0;
-      if (compactionResult.facts) {
-        const deleteIds = compactionResult.facts.delete_ids ?? [];
-        const upserts = compactionResult.facts.upsert ?? [];
-        if (deleteIds.length > 0 || upserts.length > 0) {
-          this.emitStatus({
-            type: 'memory_compacting',
-            sessionId,
-            message: 'reorganizing facts... 🗂️',
-            toolInput: `${deleteIds.length} to remove, ${upserts.length} consolidated`,
-          });
-        }
-
-        // Measure: would the upserts add more chars than the deletions remove?
-        const deletedChars = factsData
-          .filter((f) => deleteIds.includes(f.id))
-          .reduce((sum, f) => sum + f.category.length + f.subject.length + f.content.length, 0);
-        const upsertChars = upserts.reduce(
-          (sum, f) => sum + f.category.length + f.subject.length + f.content.length,
-          0
-        );
-        const willShrink = upsertChars < deletedChars;
-
-        // Upsert new merged entries first (safe — worst case we have duplicates)
-        if (willShrink) {
-          for (const fact of upserts) {
-            this.memory.saveFact(fact.category, fact.subject, fact.content);
-            factsAdded++;
-          }
-        } else {
-          console.log(
-            `[ChatEngine] Skipping fact upserts — would add ${upsertChars} chars vs removing ${deletedChars} chars`
-          );
-        }
-
-        // Now delete old entries
-        for (const id of deleteIds) {
-          if (this.memory.deleteFact(id)) factsDeleted++;
-        }
-      }
-
-      // Apply soul compaction — upsert first (safe), then delete old ones
-      let soulDeleted = 0;
-      let soulAdded = 0;
-      if (compactionResult.soul) {
-        const deleteAspects = compactionResult.soul.delete_aspects ?? [];
-        const upserts = compactionResult.soul.upsert ?? [];
-        if (deleteAspects.length > 0 || upserts.length > 0) {
-          this.emitStatus({
-            type: 'memory_compacting',
-            sessionId,
-            message: 'refining soul notes... ✨',
-            toolInput: `${deleteAspects.length} to merge, ${upserts.length} refined`,
-          });
-        }
-
-        // Measure
-        const deletedChars = soulData
-          .filter((s) => deleteAspects.includes(s.aspect))
-          .reduce((sum, s) => sum + s.aspect.length + s.content.length, 0);
-        const upsertChars = upserts.reduce((sum, s) => sum + s.aspect.length + s.content.length, 0);
-        const willShrink = upsertChars < deletedChars;
-
-        if (willShrink) {
-          for (const item of upserts) {
-            this.memory.setSoulAspect(item.aspect, item.content);
-            soulAdded++;
-          }
-        } else if (upserts.length > 0) {
-          console.log(
-            `[ChatEngine] Skipping soul upserts — would add ${upsertChars} chars vs removing ${deletedChars} chars`
-          );
-        }
-
-        for (const aspect of deleteAspects) {
-          if (this.memory.deleteSoulAspect(aspect)) soulDeleted++;
-        }
-      }
-
-      // Log before/after usage
-      const factsAfter = this.memory.getFactsMemoryUsage();
-      const soulAfter = this.memory.getSoulMemoryUsage();
-
-      // Final status with results
-      const resultParts: string[] = [];
-      if (factsOver) resultParts.push(`facts ${factsUsage.pct}%→${factsAfter.pct}%`);
-      if (soulOver) resultParts.push(`soul ${soulUsage.pct}%→${soulAfter.pct}%`);
-      this.emitStatus({
-        type: 'memory_compacting',
-        sessionId,
-        message: 'memory tidied up! ✅',
-        toolInput: resultParts.join(', '),
+      const result = await consolidateMemory(this.memory, {
+        summarizer,
+        onStatus: (message, detail) =>
+          this.emitStatus({ type: 'memory_compacting', sessionId, message, toolInput: detail }),
       });
 
-      console.log(
-        `[ChatEngine] Memory compacted: facts ${factsUsage.pct}%→${factsAfter.pct}% (deleted ${factsDeleted}, added ${factsAdded}), soul ${soulUsage.pct}%→${soulAfter.pct}% (deleted ${soulDeleted}, added ${soulAdded})`
-      );
+      if (result.ran) {
+        const factsAfter = this.memory.getFactsMemoryUsage();
+        const soulAfter = this.memory.getSoulMemoryUsage();
+        this.emitStatus({
+          type: 'memory_compacting',
+          sessionId,
+          message: 'memory tidied up! ✅',
+          toolInput: `facts ${factsBefore.pct}%→${factsAfter.pct}%, soul ${soulBefore.pct}%→${soulAfter.pct}%`,
+        });
+      }
 
       this.lastCompactionTime = Date.now();
     } catch (err) {

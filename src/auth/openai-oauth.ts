@@ -14,7 +14,7 @@ const CLIENT_ID = 'app_EMoamEEZ73f0CkXaXp7hrann';
 const AUTHORIZE_URL = 'https://auth.openai.com/oauth/authorize';
 const TOKEN_URL = 'https://auth.openai.com/oauth/token';
 const REDIRECT_URI = 'http://localhost:1455/auth/callback';
-const SCOPE = 'openid profile email offline_access';
+const SCOPE = 'openid profile email offline_access api.connectors.read api.connectors.invoke';
 const JWT_CLAIM_PATH = 'https://api.openai.com/auth';
 
 interface OAuthCredentials {
@@ -27,6 +27,7 @@ interface OAuthCredentials {
 class OpenAIOAuthManager {
   private static instance: OpenAIOAuthManager | null = null;
   private currentPKCE: { verifier: string; challenge: string } | null = null;
+  private currentState: string | null = null;
   private pendingAuth: boolean = false;
 
   private constructor() {}
@@ -47,6 +48,7 @@ class OpenAIOAuthManager {
   private getAuthorizationURL(): string {
     this.currentPKCE = this.generatePKCE();
     const state = crypto.randomBytes(16).toString('hex');
+    this.currentState = state;
 
     const params = new URLSearchParams({
       response_type: 'code',
@@ -56,6 +58,9 @@ class OpenAIOAuthManager {
       code_challenge: this.currentPKCE.challenge,
       code_challenge_method: 'S256',
       state,
+      // Force the account chooser / re-auth so switching accounts works.
+      // Without this the browser silently re-approves the cached session.
+      prompt: 'login',
       id_token_add_organizations: 'true',
       codex_cli_simplified_flow: 'true',
       originator: 'pocket-agent',
@@ -70,7 +75,7 @@ class OpenAIOAuthManager {
       this.pendingAuth = true;
 
       // Start local server to catch callback
-      const code = await this.waitForCallback(authUrl);
+      const code = await this.waitForCallback(authUrl, this.currentState);
 
       // Exchange code for tokens
       const tokens = await this.exchangeCode(code);
@@ -86,12 +91,14 @@ class OpenAIOAuthManager {
 
       this.pendingAuth = false;
       this.currentPKCE = null;
+      this.currentState = null;
 
       console.log('[OpenAI OAuth] Successfully authenticated');
       return { success: true };
     } catch (error) {
       this.pendingAuth = false;
       this.currentPKCE = null;
+      this.currentState = null;
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to complete OAuth flow',
@@ -99,7 +106,7 @@ class OpenAIOAuthManager {
     }
   }
 
-  private waitForCallback(authUrl: string): Promise<string> {
+  private waitForCallback(authUrl: string, expectedState: string | null): Promise<string> {
     return new Promise<string>((resolve, reject) => {
       let receivedCode: string | null = null;
 
@@ -109,6 +116,14 @@ class OpenAIOAuthManager {
         if (url.pathname !== '/auth/callback') {
           res.statusCode = 404;
           res.end('Not found');
+          return;
+        }
+
+        // Validate the state param to prevent CSRF / cross-flow code injection.
+        if (expectedState && url.searchParams.get('state') !== expectedState) {
+          res.statusCode = 400;
+          res.end('State mismatch');
+          server.close();
           return;
         }
 

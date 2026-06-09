@@ -184,19 +184,17 @@
   flex-shrink: 0;
 }
 
+/* Errors render like a normal assistant message: no bubble, no border,
+   transparent background, left-aligned and full width. */
 .message.error {
   align-self: flex-start;
-  background: var(--assistant-bubble);
-  border: 1px solid var(--border);
-  border-bottom-left-radius: 6px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
   color: var(--text-primary);
+  max-width: 100%;
+  padding: 4px 0;
   position: relative;
-  transition: transform 0.2s ease, border-color 0.2s ease;
-}
-
-.message.error:hover {
-  transform: translateY(-1px);
-  border-color: var(--text-muted);
 }
 
 

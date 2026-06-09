@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3';
+import { embedSoulAspectAsync } from './semantic';
 
 /** Hard character budget for soul aspects injected into the system prompt (~500 tokens) */
 export const SOUL_CHAR_BUDGET = 1500;
@@ -64,7 +65,42 @@ export function setSoulAspect(
   // Invalidate soul context cache
   cache.soulContextCacheValid = false;
 
+  // Embed in the background — never blocks the caller
+  embedSoulAspectAsync(db, aspectId);
+
   return aspectId;
+}
+
+/**
+ * Update a soul aspect's content (and optionally rename) by id. Re-embeds.
+ * Returns true when a row was changed.
+ */
+export function updateSoulAspect(
+  db: Database.Database,
+  id: number,
+  fields: { aspect?: string; content?: string },
+  cache: SoulCache
+): boolean {
+  const sets: string[] = [];
+  const values: unknown[] = [];
+  if (fields.aspect !== undefined) {
+    sets.push('aspect = ?');
+    values.push(fields.aspect);
+  }
+  if (fields.content !== undefined) {
+    sets.push('content = ?');
+    values.push(fields.content);
+  }
+  if (sets.length === 0) return false;
+
+  sets.push("updated_at = (strftime('%Y-%m-%dT%H:%M:%fZ'))");
+  values.push(id);
+  const result = db.prepare(`UPDATE soul SET ${sets.join(', ')} WHERE id = ?`).run(...values);
+  if (result.changes > 0) {
+    cache.soulContextCacheValid = false;
+    embedSoulAspectAsync(db, id); // re-embed on edit
+  }
+  return result.changes > 0;
 }
 
 /**

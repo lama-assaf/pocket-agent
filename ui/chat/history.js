@@ -93,13 +93,13 @@ async function updateModelBadge() {
     const badge = document.getElementById('model-badge');
     const modelId = await window.pocketAgent.settings.get('agent.model');
     const fallbackNames = {
-      'claude-opus-4-7': 'OPUS 4.7',
-      'claude-opus-4-6': 'OPUS 4.6',
+      'claude-fable-5': 'FABLE 5',
+      'claude-mythos-5': 'MYTHOS 5',
+      'claude-opus-4-8': 'OPUS 4.8',
       'claude-sonnet-4-6': 'SONNET 4.6',
       'claude-haiku-4-5-20251001': 'HAIKU 4.5',
       'kimi-k2.6': 'KIMI K2.6',
-      'glm-5-turbo': 'GLM-5 TURBO',
-      'glm-5': 'GLM-5',
+      'glm-5.1': 'GLM-5.1',
       'glm-4.7': 'GLM-4.7',
     };
 

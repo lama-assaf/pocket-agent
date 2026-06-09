@@ -20,7 +20,7 @@ export function getRememberToolDefinition() {
   return {
     name: 'remember',
     description:
-      'Save a fact to long-term memory. Keep each fact atomic (under 30 words, one piece of info per call). Use specific keys like "partner_name" not "family". Save proactively when user shares something meaningful.',
+      'Save a fact to long-term memory. Keep each fact atomic (under 30 words, one piece of info per call). Use specific keys like "partner_name" not "family". Save proactively when user shares something meaningful. If the user asks you NOT to remember something or it is clearly private/sensitive, do not save it.',
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -309,6 +309,125 @@ export async function handleDailyLogTool(input: unknown): Promise<string> {
 }
 
 /**
+ * Update fact tool definition
+ */
+export function getUpdateFactToolDefinition() {
+  return {
+    name: 'update_fact',
+    description:
+      'Correct or refine an existing fact by its ID (get IDs from list_facts or recall_memory). Use when the user updates info that is already remembered, instead of creating a duplicate.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        id: { type: 'number', description: 'The fact ID to update' },
+        category: { type: 'string', description: 'New category (optional)' },
+        subject: { type: 'string', description: 'New subject key (optional)' },
+        content: { type: 'string', description: 'New content (optional)' },
+      },
+      required: ['id'],
+    },
+  };
+}
+
+/**
+ * Update fact tool handler
+ */
+export async function handleUpdateFactTool(input: unknown): Promise<string> {
+  if (!memoryManager) {
+    return JSON.stringify({ error: 'Memory not initialized' });
+  }
+  const { id, category, subject, content } = input as {
+    id?: number;
+    category?: string;
+    subject?: string;
+    content?: string;
+  };
+  if (id === undefined) {
+    return JSON.stringify({ error: 'id is required' });
+  }
+  if (category === undefined && subject === undefined && content === undefined) {
+    return JSON.stringify({ error: 'Provide at least one field to update' });
+  }
+  const updated = memoryManager.updateFact(id, { category, subject, content });
+  return JSON.stringify(
+    updated
+      ? { success: true, message: `Updated fact ${id}` }
+      : { success: false, message: 'Fact not found or nothing changed' }
+  );
+}
+
+/**
+ * Recall memory tool definition
+ */
+export function getRecallMemoryToolDefinition() {
+  return {
+    name: 'recall_memory',
+    description:
+      'Semantically search your own memory for facts relevant to a query, even when the wording differs (e.g. "back injury" recalls "herniated L4 disc"). Use mid-conversation when you need to remember something specific the user mentioned before.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        query: {
+          type: 'string',
+          description: 'What to recall, in natural language',
+        },
+        kind: {
+          type: 'string',
+          enum: ['fact', 'all'],
+          description: 'What to search (default: fact)',
+        },
+      },
+      required: ['query'],
+    },
+  };
+}
+
+/**
+ * Recall memory tool handler
+ */
+export async function handleRecallMemoryTool(input: unknown): Promise<string> {
+  if (!memoryManager) {
+    return JSON.stringify({ error: 'Memory not initialized' });
+  }
+
+  const { query } = input as { query: string; kind?: string };
+  if (!query || query.trim().length === 0) {
+    return JSON.stringify({ error: 'query is required' });
+  }
+
+  const embedding = await memoryManager.embedQuery(query);
+  if (!embedding) {
+    // Graceful degradation: fall back to LIKE search when embeddings unavailable
+    const facts = memoryManager.searchFacts(query);
+    return JSON.stringify({
+      success: true,
+      mode: 'keyword',
+      count: facts.length,
+      facts: facts.map((f) => ({
+        id: f.id,
+        category: f.category,
+        subject: f.subject,
+        content: f.content,
+      })),
+    });
+  }
+
+  const matches = memoryManager.semanticSearchFacts(embedding, 6);
+  return JSON.stringify({
+    success: true,
+    mode: 'semantic',
+    count: matches.length,
+    facts: matches.map((f) => ({
+      id: f.id,
+      category: f.category,
+      subject: f.subject,
+      content: f.content,
+      score: Math.round(f.score * 100) / 100,
+    })),
+  });
+}
+
+/**
  * Get all memory tools
  */
 export function getMemoryTools() {
@@ -328,6 +447,14 @@ export function getMemoryTools() {
     {
       ...getDailyLogToolDefinition(),
       handler: handleDailyLogTool,
+    },
+    {
+      ...getRecallMemoryToolDefinition(),
+      handler: handleRecallMemoryTool,
+    },
+    {
+      ...getUpdateFactToolDefinition(),
+      handler: handleUpdateFactTool,
     },
   ];
 }

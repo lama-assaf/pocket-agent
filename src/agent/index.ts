@@ -18,6 +18,10 @@ import { EventEmitter } from 'events';
 import { setStatusEmitter } from './safety';
 import { type AgentModeId, isValidModeId, getModeConfig } from './agent-modes';
 import { ChatEngine } from './chat-engine';
+import { getDefaultModelFor } from './model-catalog';
+
+/** Registry default model used when no model is configured yet. */
+const DEFAULT_MODEL = getDefaultModelFor('anthropic');
 
 // Status event types
 export type AgentStatus = {
@@ -121,7 +125,7 @@ class AgentManagerClass extends EventEmitter {
   private memory: MemoryManager | null = null;
   private projectRoot: string = process.cwd();
   private workspace: string = process.cwd(); // Isolated working directory for agent
-  private model: string = 'claude-opus-4-7';
+  private model: string = DEFAULT_MODEL;
   private mode: AgentModeId = 'coder';
   private chatEngine: ChatEngine | null = null;
   private toolsConfig: ToolsConfig | null = null;
@@ -146,7 +150,7 @@ class AgentManagerClass extends EventEmitter {
     this.memory = config.memory;
     this.projectRoot = config.projectRoot || process.cwd();
     this.workspace = config.workspace || this.projectRoot;
-    this.model = config.model || 'claude-opus-4-7';
+    this.model = config.model || DEFAULT_MODEL;
     this.toolsConfig = config.tools || null;
     this.initialized = true;
 
@@ -470,7 +474,7 @@ class AgentManagerClass extends EventEmitter {
   /**
    * Get the assembled system prompt for display in the UI.
    */
-  getSystemPrompt(): { staticPrompt: string; dynamicPrompt: string } | null {
+  async getSystemPrompt(): Promise<{ staticPrompt: string; dynamicPrompt: string } | null> {
     if (!this.chatEngine) return null;
     return this.chatEngine.buildSystemPrompt();
   }

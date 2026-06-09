@@ -4,6 +4,8 @@
  * Defines all available settings, their defaults, types, and categories.
  */
 
+import { getDefaultModelFor } from '../agent/model-catalog';
+
 export interface Setting {
   key: string;
   value: string;
@@ -171,7 +173,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
   // Agent settings
   {
     key: 'agent.model',
-    defaultValue: 'claude-opus-4-7',
+    defaultValue: getDefaultModelFor('anthropic'),
     encrypted: false,
     category: 'agent',
     label: 'Default Model',
@@ -195,6 +197,26 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     label: 'Thinking Level',
     description: 'How much reasoning to show (none, minimal, normal, extended)',
     type: 'string',
+  },
+
+  // Memory settings
+  {
+    key: 'memory.autoConsolidation',
+    defaultValue: 'true',
+    encrypted: false,
+    category: 'memory',
+    label: 'Sleep-Time Consolidation',
+    description: 'Nightly background job that merges/dedups facts and evolves soul aspects',
+    type: 'boolean',
+  },
+  {
+    key: 'memory.proactiveResurfacing',
+    defaultValue: 'true',
+    encrypted: false,
+    category: 'memory',
+    label: 'Proactive Memory Resurfacing',
+    description: 'Occasionally volunteer a relevant past memory (max once per day)',
+    type: 'boolean',
   },
 
   // Telegram settings

@@ -80,7 +80,12 @@ contextBridge.exposeInMainWorld('pocketAgent', {
     search: (query: string) => ipcRenderer.invoke('facts:search', query),
     getCategories: () => ipcRenderer.invoke('facts:categories'),
     delete: (id: number) => ipcRenderer.invoke('facts:delete', id),
+    update: (id: number, fields: { category?: string; subject?: string; content?: string }) =>
+      ipcRenderer.invoke('facts:update', id, fields),
+    setSensitive: (id: number, sensitive: boolean) =>
+      ipcRenderer.invoke('facts:setSensitive', id, sensitive),
     memoryUsage: () => ipcRenderer.invoke('facts:memoryUsage'),
+    export: (format: 'json' | 'markdown' = 'json') => ipcRenderer.invoke('memory:export', format),
   },
 
   // ─── Soul (Self-Knowledge) ──────────────────────────────────────────
@@ -88,6 +93,8 @@ contextBridge.exposeInMainWorld('pocketAgent', {
     listAspects: () => ipcRenderer.invoke('soul:list'),
     getAspect: (aspect: string) => ipcRenderer.invoke('soul:get', aspect),
     deleteAspect: (id: number) => ipcRenderer.invoke('soul:delete', id),
+    update: (id: number, fields: { aspect?: string; content?: string }) =>
+      ipcRenderer.invoke('soul:update', id, fields),
     memoryUsage: () => ipcRenderer.invoke('soul:memoryUsage'),
   },
 
@@ -420,7 +427,13 @@ declare global {
         ) => Promise<Array<{ category: string; subject: string; content: string }>>;
         getCategories: () => Promise<string[]>;
         delete: (id: number) => Promise<{ success: boolean }>;
+        update: (
+          id: number,
+          fields: { category?: string; subject?: string; content?: string }
+        ) => Promise<{ success: boolean }>;
+        setSensitive: (id: number, sensitive: boolean) => Promise<{ success: boolean }>;
         memoryUsage: () => Promise<{ usedChars: number; budgetChars: number; pct: number }>;
+        export: (format?: 'json' | 'markdown') => Promise<unknown>;
       };
 
       soul: {
@@ -441,6 +454,10 @@ declare global {
           updated_at: string;
         } | null>;
         deleteAspect: (id: number) => Promise<{ success: boolean }>;
+        update: (
+          id: number,
+          fields: { aspect?: string; content?: string }
+        ) => Promise<{ success: boolean }>;
         memoryUsage: () => Promise<{ usedChars: number; budgetChars: number; pct: number }>;
       };
 

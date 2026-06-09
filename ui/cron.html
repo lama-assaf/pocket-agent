@@ -4,7 +4,8 @@
   <!-- gg-pixel: auto-wired by ggcoder pixel install -->
   <script src="gg-pixel.browser.iife.js"></script>
   <script>
-    if (window.GGPixel) GGPixel.initPixel({ projectKey: "pk_live_481c64dc8ca30105cb960479fe4f2791", ingestUrl: "https://gg-pixel-server.buzzbeamaustralia.workers.dev" });
+    var _ggp = window.GGPixel && (window.GGPixel.initPixel ? window.GGPixel : window.GGPixel.default);
+    if (_ggp && _ggp.initPixel) _ggp.initPixel({ projectKey: "pk_live_481c64dc8ca30105cb960479fe4f2791", ingestUrl: "https://gg-pixel-server.buzzbeamaustralia.workers.dev" });
   </script>
 <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -997,7 +998,7 @@
       ]
     });
     function showToast(message, type = 'success') {
-      notyf[type === 'error' ? 'error' : 'success'](message);
+      notyf[type === 'error' ? 'error' : 'success'](window.cleanToastMessage ? window.cleanToastMessage(message) : message);
     }
 
     function escapeHtml(text) {

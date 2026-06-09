@@ -1,4 +1,7 @@
 import Database from 'better-sqlite3';
+import { embedFactAsync } from './semantic';
+
+// ============ Update / sensitivity ============
 
 // ============ Types ============
 
@@ -74,7 +77,62 @@ export function saveFact(
   // Invalidate facts context cache
   cache.contextCacheValid = false;
 
+  // Embed in the background — never blocks the caller
+  embedFactAsync(db, factId);
+
   return factId;
+}
+
+/**
+ * Update a fact's editable fields by id. Re-embeds in the background.
+ * Returns true when a row was changed.
+ */
+export function updateFact(
+  db: Database.Database,
+  id: number,
+  fields: { category?: string; subject?: string; content?: string },
+  cache: FactsCache
+): boolean {
+  const sets: string[] = [];
+  const values: unknown[] = [];
+  if (fields.category !== undefined) {
+    sets.push('category = ?');
+    values.push(fields.category);
+  }
+  if (fields.subject !== undefined) {
+    sets.push('subject = ?');
+    values.push(fields.subject);
+  }
+  if (fields.content !== undefined) {
+    sets.push('content = ?');
+    values.push(fields.content);
+  }
+  if (sets.length === 0) return false;
+
+  sets.push("updated_at = (strftime('%Y-%m-%dT%H:%M:%fZ'))");
+  values.push(id);
+  const result = db.prepare(`UPDATE facts SET ${sets.join(', ')} WHERE id = ?`).run(...values);
+  if (result.changes > 0) {
+    cache.contextCacheValid = false;
+    embedFactAsync(db, id); // re-embed on edit
+  }
+  return result.changes > 0;
+}
+
+/**
+ * Set the sensitive flag on a fact (excluded from resurfacing). Returns true when changed.
+ */
+export function setFactSensitive(
+  db: Database.Database,
+  id: number,
+  sensitive: boolean,
+  cache: FactsCache
+): boolean {
+  const result = db
+    .prepare('UPDATE facts SET sensitive = ? WHERE id = ?')
+    .run(sensitive ? 1 : 0, id);
+  if (result.changes > 0) cache.contextCacheValid = false;
+  return result.changes > 0;
 }
 
 /**

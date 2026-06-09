@@ -11,6 +11,22 @@ export function registerFactsIPC(deps: IPCDependencies): void {
   });
 
   ipcMain.handle('facts:search', async (_, query: string) => {
+    const memory = getMemory();
+    if (memory && query && query.trim().length > 0) {
+      // Prefer semantic recall when embeddings are available; fall back to LIKE.
+      const embedding = await memory.embedQuery(query);
+      if (embedding) {
+        const matches = memory.semanticSearchFacts(embedding, 12);
+        if (matches.length > 0) {
+          return matches.map((f) => ({
+            id: f.id,
+            category: f.category,
+            subject: f.subject,
+            content: f.content,
+          }));
+        }
+      }
+    }
     return AgentManager.searchFacts(query);
   });
 
@@ -23,6 +39,21 @@ export function registerFactsIPC(deps: IPCDependencies): void {
     if (!memory) return { success: false };
     const success = memory.deleteFact(id);
     return { success };
+  });
+
+  ipcMain.handle(
+    'facts:update',
+    async (_, id: number, fields: { category?: string; subject?: string; content?: string }) => {
+      const memory = getMemory();
+      if (!memory) return { success: false };
+      return { success: memory.updateFact(id, fields) };
+    }
+  );
+
+  ipcMain.handle('facts:setSensitive', async (_, id: number, sensitive: boolean) => {
+    const memory = getMemory();
+    if (!memory) return { success: false };
+    return { success: memory.setFactSensitive(id, sensitive) };
   });
 
   // Soul (Self-Knowledge)
@@ -43,6 +74,22 @@ export function registerFactsIPC(deps: IPCDependencies): void {
     if (!memory) return { success: false };
     const success = memory.deleteSoulAspectById(id);
     return { success };
+  });
+
+  ipcMain.handle(
+    'soul:update',
+    async (_, id: number, fields: { aspect?: string; content?: string }) => {
+      const memory = getMemory();
+      if (!memory) return { success: false };
+      return { success: memory.updateSoulAspect(id, fields) };
+    }
+  );
+
+  // Export everything the agent remembers (JSON or Markdown)
+  ipcMain.handle('memory:export', async (_, format: 'json' | 'markdown' = 'json') => {
+    const memory = getMemory();
+    if (!memory) return null;
+    return format === 'markdown' ? memory.exportMemoryMarkdown() : memory.exportMemory();
   });
 
   // Memory usage stats

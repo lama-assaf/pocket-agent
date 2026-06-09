@@ -58,6 +58,8 @@ export class CronScheduler {
   private maxHistorySize: number = 100;
   private reloadInterval: ReturnType<typeof setInterval> | null = null;
   private reminderInterval: ReturnType<typeof setInterval> | null = null;
+  private maintenanceInterval: ReturnType<typeof setInterval> | null = null;
+  private isRunningMaintenance: boolean = false;
   private lastJobHash: string = '';
   private dbPath: string | null = null;
   private db: Database.Database | null = null; // Persistent DB connection for reminders
@@ -115,6 +117,122 @@ export class CronScheduler {
     this.checkReminders().catch((err) => {
       console.error('[Scheduler] Error in initial reminder check:', err);
     });
+
+    // Hourly check for sleep-time memory maintenance (runs at most once per day,
+    // during a low-traffic hour). Guarded by last_consolidation_at in memory_meta.
+    this.maintenanceInterval = setInterval(
+      () => {
+        this.maybeRunMaintenance().catch((err) => {
+          console.error('[Scheduler] Maintenance check failed:', err);
+        });
+      },
+      60 * 60 * 1000
+    );
+    // Run an initial check shortly after startup
+    this.maybeRunMaintenance().catch((err) => {
+      console.error('[Scheduler] Initial maintenance check failed:', err);
+    });
+  }
+
+  /** Low-traffic hour (local) at/after which the daily maintenance runs. */
+  private static readonly MAINTENANCE_HOUR = 3;
+
+  /**
+   * Decide whether the daily memory-maintenance job is due and, if so, run it.
+   * Due when: current local hour >= MAINTENANCE_HOUR AND it has not yet run today.
+   */
+  private async maybeRunMaintenance(now: Date = new Date()): Promise<void> {
+    if (!this.memory) return;
+    if (this.isRunningMaintenance) return;
+
+    if (now.getHours() < CronScheduler.MAINTENANCE_HOUR) return;
+
+    const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(
+      now.getDate()
+    ).padStart(2, '0')}`;
+    const last = this.memory.getMeta('last_maintenance_date');
+    if (last === todayKey) return;
+
+    this.isRunningMaintenance = true;
+    try {
+      await this.runMaintenance();
+      this.memory.setMeta('last_maintenance_date', todayKey);
+    } finally {
+      this.isRunningMaintenance = false;
+    }
+  }
+
+  /**
+   * Sleep-time memory maintenance: roll up daily logs, consolidate facts/soul,
+   * then optionally resurface one memory. Each step is independently guarded so
+   * a failure in one does not block the others.
+   */
+  async runMaintenance(): Promise<void> {
+    if (!this.memory) return;
+    console.log('[Scheduler] Running sleep-time memory maintenance...');
+
+    // 1. Roll up old daily logs into durable summaries
+    try {
+      await this.memory.rollUpDailyLogs();
+    } catch (err) {
+      console.error('[Scheduler] Rollup failed:', err);
+    }
+
+    // 2. Consolidate facts/soul (dedup, contradictions, soul reflection)
+    const { SettingsManager } = await import('../settings');
+    if (SettingsManager.get('memory.autoConsolidation') !== 'false') {
+      try {
+        await this.memory.consolidateMemory({ force: true, reflect: true });
+      } catch (err) {
+        console.error('[Scheduler] Consolidation failed:', err);
+      }
+    }
+
+    // 3. Proactively resurface one memory (rate-limited to ≤1/day)
+    if (SettingsManager.get('memory.proactiveResurfacing') !== 'false') {
+      try {
+        await this.maybeResurfaceMemory();
+      } catch (err) {
+        console.error('[Scheduler] Resurfacing failed:', err);
+      }
+    }
+
+    console.log('[Scheduler] Sleep-time memory maintenance complete');
+  }
+
+  /**
+   * Select and deliver at most one proactive resurfacing nudge per day.
+   * Composes a short first-person nudge and routes it to the user's primary
+   * session (and linked Telegram chat). Respects a ≤1/day rate gate.
+   */
+  private async maybeResurfaceMemory(now: Date = new Date()): Promise<void> {
+    if (!this.memory) return;
+
+    // Rate gate: at most one resurface per day
+    const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(
+      now.getDate()
+    ).padStart(2, '0')}`;
+    if (this.memory.getMeta('last_resurface_date') === todayKey) return;
+
+    const candidate = this.memory.selectResurfaceCandidate(now);
+    if (!candidate) return;
+
+    // Resolve the primary session (prefer a real session over 'default')
+    const sessions = this.memory.getSessions();
+    const primary = sessions.find((s) => s.id !== 'default') ?? sessions[0];
+    if (!primary) return;
+
+    const { summarizeText } = await import('../memory/summarizer');
+    const prompt =
+      `Write ONE short, warm, first-person message (max 2 sentences) that gently brings up this ` +
+      `past memory to check in with the user. Be specific and natural; do not sound robotic. ` +
+      `Do not use markdown.\n\nMemory: ${candidate.text}`;
+    const nudge = (await summarizeText(prompt, 200)).trim();
+    if (!nudge) return;
+
+    this.memory.setMeta('last_resurface_date', todayKey);
+    this.memory.saveMessage('assistant', nudge, primary.id, { source: 'resurfacing' });
+    await this.routeJobResponse('memory-resurface', '', nudge, 'desktop', primary.id);
   }
 
   /**
@@ -703,6 +821,12 @@ export class CronScheduler {
     if (this.reminderInterval) {
       clearInterval(this.reminderInterval);
       this.reminderInterval = null;
+    }
+
+    // Stop maintenance interval
+    if (this.maintenanceInterval) {
+      clearInterval(this.maintenanceInterval);
+      this.maintenanceInterval = null;
     }
 
     // Close persistent DB connection

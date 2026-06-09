@@ -4,7 +4,8 @@
   <!-- gg-pixel: auto-wired by ggcoder pixel install -->
   <script src="gg-pixel.browser.iife.js"></script>
   <script>
-    if (window.GGPixel) GGPixel.initPixel({ projectKey: "pk_live_481c64dc8ca30105cb960479fe4f2791", ingestUrl: "https://gg-pixel-server.buzzbeamaustralia.workers.dev" });
+    var _ggp = window.GGPixel && (window.GGPixel.initPixel ? window.GGPixel : window.GGPixel.default);
+    if (_ggp && _ggp.initPixel) _ggp.initPixel({ projectKey: "pk_live_481c64dc8ca30105cb960479fe4f2791", ingestUrl: "https://gg-pixel-server.buzzbeamaustralia.workers.dev" });
   </script>
 <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -258,15 +259,21 @@
               <tr>
                 <th>Date</th>
                 <th>Entries</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
               ${logs.map(log => `
-                <tr>
+                <tr data-id="${log.id}">
                   <td class="date-cell">
                     ${escapeHtml(formatDate(log.date))}${log.date === today ? '<span class="today-badge">now</span>' : ''}
                   </td>
                   <td class="content-cell">${escapeHtml(log.content)}</td>
+                  <td class="actions" style="width:50px; text-align:center; vertical-align:top;">
+                    <button class="delete-btn" onclick="playNormalClick(); deleteLog(${log.id})" title="Delete this log">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5" d="m19.5 5.5l-.62 10.025c-.158 2.561-.237 3.842-.88 4.763a4 4 0 0 1-1.2 1.128c-.957.584-2.24.584-4.806.584c-2.57 0-3.855 0-4.814-.585a4 4 0 0 1-1.2-1.13c-.642-.922-.72-2.205-.874-4.77L4.5 5.5M3 5.5h18"/></svg>
+                    </button>
+                  </td>
                 </tr>
               `).join('')}
             </tbody>
@@ -275,6 +282,23 @@
       } catch (error) {
         console.error('Error loading daily logs:', error);
         showToast('Couldn\'t load daily logs', 'error');
+      }
+    }
+
+    async function deleteLog(id) {
+      if (!confirm('Delete this day\'s log?')) return;
+      try {
+        const result = await window.pocketAgent.dailyLogs.delete(id);
+        if (result.success) {
+          const row = document.querySelector(`tr[data-id="${id}"]`);
+          if (row) row.remove();
+          showToast('Log deleted', 'success');
+        } else {
+          showToast('Couldn\'t delete that', 'error');
+        }
+      } catch (error) {
+        console.error('Error deleting log:', error);
+        showToast('Couldn\'t delete that', 'error');
       }
     }
 
@@ -293,7 +317,7 @@
       ]
     });
     function showToast(message, type = 'error') {
-      notyf[type === 'error' ? 'error' : 'success'](message);
+      notyf[type === 'error' ? 'error' : 'success'](window.cleanToastMessage ? window.cleanToastMessage(message) : message);
     }
 
     // Initialize

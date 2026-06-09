@@ -14,16 +14,21 @@
 
 import { SettingsManager } from '../settings';
 import { getProviderForModel, type ProviderType } from './providers';
+import { getDefaultModelFor, isKnownModel } from './model-catalog';
 
-/** Default model for each provider when fallback is required. */
+/**
+ * Default model for each provider when fallback is required. Derived from the
+ * gg-core registry (via the model-catalog adapter) so it never drifts from the
+ * canonical catalog. Anthropic keeps the app's Opus preference via the adapter.
+ */
 const PROVIDER_DEFAULT_MODEL: Record<ProviderType, string> = {
-  anthropic: 'claude-opus-4-7',
-  openai: 'gpt-5.5',
-  moonshot: 'kimi-k2.6',
-  glm: 'glm-4.7',
-  xiaomi: 'mimo-v2-pro',
-  minimax: 'MiniMax-M2.7',
-  deepseek: 'deepseek-v4-pro',
+  anthropic: getDefaultModelFor('anthropic'),
+  openai: getDefaultModelFor('openai'),
+  moonshot: getDefaultModelFor('moonshot'),
+  glm: getDefaultModelFor('glm'),
+  xiaomi: getDefaultModelFor('xiaomi'),
+  minimax: getDefaultModelFor('minimax'),
+  deepseek: getDefaultModelFor('deepseek'),
 };
 
 /**
@@ -106,8 +111,11 @@ export function resolveModel(
   configuredModel?: string,
   keys: AvailableKeys = getAvailableKeys()
 ): string {
-  // If the user's model matches an available provider, keep it.
-  if (configuredModel) {
+  // If the user's model matches an available provider, keep it. Ignore a
+  // configured id that is no longer in the registry (e.g. a now-removed model
+  // persisted from an older version) so it self-heals to a valid default on the
+  // next resolve, rather than being routed to a dead model.
+  if (configuredModel && isKnownModel(configuredModel)) {
     const provider = getProviderForModel(configuredModel);
     if (providerHasCredential(provider, keys)) {
       return configuredModel;
@@ -123,7 +131,10 @@ export function resolveModel(
 
   // No keys at all — return the configured model (or a safe default) so callers
   // can detect this state via hasRequiredKeys() rather than via this function.
-  return configuredModel || PROVIDER_DEFAULT_MODEL.anthropic;
+  // A stale/unknown configured id is ignored in favor of the anthropic default.
+  return configuredModel && isKnownModel(configuredModel)
+    ? configuredModel
+    : PROVIDER_DEFAULT_MODEL.anthropic;
 }
 
 /**
