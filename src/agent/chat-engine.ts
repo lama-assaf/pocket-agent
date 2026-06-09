@@ -22,7 +22,7 @@ import { SOUL_CHAR_BUDGET } from '../memory/soul';
 import { consolidateMemory } from '../memory/consolidation';
 import { ToolsConfig, setCurrentSessionId, runWithSessionId } from '../tools';
 import { SettingsManager } from '../settings';
-import { SYSTEM_GUIDELINES } from '../config/system-guidelines';
+import { SYSTEM_GUIDELINES, buildSystemGuidelines } from '../config/system-guidelines';
 import { getModeConfig, buildRoutingInstructions } from './agent-modes';
 import type { AgentModeId } from './agent-modes';
 import { getStreamConfig } from './chat-providers';
@@ -33,6 +33,7 @@ import { getChatAgentTools, getCoderAgentTools } from './chat-tools';
 import {
   buildSystemPrompt as buildCoderSystemPrompt,
   shouldCompact,
+  compact,
   estimateConversationTokens,
 } from '@kenkaiiii/ggcoder';
 import { buildTemporalContext } from './context-extraction';
@@ -352,6 +353,51 @@ export class ChatEngine {
 
       this.emitStatus({ type: 'thinking', sessionId, message: '*stretches paws* thinking...' });
 
+      // Track the last turn's input tokens — this represents the actual context size
+      // (each turn sends the full conversation, so the last turn = current context usage).
+      // Declared here so transformContext below can read it via closure.
+      let lastTurnContextTokens = 0;
+
+      // Mid-loop compaction via gg-agent's transformContext hook. Runs before each
+      // LLM call inside the loop, so tool-heavy turns can't overflow the window
+      // between the pre-turn compaction and the end of the turn. `force` is set
+      // by gg-agent after a context-overflow error from the API.
+      const loopContextWindow = contextWindowFor(model, streamConfig.accountId);
+      const transformContext: AgentOptions['transformContext'] = async (msgs, opts) => {
+        const force = opts?.force ?? false;
+        if (
+          !force &&
+          !shouldCompact(msgs, loopContextWindow, undefined, lastTurnContextTokens || undefined)
+        ) {
+          return msgs;
+        }
+        this.emitStatus({ type: 'thinking', sessionId, message: 'compacting context...' });
+        try {
+          const { messages: compacted, result } = await compact(msgs, {
+            provider: streamConfig.provider,
+            model,
+            apiKey: streamConfig.apiKey,
+            baseUrl: streamConfig.baseUrl,
+            accountId: streamConfig.accountId,
+            contextWindow: loopContextWindow,
+            signal: abortController.signal,
+          });
+          if (!result.compacted) {
+            console.log(`[ChatEngine] Mid-loop compaction skipped: ${result.reason ?? 'unknown'}`);
+            return msgs;
+          }
+          // API-reported token count is now stale for the compacted context
+          lastTurnContextTokens = 0;
+          console.log(
+            `[ChatEngine] Mid-loop compacted (force: ${force}): ${result.originalCount} -> ${result.newCount} messages, ~${result.tokensBeforeEstimate} -> ~${result.tokensAfterEstimate} tokens`
+          );
+          return compacted;
+        } catch (err) {
+          console.error('[ChatEngine] Mid-loop compaction failed, keeping original context:', err);
+          return msgs;
+        }
+      };
+
       // Build Agent options
       const agentOptions: AgentOptions = {
         provider: streamConfig.provider,
@@ -366,6 +412,7 @@ export class ChatEngine {
         accountId: streamConfig.accountId,
         signal: abortController.signal,
         cacheRetention: streamConfig.provider === 'anthropic' ? 'short' : 'none',
+        transformContext,
       };
 
       // Build the full messages array: system + conversation history (which already includes the new user message)
@@ -382,9 +429,6 @@ export class ChatEngine {
       let response = '';
       let totalInputTokens = 0;
       let totalOutputTokens = 0;
-      // Track the last turn's input tokens — this represents the actual context size
-      // (each turn sends the full conversation, so the last turn = current context usage)
-      let lastTurnContextTokens = 0;
       // Track active subagents for status display
       const activeSubagents = new Map<string, { type: string; description: string }>();
       // Track tool names used during this execution (for metadata)
@@ -727,14 +771,18 @@ export class ChatEngine {
     // === Static context (cacheable — hardcoded, never changes mid-session) ===
     const staticParts: string[] = [];
 
-    // 1. System guidelines — operational instructions first (highest attention weight)
-    staticParts.push(SYSTEM_GUIDELINES);
-    console.log(`[ChatEngine] System guidelines injected: ${SYSTEM_GUIDELINES.length} chars`);
-
-    // 2. Mode prompt — specializes behavior for this agent mode
+    // 1. System guidelines — operational instructions first (highest attention
+    //    weight), composed per-mode so each mode only carries relevant sections
     const sessionMode = (
       sessionId ? this.memory.getSessionMode(sessionId) : 'general'
     ) as AgentModeId;
+    const guidelines = buildSystemGuidelines(sessionMode);
+    staticParts.push(guidelines);
+    console.log(
+      `[ChatEngine] System guidelines injected (${sessionMode}): ${guidelines.length} chars`
+    );
+
+    // 2. Mode prompt — specializes behavior for this agent mode
     const modeConfig = getModeConfig(sessionMode);
     if (modeConfig.systemPrompt) {
       staticParts.push(modeConfig.systemPrompt);

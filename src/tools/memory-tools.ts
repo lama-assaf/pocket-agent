@@ -20,7 +20,7 @@ export function getRememberToolDefinition() {
   return {
     name: 'remember',
     description:
-      'Save a fact to long-term memory. Keep each fact atomic (under 30 words, one piece of info per call). Use specific keys like "partner_name" not "family". Save proactively when user shares something meaningful. If the user asks you NOT to remember something or it is clearly private/sensitive, do not save it.',
+      'Save a fact to long-term memory. Keep each fact atomic (under 30 words, one piece of info per call). Use specific keys like "partner_name" not "family". Save proactively when user shares something meaningful. If the user asks you NOT to remember something, do not save it. For private or emotionally heavy facts (health, relationships, finances), save with sensitive: true so they are never proactively brought up.',
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -37,6 +37,11 @@ export function getRememberToolDefinition() {
           type: 'string',
           description: 'The fact to remember (max 25-30 words, one piece of info only)',
         },
+        sensitive: {
+          type: 'boolean',
+          description:
+            'Mark true for private/emotionally heavy facts (health, relationships, finances). Sensitive facts are remembered but never proactively brought up unprompted.',
+        },
       },
       required: ['category', 'subject', 'content'],
     },
@@ -51,18 +56,19 @@ export async function handleRememberTool(input: unknown): Promise<string> {
     return JSON.stringify({ error: 'Memory not initialized' });
   }
 
-  const { category, subject, content } = input as {
+  const { category, subject, content, sensitive } = input as {
     category: string;
     subject: string;
     content: string;
+    sensitive?: boolean;
   };
 
   if (!category || !subject || !content) {
     return JSON.stringify({ error: 'Missing required fields: category, subject, content' });
   }
 
-  const id = memoryManager.saveFact(category, subject, content);
-  console.log(`[Remember] Saved: [${category}] ${subject}: ${content}`);
+  const id = memoryManager.saveFact(category, subject, content, sensitive);
+  console.log(`[Remember] Saved: [${category}] ${subject}${sensitive ? ' (sensitive)' : ''}`);
 
   return JSON.stringify({
     success: true,
@@ -323,6 +329,11 @@ export function getUpdateFactToolDefinition() {
         category: { type: 'string', description: 'New category (optional)' },
         subject: { type: 'string', description: 'New subject key (optional)' },
         content: { type: 'string', description: 'New content (optional)' },
+        sensitive: {
+          type: 'boolean',
+          description:
+            'Set true to mark the fact private/sensitive (never proactively brought up unprompted), false to unmark (optional)',
+        },
       },
       required: ['id'],
     },
@@ -336,19 +347,25 @@ export async function handleUpdateFactTool(input: unknown): Promise<string> {
   if (!memoryManager) {
     return JSON.stringify({ error: 'Memory not initialized' });
   }
-  const { id, category, subject, content } = input as {
+  const { id, category, subject, content, sensitive } = input as {
     id?: number;
     category?: string;
     subject?: string;
     content?: string;
+    sensitive?: boolean;
   };
   if (id === undefined) {
     return JSON.stringify({ error: 'id is required' });
   }
-  if (category === undefined && subject === undefined && content === undefined) {
+  if (
+    category === undefined &&
+    subject === undefined &&
+    content === undefined &&
+    sensitive === undefined
+  ) {
     return JSON.stringify({ error: 'Provide at least one field to update' });
   }
-  const updated = memoryManager.updateFact(id, { category, subject, content });
+  const updated = memoryManager.updateFact(id, { category, subject, content, sensitive });
   return JSON.stringify(
     updated
       ? { success: true, message: `Updated fact ${id}` }

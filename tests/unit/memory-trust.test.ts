@@ -51,6 +51,67 @@ describe('updateFact', () => {
     const id = memory.saveFact('user_info', 'secret', 'private');
     expect(memory.setFactSensitive(id, true)).toBe(true);
   });
+
+  it('saveFact with sensitive flag excludes the fact from resurfacing', () => {
+    memory.saveFact('user_info', 'health', 'recovering from surgery', true);
+    memory.saveFact('user_info', 'hobby', 'plays guitar');
+    const candidate = memory.selectResurfaceCandidate(new Date());
+    expect(candidate).not.toBeNull();
+    expect(candidate!.text).not.toContain('surgery');
+  });
+
+  it('saveFact overwrite preserves the sensitive flag unless explicitly passed', () => {
+    const id = memory.saveFact('user_info', 'health', 'recovering from surgery', true);
+    // Overwrite same category+subject without the flag — must stay sensitive
+    memory.saveFact('user_info', 'health', 'fully recovered now');
+    const candidate = memory.selectResurfaceCandidate(new Date());
+    expect(candidate === null || !candidate.text.includes('recovered')).toBe(true);
+    // Explicitly unmark via updateFact → becomes eligible again
+    expect(memory.updateFact(id, { sensitive: false })).toBe(true);
+  });
+
+  it('updateFact with only sensitive does not re-embed', () => {
+    const id = memory.saveFact('notes', 'x', 'y');
+    vi.clearAllMocks();
+    expect(memory.updateFact(id, { sensitive: true })).toBe(true);
+    expect(embedFactAsync).not.toHaveBeenCalled();
+  });
+});
+
+describe('getFactsMemoryUsage (store budget)', () => {
+  let memory: MemoryManager;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    memory = new MemoryManager(':memory:');
+  });
+
+  it('renders facts with an "as of" date for recency-based conflict resolution', () => {
+    memory.saveFact('people', 'partner', 'reconciled before Thailand trip');
+    const context = memory.getFactsForContext();
+    expect(context).toMatch(/reconciled before Thailand trip _\(as of \d{4}-\d{2}-\d{2}\)_/);
+  });
+
+  it('measures the whole store without truncation', () => {
+    // ~60 facts × ~70 chars ≈ 4,200 chars — would have exceeded the old
+    // 3,000-char context budget, but is well under the 15,000 store budget
+    for (let i = 0; i < 60; i++) {
+      memory.saveFact('notes', `subject_${i}`, `some atomic fact content number ${i} with detail`);
+    }
+    const usage = memory.getFactsMemoryUsage();
+    expect(usage.budgetChars).toBe(15000);
+    expect(usage.usedChars).toBeGreaterThan(3000); // not capped at context budget
+    expect(usage.pct).toBeLessThan(80); // no consolidation pressure yet
+  });
+
+  it('reports pct over 100 when the store exceeds the budget', () => {
+    const filler = 'x'.repeat(200);
+    for (let i = 0; i < 80; i++) {
+      memory.saveFact('notes', `big_${i}`, filler);
+    }
+    const usage = memory.getFactsMemoryUsage();
+    expect(usage.pct).toBeGreaterThan(100);
+  });
 });
 
 describe('exportMemory', () => {

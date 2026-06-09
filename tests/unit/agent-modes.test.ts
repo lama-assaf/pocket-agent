@@ -8,6 +8,39 @@ import {
   buildRoutingInstructions,
 } from '../../src/agent/agent-modes';
 import type { AgentModeId } from '../../src/agent/agent-modes';
+import { buildSystemGuidelines, SYSTEM_GUIDELINES } from '../../src/config/system-guidelines';
+
+describe('buildSystemGuidelines', () => {
+  it('includes all sections for general mode', () => {
+    const g = buildSystemGuidelines('general');
+    expect(g).toContain('## Memory');
+    expect(g).toContain('## Routines vs Reminders');
+    expect(g).toContain('## Pocket CLI');
+    expect(g).toContain('## Daily Log');
+  });
+
+  it('gives researcher the CLI but not the scheduler section', () => {
+    const g = buildSystemGuidelines('researcher');
+    expect(g).toContain('## Pocket CLI');
+    expect(g).not.toContain('## Routines vs Reminders');
+  });
+
+  it('strips CLI and scheduler sections for writer and therapist', () => {
+    for (const mode of ['writer', 'therapist']) {
+      const g = buildSystemGuidelines(mode);
+      expect(g).toContain('## Memory');
+      expect(g).toContain('## Daily Log');
+      expect(g).not.toContain('## Pocket CLI');
+      expect(g).not.toContain('## Routines vs Reminders');
+    }
+  });
+
+  it('full SYSTEM_GUIDELINES export contains every section (settings display)', () => {
+    for (const section of ['## Memory', '## Routines vs Reminders', '## Pocket CLI', '## Daily Log']) {
+      expect(SYSTEM_GUIDELINES).toContain(section);
+    }
+  });
+});
 
 describe('Agent Modes', () => {
   const EXPECTED_MODES: AgentModeId[] = ['general', 'coder', 'researcher', 'writer', 'therapist'];
@@ -119,11 +152,13 @@ describe('Agent Modes', () => {
 
     it('should have memory and soul tools', () => {
       expect(general.allowedTools).toContain('mcp__pocket-agent__remember');
+      expect(general.allowedTools).toContain('mcp__pocket-agent__recall_memory');
+      expect(general.allowedTools).toContain('mcp__pocket-agent__update_fact');
       expect(general.allowedTools).toContain('mcp__pocket-agent__soul_set');
     });
 
     it('should have scheduler tools', () => {
-      expect(general.allowedTools).toContain('mcp__pocket-agent__schedule_task');
+      expect(general.allowedTools).toContain('mcp__pocket-agent__create_routine');
       expect(general.allowedTools).toContain('mcp__pocket-agent__create_reminder');
     });
 

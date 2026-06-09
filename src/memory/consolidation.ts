@@ -85,8 +85,17 @@ function buildConsolidationPrompt(args: {
   soulOver: boolean;
   contradictionAware: boolean;
   duplicateClusters: Array<Array<{ id: number; subject: string; content: string }>>;
+  recentJournal?: string;
 }): string {
-  const { factsData, soulData, factsOver, soulOver, contradictionAware, duplicateClusters } = args;
+  const {
+    factsData,
+    soulData,
+    factsOver,
+    soulOver,
+    contradictionAware,
+    duplicateClusters,
+    recentJournal,
+  } = args;
 
   const totalFactChars = factsData.reduce(
     (sum, f) => sum + f.category.length + f.subject.length + f.content.length,
@@ -135,6 +144,11 @@ function buildConsolidationPrompt(args: {
     parts.push(
       '- Emit a single corrected fact in upsert when merging conflicting info; never keep both sides of a contradiction.'
     );
+    if (recentJournal) {
+      parts.push(
+        '- The recent journal below is dated GROUND TRUTH for current life state. If a fact is outdated relative to the journal (e.g. fact says "reconciled with partner" but the journal records a breakup afterwards), UPDATE the fact to the current state via upsert, or delete it if no longer true.'
+      );
+    }
     parts.push('');
   }
   if (factsOver && duplicateClusters.length > 0) {
@@ -176,6 +190,12 @@ function buildConsolidationPrompt(args: {
     responseShape.push(
       '"soul": { "delete_aspects": ["<aspect names to remove>"], "upsert": [{ "aspect": "...", "content": "..." }] }'
     );
+  }
+
+  if (recentJournal) {
+    parts.push('## Recent journal (dated ground truth — do not compact, reference only)');
+    parts.push(recentJournal);
+    parts.push('');
   }
 
   parts.push('## Expected JSON response format');
@@ -328,6 +348,11 @@ export async function consolidateMemory(
 
   const duplicateClusters = factsOver ? memory.findNearDuplicateFacts() : [];
 
+  // Recent journal as ground truth: lets the model catch facts that went stale
+  // relative to dated life events (e.g. fact says "reconciled", log records a
+  // breakup later). Capped so it can't crowd out the entries being compacted.
+  const recentJournal = factsOver ? memory.getDailyLogsContext(7).slice(0, 2000) : '';
+
   const prompt = buildConsolidationPrompt({
     factsData,
     soulData,
@@ -335,6 +360,7 @@ export async function consolidateMemory(
     soulOver,
     contradictionAware: true,
     duplicateClusters,
+    recentJournal,
   });
 
   onStatus?.('compacting memories... 🧹');

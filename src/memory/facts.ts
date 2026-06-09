@@ -36,6 +36,15 @@ export function createFactsCache(): FactsCache {
 /** Hard character budget for facts injected into the system prompt (~1,000 tokens) */
 export const FACTS_CHAR_BUDGET = 3000;
 
+/**
+ * Character budget for the facts *store* (all facts in SQLite). Consolidation
+ * triggers at 80% of this. Deliberately much larger than the injection budget:
+ * retrieval is semantic top-k, so store size doesn't affect per-message context
+ * cost (cf. Letta's unbounded archival memory vs small core memory).
+ * ~15,000 chars ≈ 150–200 atomic facts.
+ */
+export const FACTS_STORE_BUDGET = 15000;
+
 // ============ Fact CRUD methods ============
 
 /**
@@ -46,7 +55,8 @@ export function saveFact(
   category: string,
   subject: string,
   content: string,
-  cache: FactsCache
+  cache: FactsCache,
+  sensitive?: boolean
 ): number {
   const existing = db
     .prepare(
@@ -65,12 +75,16 @@ export function saveFact(
       `
     ).run(content, existing.id);
     factId = existing.id;
+    // Only touch the flag when explicitly provided — preserve manual UI settings otherwise
+    if (sensitive !== undefined) {
+      db.prepare('UPDATE facts SET sensitive = ? WHERE id = ?').run(sensitive ? 1 : 0, factId);
+    }
   } else {
     const stmt = db.prepare(`
-        INSERT INTO facts (category, subject, content)
-        VALUES (?, ?, ?)
+        INSERT INTO facts (category, subject, content, sensitive)
+        VALUES (?, ?, ?, ?)
       `);
-    const result = stmt.run(category, subject, content);
+    const result = stmt.run(category, subject, content, sensitive ? 1 : 0);
     factId = result.lastInsertRowid as number;
   }
 
@@ -90,7 +104,7 @@ export function saveFact(
 export function updateFact(
   db: Database.Database,
   id: number,
-  fields: { category?: string; subject?: string; content?: string },
+  fields: { category?: string; subject?: string; content?: string; sensitive?: boolean },
   cache: FactsCache
 ): boolean {
   const sets: string[] = [];
@@ -107,6 +121,10 @@ export function updateFact(
     sets.push('content = ?');
     values.push(fields.content);
   }
+  if (fields.sensitive !== undefined) {
+    sets.push('sensitive = ?');
+    values.push(fields.sensitive ? 1 : 0);
+  }
   if (sets.length === 0) return false;
 
   sets.push("updated_at = (strftime('%Y-%m-%dT%H:%M:%fZ'))");
@@ -114,7 +132,14 @@ export function updateFact(
   const result = db.prepare(`UPDATE facts SET ${sets.join(', ')} WHERE id = ?`).run(...values);
   if (result.changes > 0) {
     cache.contextCacheValid = false;
-    embedFactAsync(db, id); // re-embed on edit
+    // Only re-embed when semantic content changed — flag-only updates don't affect embeddings
+    if (
+      fields.category !== undefined ||
+      fields.subject !== undefined ||
+      fields.content !== undefined
+    ) {
+      embedFactAsync(db, id);
+    }
   }
   return result.changes > 0;
 }
@@ -148,10 +173,16 @@ export function getAllFacts(db: Database.Database): Fact[] {
 }
 
 /**
- * Format a single fact line for context injection.
+ * Format a single fact line for context injection. Includes an "as of" date so
+ * the model can resolve conflicts with dated sources (e.g. daily logs) by
+ * recency — a fact's truth can go stale even though it was true when saved.
  */
 function formatFactLine(fact: Fact): string {
-  return fact.subject ? `- **${fact.subject}**: ${fact.content}` : `- ${fact.content}`;
+  const date = fact.updated_at?.slice(0, 10) ?? '';
+  const suffix = date ? ` _(as of ${date})_` : '';
+  return fact.subject
+    ? `- **${fact.subject}**: ${fact.content}${suffix}`
+    : `- ${fact.content}${suffix}`;
 }
 
 /**
@@ -233,38 +264,33 @@ export function getFactsForContext(db: Database.Database, cache: FactsCache): st
 }
 
 /**
- * Get memory usage stats for the facts budget.
+ * Get memory usage stats for the facts *store* budget (consolidation trigger).
+ * Measures all stored facts — unlike context injection, nothing is truncated
+ * here; pct can exceed 100 until consolidation shrinks the store.
  */
 export function getFactsMemoryUsage(db: Database.Database): {
   usedChars: number;
   budgetChars: number;
   pct: number;
 } {
-  const facts = db
-    .prepare(
-      `SELECT category, subject, content FROM facts ORDER BY importance DESC, updated_at DESC`
-    )
-    .all() as Array<{ category: string; subject: string; content: string }>;
+  const facts = db.prepare(`SELECT category, subject, content FROM facts`).all() as Array<{
+    category: string;
+    subject: string;
+    content: string;
+  }>;
 
-  const headerReserve = 100;
-  const contentBudget = FACTS_CHAR_BUDGET - headerReserve;
   const seenCategories = new Set<string>();
   let usedChars = 0;
 
   for (const fact of facts) {
     const line = fact.subject ? `- **${fact.subject}**: ${fact.content}` : `- ${fact.content}`;
     const categoryHeader = seenCategories.has(fact.category) ? '' : `\n### ${fact.category}\n`;
-    const additionalChars = categoryHeader.length + line.length + 1;
-
-    if (usedChars + additionalChars > contentBudget) break;
-
-    usedChars += additionalChars;
+    usedChars += categoryHeader.length + line.length + 1;
     seenCategories.add(fact.category);
   }
 
-  const totalChars = usedChars + headerReserve;
-  const pct = Math.round((totalChars / FACTS_CHAR_BUDGET) * 100);
-  return { usedChars: totalChars, budgetChars: FACTS_CHAR_BUDGET, pct };
+  const pct = Math.round((usedChars / FACTS_STORE_BUDGET) * 100);
+  return { usedChars, budgetChars: FACTS_STORE_BUDGET, pct };
 }
 
 /**

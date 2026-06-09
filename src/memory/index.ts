@@ -813,8 +813,8 @@ export class MemoryManager {
 
   // ============ FACT METHODS ============
 
-  saveFact(category: string, subject: string, content: string): number {
-    return _saveFact(this.db, category, subject, content, this.factsCache);
+  saveFact(category: string, subject: string, content: string, sensitive?: boolean): number {
+    return _saveFact(this.db, category, subject, content, this.factsCache, sensitive);
   }
 
   getAllFacts(): Fact[] {
@@ -878,7 +878,7 @@ export class MemoryManager {
 
   updateFact(
     id: number,
-    fields: { category?: string; subject?: string; content?: string }
+    fields: { category?: string; subject?: string; content?: string; sensitive?: boolean }
   ): boolean {
     return _updateFact(this.db, id, fields, this.factsCache);
   }

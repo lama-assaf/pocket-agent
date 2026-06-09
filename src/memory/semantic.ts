@@ -137,7 +137,20 @@ interface FactRow {
   category: string;
   subject: string;
   content: string;
+  updated_at?: string;
   embedding?: Buffer | Uint8Array | null;
+}
+
+/**
+ * Format a fact line with an "as of" date so the model can resolve conflicts
+ * with dated sources (daily logs, rollups) by recency.
+ */
+function formatFactRowLine(row: FactRow): string {
+  const date = row.updated_at?.slice(0, 10) ?? '';
+  const suffix = date ? ` _(as of ${date})_` : '';
+  return row.subject
+    ? `- **${row.subject}**: ${row.content}${suffix}`
+    : `- ${row.content}${suffix}`;
 }
 
 /**
@@ -153,7 +166,7 @@ export function retrieveRelevantFacts(
   minScore = 0.25
 ): string {
   const rows = db
-    .prepare('SELECT id, category, subject, content, embedding FROM facts')
+    .prepare('SELECT id, category, subject, content, updated_at, embedding FROM facts')
     .all() as FactRow[];
   const scored = scoreRows(rows, queryEmbedding).filter((s) => s.score >= minScore);
   if (scored.length === 0) return '';
@@ -166,7 +179,7 @@ export function retrieveRelevantFacts(
   let usedChars = 0;
 
   for (const { row } of scored.slice(0, k)) {
-    const line = row.subject ? `- **${row.subject}**: ${row.content}` : `- ${row.content}`;
+    const line = formatFactRowLine(row);
     const categoryHeader = byCategory.has(row.category) ? '' : `\n### ${row.category}\n`;
     const additionalChars = categoryHeader.length + line.length + 1;
     if (usedChars + additionalChars > contentBudget) break;
@@ -190,7 +203,7 @@ export function retrieveRelevantFacts(
   for (const [category, facts] of byCategory) {
     lines.push(`\n### ${category}`);
     for (const fact of facts) {
-      lines.push(fact.subject ? `- **${fact.subject}**: ${fact.content}` : `- ${fact.content}`);
+      lines.push(formatFactRowLine(fact));
     }
   }
   return lines.join('\n');

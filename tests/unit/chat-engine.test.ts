@@ -143,6 +143,7 @@ vi.mock('../../src/memory', () => ({
 
 vi.mock('../../src/config/system-guidelines', () => ({
   SYSTEM_GUIDELINES: 'Test system guidelines',
+  buildSystemGuidelines: () => 'Test system guidelines',
 }));
 
 vi.mock('../../src/agent/chat-providers', () => ({

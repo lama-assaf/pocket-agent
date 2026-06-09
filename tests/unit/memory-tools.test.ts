@@ -120,7 +120,7 @@ describe('Memory Tools', () => {
       expect(parsed.category).toBe('user_info');
       expect(parsed.subject).toBe('name');
 
-      expect(mockSaveFact).toHaveBeenCalledWith('user_info', 'name', 'John Doe');
+      expect(mockSaveFact).toHaveBeenCalledWith('user_info', 'name', 'John Doe', undefined);
     });
 
     it('should return error when category is missing', async () => {
@@ -563,7 +563,8 @@ describe('Memory Tools', () => {
       expect(mockSaveFact).toHaveBeenCalledWith(
         "user's_info",
         'coffee "preference"',
-        "Likes O'Brien's \"special\" blend & more!"
+        "Likes O'Brien's \"special\" blend & more!",
+        undefined
       );
     });
 
@@ -592,7 +593,7 @@ describe('Memory Tools', () => {
 
       const parsed = JSON.parse(result);
       expect(parsed.success).toBe(true);
-      expect(mockSaveFact).toHaveBeenCalledWith('notes', 'long_note', longContent);
+      expect(mockSaveFact).toHaveBeenCalledWith('notes', 'long_note', longContent, undefined);
     });
 
     it('should handle newlines in content', async () => {

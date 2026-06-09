@@ -50,7 +50,10 @@ vi.mock('../../src/settings', () => ({
 }));
 
 vi.mock('../../src/memory', () => ({ MemoryManager: vi.fn() }));
-vi.mock('../../src/config/system-guidelines', () => ({ SYSTEM_GUIDELINES: 'Test guidelines' }));
+vi.mock('../../src/config/system-guidelines', () => ({
+  SYSTEM_GUIDELINES: 'Test guidelines',
+  buildSystemGuidelines: () => 'Test guidelines',
+}));
 
 vi.mock('../../src/agent/chat-providers', () => ({
   getStreamConfig: vi.fn(async () => ({ provider: 'anthropic', apiKey: 'test-key' })),
