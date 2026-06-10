@@ -565,6 +565,49 @@
     </section>
 
     <section class="section">
+      <h2 class="section-title">Pulse</h2>
+      <p class="section-desc">Things I notice myself — I'll only message you when something genuinely needs attention.</p>
+
+      <div class="settings-grid">
+        <div class="setting-row">
+          <label>Proactive check-ins</label>
+          <input type="checkbox" id="pulse-enabled" style="flex:0" onchange="savePulseSetting('pulse.enabled', this.checked ? 'true' : 'false')" />
+        </div>
+        <div class="setting-row">
+          <label>Max check-ins per day</label>
+          <select id="pulse-max-per-day" onchange="savePulseSetting('pulse.maxPerDay', this.value)">
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="5">5</option>
+          </select>
+        </div>
+        <div class="setting-row">
+          <label>Quiet hours</label>
+          <div class="time-picker">
+            <select id="pulse-quiet-start" onchange="savePulseSetting('pulse.quietHoursStart', this.value)"></select>
+            <span class="separator">→</span>
+            <select id="pulse-quiet-end" onchange="savePulseSetting('pulse.quietHoursEnd', this.value)"></select>
+          </div>
+        </div>
+        <div class="setting-row">
+          <label>Daily brief</label>
+          <input type="checkbox" id="pulse-daily-brief" style="flex:0" onchange="savePulseSetting('pulse.dailyBrief', this.checked ? 'true' : 'false')" />
+        </div>
+        <div class="setting-row">
+          <label>Daily brief hour</label>
+          <select id="pulse-brief-hour" onchange="savePulseSetting('pulse.briefHour', this.value)"></select>
+        </div>
+      </div>
+
+      <div class="settings-grid" style="margin-top: 12px;">
+        <div id="pulse-sessions" class="jobs-list">
+          <div class="empty-state"><p>Loading sessions...</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
       <h2 class="section-title">Running on Autopilot</h2>
       <p class="section-desc">Your scheduled routines.</p>
 
@@ -813,6 +856,7 @@
       await loadSessions();
       await loadWorkflows();
       await loadJobs();
+      await loadPulseSettings();
     });
 
     window.addEventListener('autoAnimateReady', () => {
@@ -920,6 +964,94 @@
         `}).join('');
       } catch (err) {
         jobsList.innerHTML = `<div class="empty-state"><p>Error: ${escapeHtml(err.message)}</p></div>`;
+      }
+    }
+
+    // ===== Pulse (proactive check-ins) =====
+
+    function hourLabel(h) {
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      const display = h === 0 ? 12 : h > 12 ? h - 12 : h;
+      return `${display} ${ampm}`;
+    }
+
+    function fillHourSelect(id) {
+      const el = document.getElementById(id);
+      el.innerHTML = Array.from({ length: 24 }, (_, h) =>
+        `<option value="${h}">${hourLabel(h)}</option>`
+      ).join('');
+    }
+    fillHourSelect('pulse-quiet-start');
+    fillHourSelect('pulse-quiet-end');
+    fillHourSelect('pulse-brief-hour');
+
+    async function loadPulseSettings() {
+      try {
+        const [enabled, maxPerDay, quietStart, quietEnd, dailyBrief, briefHour] = await Promise.all([
+          window.pocketAgent.settings.get('pulse.enabled'),
+          window.pocketAgent.settings.get('pulse.maxPerDay'),
+          window.pocketAgent.settings.get('pulse.quietHoursStart'),
+          window.pocketAgent.settings.get('pulse.quietHoursEnd'),
+          window.pocketAgent.settings.get('pulse.dailyBrief'),
+          window.pocketAgent.settings.get('pulse.briefHour'),
+        ]);
+        document.getElementById('pulse-enabled').checked = enabled !== 'false';
+        document.getElementById('pulse-max-per-day').value = maxPerDay || '2';
+        document.getElementById('pulse-quiet-start').value = quietStart || '22';
+        document.getElementById('pulse-quiet-end').value = quietEnd || '8';
+        document.getElementById('pulse-daily-brief').checked = dailyBrief === 'true';
+        document.getElementById('pulse-brief-hour').value = briefHour || '8';
+      } catch (err) {
+        console.error('Failed to load pulse settings:', err);
+      }
+      await loadPulseSessions();
+    }
+
+    async function savePulseSetting(key, value) {
+      try {
+        await window.pocketAgent.settings.set(key, value);
+        showToast('Saved!', 'success');
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+
+    async function loadPulseSessions() {
+      const container = document.getElementById('pulse-sessions');
+      try {
+        const sessions = await window.pocketAgent.sessions.list();
+        if (sessions.length === 0) {
+          container.innerHTML = '<div class="empty-state"><p>No sessions yet</p></div>';
+          return;
+        }
+        // Default: when no session has an explicit flag, the primary session
+        // (most recently active non-default) is treated as enabled.
+        const anyExplicit = sessions.some(s => s.pulse_enabled !== null && s.pulse_enabled !== undefined);
+        const primary = sessions.find(s => s.id !== 'default') || sessions[0];
+        container.innerHTML = sessions.map(s => {
+          const effective = anyExplicit
+            ? s.pulse_enabled === true
+            : (primary && s.id === primary.id);
+          return `
+          <div class="setting-row">
+            <label>${escapeHtml(s.name)}</label>
+            <input type="checkbox" style="flex:0" ${effective ? 'checked' : ''}
+              onchange="togglePulseSession('${escapeAttr(s.id)}', this.checked)" />
+          </div>`;
+        }).join('');
+      } catch (err) {
+        container.innerHTML = `<div class="empty-state"><p>Error: ${escapeHtml(err.message)}</p></div>`;
+      }
+    }
+
+    async function togglePulseSession(sessionId, enabled) {
+      try {
+        const result = await window.pocketAgent.sessions.setPulseEnabled(sessionId, enabled);
+        if (!result.success) throw new Error('Could not update session');
+        showToast(enabled ? 'Pulse on for this session' : 'Pulse off for this session', 'success');
+        await loadPulseSessions();
+      } catch (err) {
+        showToast(err.message, 'error');
       }
     }
 

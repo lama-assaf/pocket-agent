@@ -61,6 +61,8 @@ contextBridge.exposeInMainWorld('pocketAgent', {
     create: (name: string) => ipcRenderer.invoke('sessions:create', name),
     rename: (id: string, name: string) => ipcRenderer.invoke('sessions:rename', id, name),
     delete: (id: string) => ipcRenderer.invoke('sessions:delete', id),
+    setPulseEnabled: (id: string, enabled: boolean) =>
+      ipcRenderer.invoke('sessions:setPulseEnabled', id, enabled),
     onChanged: (callback: () => void) => {
       const listener = () => callback();
       ipcRenderer.on('sessions:changed', listener);
@@ -414,6 +416,7 @@ declare global {
         create: (name: string) => Promise<{ success: boolean; session?: Session; error?: string }>;
         rename: (id: string, name: string) => Promise<{ success: boolean; error?: string }>;
         delete: (id: string) => Promise<{ success: boolean }>;
+        setPulseEnabled: (id: string, enabled: boolean) => Promise<{ success: boolean }>;
         onChanged: (callback: () => void) => () => void;
         onCleared: (callback: (sessionId: string) => void) => () => void;
       };

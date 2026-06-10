@@ -219,6 +219,62 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     type: 'boolean',
   },
 
+  // Pulse (proactive check-ins) settings
+  {
+    key: 'pulse.enabled',
+    defaultValue: 'true',
+    encrypted: false,
+    category: 'pulse',
+    label: 'Proactive Check-ins',
+    description: 'Let the agent message you first when something genuinely needs attention',
+    type: 'boolean',
+  },
+  {
+    key: 'pulse.maxPerDay',
+    defaultValue: '2',
+    encrypted: false,
+    category: 'pulse',
+    label: 'Max Check-ins Per Day',
+    description: 'Global cap on proactive check-ins across all sessions',
+    type: 'number',
+  },
+  {
+    key: 'pulse.quietHoursStart',
+    defaultValue: '22',
+    encrypted: false,
+    category: 'pulse',
+    label: 'Quiet Hours Start',
+    description: 'Local hour (0-23) after which no check-ins are sent',
+    type: 'number',
+  },
+  {
+    key: 'pulse.quietHoursEnd',
+    defaultValue: '8',
+    encrypted: false,
+    category: 'pulse',
+    label: 'Quiet Hours End',
+    description: 'Local hour (0-23) before which no check-ins are sent',
+    type: 'number',
+  },
+  {
+    key: 'pulse.dailyBrief',
+    defaultValue: 'false',
+    encrypted: false,
+    category: 'pulse',
+    label: 'Daily Brief',
+    description: "Morning summary of today's calendar, due tasks, and loose ends (opt-in)",
+    type: 'boolean',
+  },
+  {
+    key: 'pulse.briefHour',
+    defaultValue: '8',
+    encrypted: false,
+    category: 'pulse',
+    label: 'Daily Brief Hour',
+    description: 'Local hour (0-23) at/after which the daily brief is sent',
+    type: 'number',
+  },
+
   // Telegram settings
   {
     key: 'telegram.botToken',

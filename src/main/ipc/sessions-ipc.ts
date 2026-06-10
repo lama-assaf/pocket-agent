@@ -130,6 +130,11 @@ export function registerSessionsIPC(deps: IPCDependencies): void {
     }
   });
 
+  ipcMain.handle('sessions:setPulseEnabled', async (_, id: string, enabled: boolean) => {
+    const success = getMemory()?.setSessionPulseEnabled(id, enabled) ?? false;
+    return { success };
+  });
+
   ipcMain.handle('sessions:delete', async (_, id: string) => {
     AgentManager.clearQueue(id);
     AgentManager.cleanupSession(id);

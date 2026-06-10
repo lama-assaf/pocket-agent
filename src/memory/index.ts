@@ -84,6 +84,14 @@ import {
   findNearDuplicateFacts as _findNearDuplicateFacts,
 } from './semantic';
 import {
+  type PulseKind,
+  type PulseEntry,
+  recordPulse as _recordPulse,
+  getRecentPulses as _getRecentPulses,
+  countPulsesSince as _countPulsesSince,
+  countSessionPulsesSince as _countSessionPulsesSince,
+} from './pulse-log';
+import {
   type Session,
   createSession as _createSession,
   ensureSession as _ensureSession,
@@ -101,6 +109,8 @@ import {
   getSdkSessionId as _getSdkSessionId,
   setSdkSessionId as _setSdkSessionId,
   clearSdkSessionId as _clearSdkSessionId,
+  getPulseEnabledSessions as _getPulseEnabledSessions,
+  setSessionPulseEnabled as _setSessionPulseEnabled,
 } from './sessions';
 
 // Types
@@ -112,6 +122,7 @@ export type { DailyLog, DailyLogRollup } from './daily-logs';
 export type { TelegramChatSession } from './telegram-sessions';
 export type { SoulAspect } from './soul';
 export type { ResurfaceCandidate } from './resurfacing';
+export type { PulseKind, PulseEntry } from './pulse-log';
 
 export class MemoryManager {
   private db: Database.Database;
@@ -409,6 +420,13 @@ export class MemoryManager {
       console.log('[Memory] Migrated sessions table: added working_directory column');
     }
 
+    // Migration: add pulse_enabled column to sessions (NULL = unset → primary-session default)
+    const sessColumnsForPulse = this.db.pragma('table_info(sessions)') as Array<{ name: string }>;
+    if (!sessColumnsForPulse.some((c) => c.name === 'pulse_enabled')) {
+      this.db.exec('ALTER TABLE sessions ADD COLUMN pulse_enabled INTEGER');
+      console.log('[Memory] Migrated sessions table: added pulse_enabled column');
+    }
+
     // Migration: add embedding BLOB column to facts for semantic recall
     const factsColsForEmbedding = this.db.pragma('table_info(facts)') as Array<{ name: string }>;
     if (!factsColsForEmbedding.some((c) => c.name === 'embedding')) {
@@ -448,6 +466,16 @@ export class MemoryManager {
         value TEXT,
         updated_at TEXT DEFAULT ((strftime('%Y-%m-%dT%H:%M:%fZ')))
       );
+
+      -- Proactive check-in / daily brief delivery log (dedup + daily-cap accounting)
+      CREATE TABLE IF NOT EXISTS pulse_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id TEXT NOT NULL REFERENCES sessions(id),
+        kind TEXT NOT NULL CHECK(kind IN ('checkin', 'brief')),
+        content TEXT NOT NULL,
+        created_at TEXT DEFAULT ((strftime('%Y-%m-%dT%H:%M:%fZ')))
+      );
+      CREATE INDEX IF NOT EXISTS idx_pulse_log_session ON pulse_log(session_id, created_at);
     `);
 
     // Backfill embeddings for rows missing them, in the background (fire-and-forget).
@@ -781,6 +809,32 @@ export class MemoryManager {
 
   selectResurfaceCandidate(now: Date = new Date()): ResurfaceCandidate | null {
     return _selectResurfaceCandidate(this.db, now);
+  }
+
+  // ============ PULSE (PROACTIVE CHECK-IN) METHODS ============
+
+  recordPulse(sessionId: string, kind: PulseKind, content: string, now?: Date): number {
+    return _recordPulse(this.db, sessionId, kind, content, now);
+  }
+
+  getRecentPulses(sessionId: string, days: number = 7, now?: Date): PulseEntry[] {
+    return _getRecentPulses(this.db, sessionId, days, now);
+  }
+
+  countPulsesSince(kind: PulseKind, sinceIso: string): number {
+    return _countPulsesSince(this.db, kind, sinceIso);
+  }
+
+  countSessionPulsesSince(sessionId: string, kind: PulseKind, sinceIso: string): number {
+    return _countSessionPulsesSince(this.db, sessionId, kind, sinceIso);
+  }
+
+  getPulseEnabledSessions(): Session[] {
+    return _getPulseEnabledSessions(this.db);
+  }
+
+  setSessionPulseEnabled(sessionId: string, enabled: boolean): boolean {
+    return _setSessionPulseEnabled(this.db, sessionId, enabled);
   }
 
   // ============ MESSAGE METHODS ============

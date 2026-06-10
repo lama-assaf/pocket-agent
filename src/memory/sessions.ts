@@ -10,6 +10,8 @@ export interface Session {
   updated_at: string;
   telegram_linked?: boolean;
   telegram_group_name?: string | null;
+  /** Proactive check-ins (Pulse). null = unset → primary-session default applies. */
+  pulse_enabled?: boolean | null;
 }
 
 /**
@@ -107,6 +109,7 @@ export function getSessions(db: Database.Database): Session[] {
     updated_at: string;
     telegram_linked: number;
     telegram_group_name: string | null;
+    pulse_enabled: number | null;
   }
   const rows = db
     .prepare(
@@ -118,6 +121,7 @@ export function getSessions(db: Database.Database): Session[] {
         s.working_directory,
         s.created_at,
         s.updated_at,
+        s.pulse_enabled,
         CASE WHEN t.chat_id IS NOT NULL THEN 1 ELSE 0 END as telegram_linked,
         t.group_name as telegram_group_name
       FROM sessions s
@@ -136,6 +140,7 @@ export function getSessions(db: Database.Database): Session[] {
     updated_at: row.updated_at,
     telegram_linked: !!row.telegram_linked,
     telegram_group_name: row.telegram_group_name,
+    pulse_enabled: row.pulse_enabled === null ? null : !!row.pulse_enabled,
   }));
 }
 
@@ -228,6 +233,9 @@ export function deleteSession(db: Database.Database, id: string): boolean {
   // Delete telegram chat session mapping
   db.prepare('DELETE FROM telegram_chat_sessions WHERE session_id = ?').run(id);
 
+  // Delete pulse (proactive check-in) history
+  db.prepare('DELETE FROM pulse_log WHERE session_id = ?').run(id);
+
   // Finally delete the session itself
   const result = db.prepare('DELETE FROM sessions WHERE id = ?').run(id);
 
@@ -311,4 +319,41 @@ export function setSdkSessionId(
  */
 export function clearSdkSessionId(db: Database.Database, sessionId: string): void {
   db.prepare('UPDATE sessions SET sdk_session_id = NULL WHERE id = ?').run(sessionId);
+}
+
+// ============ PULSE (PROACTIVE CHECK-IN) FLAG ============
+
+/**
+ * Explicitly enable/disable Pulse (proactive check-ins) for a session.
+ */
+export function setSessionPulseEnabled(
+  db: Database.Database,
+  sessionId: string,
+  enabled: boolean
+): boolean {
+  const result = db
+    .prepare('UPDATE sessions SET pulse_enabled = ? WHERE id = ?')
+    .run(enabled ? 1 : 0, sessionId);
+  return result.changes > 0;
+}
+
+/**
+ * Get sessions with Pulse enabled.
+ *
+ * Default resolution: if NO session has the flag explicitly set, the primary
+ * session (most recently active non-default session, else the most recent one)
+ * is treated as enabled. Once any flag is set explicitly, only explicit
+ * opt-ins count.
+ */
+export function getPulseEnabledSessions(db: Database.Database): Session[] {
+  const sessions = getSessions(db);
+
+  const anyExplicit = sessions.some((s) => s.pulse_enabled !== null);
+  if (anyExplicit) {
+    return sessions.filter((s) => s.pulse_enabled === true);
+  }
+
+  // No explicit flags: default to the primary session only
+  const primary = sessions.find((s) => s.id !== 'default') ?? sessions[0];
+  return primary ? [primary] : [];
 }

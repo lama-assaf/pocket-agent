@@ -7,6 +7,16 @@ import { matchesCronField } from '../utils/cron';
 import { HEARTBEAT_SUFFIX, isHeartbeatOk } from '../utils/heartbeat';
 import { formatForSqlite, checkCalendarEvents, checkTaskReminders } from './calendar';
 import {
+  gatherPulseSignals,
+  hasPulseSignals,
+  composePulsePrompt,
+  composeDailyBriefPrompt,
+  isQuietHour,
+  localDayStartIso,
+  wasLastPulseIgnored,
+  isConversationActive,
+} from './pulse';
+import {
   stripMarkdown,
   sendToAllChannels,
   type NotificationChannels,
@@ -60,6 +70,8 @@ export class CronScheduler {
   private reminderInterval: ReturnType<typeof setInterval> | null = null;
   private maintenanceInterval: ReturnType<typeof setInterval> | null = null;
   private isRunningMaintenance: boolean = false;
+  private pulseInterval: ReturnType<typeof setInterval> | null = null;
+  private isRunningPulse: boolean = false;
   private lastJobHash: string = '';
   private dbPath: string | null = null;
   private db: Database.Database | null = null; // Persistent DB connection for reminders
@@ -132,6 +144,111 @@ export class CronScheduler {
     this.maybeRunMaintenance().catch((err) => {
       console.error('[Scheduler] Initial maintenance check failed:', err);
     });
+
+    // Pulse: proactive check-ins + daily brief (every 30 min, heavily gated)
+    this.pulseInterval = setInterval(
+      () => {
+        this.runPulseTick().catch((err) => {
+          console.error('[Scheduler] Pulse check failed:', err);
+        });
+      },
+      30 * 60 * 1000
+    );
+    this.runPulseTick().catch((err) => {
+      console.error('[Scheduler] Initial pulse check failed:', err);
+    });
+  }
+
+  /** One pulse tick: daily brief first (own gate), then check-ins. */
+  private async runPulseTick(now: Date = new Date()): Promise<void> {
+    if (this.isRunningPulse) return;
+    this.isRunningPulse = true;
+    try {
+      await this.maybeRunDailyBrief(now);
+      await this.maybeRunPulse(now);
+    } finally {
+      this.isRunningPulse = false;
+    }
+  }
+
+  /**
+   * Proactive check-ins: for each pulse-enabled session, gather signals and
+   * (only when signals exist and all gates pass) ask a cheap model whether ONE
+   * thing is genuinely worth messaging the user about. HEARTBEAT_OK = silence.
+   */
+  private async maybeRunPulse(now: Date = new Date()): Promise<void> {
+    if (!this.memory || !this.db) return;
+
+    const { SettingsManager } = await import('../settings');
+    if (SettingsManager.get('pulse.enabled') === 'false') return;
+
+    // Quiet hours gate (local time)
+    const quietStart = parseInt(SettingsManager.get('pulse.quietHoursStart') || '22', 10);
+    const quietEnd = parseInt(SettingsManager.get('pulse.quietHoursEnd') || '8', 10);
+    if (isQuietHour(now.getHours(), quietStart, quietEnd)) return;
+
+    // Global daily cap gate (across all sessions)
+    const maxPerDay = parseInt(SettingsManager.get('pulse.maxPerDay') || '2', 10);
+    const dayStart = localDayStartIso(now);
+    if (this.memory.countPulsesSince('checkin', dayStart) >= maxPerDay) return;
+
+    for (const session of this.memory.getPulseEnabledSessions()) {
+      // Re-check the cap each iteration — earlier sessions may have consumed it
+      if (this.memory.countPulsesSince('checkin', dayStart) >= maxPerDay) return;
+
+      // Backoff: if the last check-in got no reply, stay quiet in this
+      // session until the user sends a message there again.
+      if (wasLastPulseIgnored(this.db, session.id)) continue;
+
+      // Don't interrupt a live conversation — the user is already here.
+      if (isConversationActive(this.db, session.id, now)) continue;
+
+      const signals = gatherPulseSignals(this.db, session.id, now);
+      if (!hasPulseSignals(signals)) continue;
+
+      const { summarizeText } = await import('../memory/summarizer');
+      const text = (await summarizeText(composePulsePrompt(signals), 300)).trim();
+      if (!text || isHeartbeatOk(text)) continue;
+
+      this.memory.recordPulse(session.id, 'checkin', text, now);
+      this.memory.saveMessage('assistant', text, session.id, { source: 'pulse' });
+      await this.routeJobResponse('pulse', '', text, 'desktop', session.id);
+      console.log(`[Scheduler] Pulse check-in delivered to session ${session.id}`);
+    }
+  }
+
+  /**
+   * Daily brief: once per pulse-enabled session per day, at/after briefHour.
+   * Opt-in via pulse.dailyBrief; does not count against the check-in cap.
+   */
+  private async maybeRunDailyBrief(now: Date = new Date()): Promise<void> {
+    if (!this.memory || !this.db) return;
+
+    const { SettingsManager } = await import('../settings');
+    if (SettingsManager.get('pulse.enabled') === 'false') return;
+    if (SettingsManager.get('pulse.dailyBrief') !== 'true') return;
+
+    const briefHour = parseInt(SettingsManager.get('pulse.briefHour') || '8', 10);
+    if (now.getHours() < briefHour) return;
+
+    const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(
+      now.getDate()
+    ).padStart(2, '0')}`;
+
+    for (const session of this.memory.getPulseEnabledSessions()) {
+      if (this.memory.getMeta(`last_brief_date:${session.id}`) === todayKey) continue;
+
+      const signals = gatherPulseSignals(this.db, session.id, now);
+      const { summarizeText } = await import('../memory/summarizer');
+      const brief = (await summarizeText(composeDailyBriefPrompt(signals), 400)).trim();
+      if (!brief) continue;
+
+      this.memory.setMeta(`last_brief_date:${session.id}`, todayKey);
+      this.memory.recordPulse(session.id, 'brief', brief, now);
+      this.memory.saveMessage('assistant', brief, session.id, { source: 'daily-brief' });
+      await this.routeJobResponse('daily-brief', '', brief, 'desktop', session.id);
+      console.log(`[Scheduler] Daily brief delivered to session ${session.id}`);
+    }
   }
 
   /** Low-traffic hour (local) at/after which the daily maintenance runs. */
@@ -213,6 +330,9 @@ export class CronScheduler {
       now.getDate()
     ).padStart(2, '0')}`;
     if (this.memory.getMeta('last_resurface_date') === todayKey) return;
+
+    // Don't double-ping: skip resurfacing on days a pulse check-in already fired
+    if (this.memory.countPulsesSince('checkin', localDayStartIso(now)) > 0) return;
 
     const candidate = this.memory.selectResurfaceCandidate(now);
     if (!candidate) return;
@@ -827,6 +947,12 @@ export class CronScheduler {
     if (this.maintenanceInterval) {
       clearInterval(this.maintenanceInterval);
       this.maintenanceInterval = null;
+    }
+
+    // Stop pulse interval
+    if (this.pulseInterval) {
+      clearInterval(this.pulseInterval);
+      this.pulseInterval = null;
     }
 
     // Close persistent DB connection
