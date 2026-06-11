@@ -1010,7 +1010,7 @@
     async function savePulseSetting(key, value) {
       try {
         await window.pocketAgent.settings.set(key, value);
-        showToast('Saved!', 'success');
+        showToast('Saved', 'success');
       } catch (err) {
         showToast(err.message, 'error');
       }
@@ -1062,12 +1062,12 @@
       const sessionId = document.getElementById('job-session').value;
 
       if (!name) {
-        showToast('Need a name!', 'error');
+        showToast('Need a name', 'error');
         return;
       }
 
       if (source === 'custom' && !prompt) {
-        showToast('Need a prompt!', 'error');
+        showToast('Need a prompt', 'error');
         return;
       }
 
@@ -1080,7 +1080,7 @@
           document.getElementById('job-prompt').value = '';
           document.getElementById('prompt-source').value = 'custom';
           handlePromptSourceChange();
-          showToast('Routine created! 🎉', 'success');
+          showToast('Routine created', 'success');
           loadJobs();
         } else {
           showToast('Couldn\'t create that', 'error');
@@ -1093,7 +1093,7 @@
     async function toggleJob(name, enabled) {
       try {
         await window.pocketAgent.cron.toggle(name, enabled);
-        showToast(enabled ? 'Back at it!' : 'Taking a break', 'success');
+        showToast(enabled ? 'Back at it' : 'Taking a break', 'success');
         loadJobs();
       } catch (err) {
         showToast(err.message, 'error');
@@ -1101,7 +1101,7 @@
     }
 
     async function runJob(name) {
-      showToast('On it!', 'success');
+      showToast('On it', 'success');
       try {
         await window.pocketAgent.cron.run(name);
       } catch (err) {
@@ -1114,7 +1114,7 @@
 
       try {
         await window.pocketAgent.cron.delete(name);
-        showToast('Poof! Gone.', 'success');
+        showToast('Removed', 'success');
         loadJobs();
       } catch (err) {
         showToast(err.message, 'error');

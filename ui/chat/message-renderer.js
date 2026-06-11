@@ -347,6 +347,7 @@ function updateStatusIndicator(status, sessionId) {
     // Don't overwrite blocked state
     if (!statusEl.classList.contains('tool-blocked')) {
       actionEl.textContent = status.message || '*stretches paws* thinking...';
+      actionEl.title = status.message || '';
       detailEl.textContent = '';
       detailEl.classList.add('hidden');
       statusEl.classList.remove('subagent-active');
@@ -384,7 +385,7 @@ function updateStatusIndicator(status, sessionId) {
   } else if (status.type === 'tool_end') {
     // Don't overwrite blocked state - keep showing the block message
     if (!statusEl.classList.contains('tool-blocked')) {
-      actionEl.textContent = status.message || 'caught it! processing...';
+      actionEl.textContent = status.message || 'processing...';
       detailEl.textContent = '';
       detailEl.classList.add('hidden');
       statusEl.classList.remove('subagent-active');
@@ -395,7 +396,7 @@ function updateStatusIndicator(status, sessionId) {
   } else if (status.type === 'tool_blocked') {
     // Safety hook blocked a dangerous command
     statusEl.classList.add('tool-blocked');
-    actionEl.textContent = status.message || '🙀 whoa! not allowed!';
+    actionEl.textContent = status.message || '🙀 blocked';
     if (status.blockedReason) {
       detailEl.textContent = status.blockedReason;
       detailEl.title = status.blockedReason;
@@ -431,7 +432,7 @@ function updateStatusIndicator(status, sessionId) {
     statusEl.classList.remove('subagent-active');
     statusEl.classList.remove('pocket-cli-active');
     statusEl.classList.remove('team-active');
-    actionEl.textContent = status.message || 'cat squad finished! ✨';
+    actionEl.textContent = status.message || 'done ✨';
     detailEl.textContent = '';
     detailEl.classList.add('hidden');
   } else if (status.type === 'teammate_start') {
@@ -480,7 +481,7 @@ function updateStatusIndicator(status, sessionId) {
     statusEl.classList.add('team-active');
     statusEl.classList.remove('subagent-active');
     statusEl.classList.remove('pocket-cli-active');
-    actionEl.textContent = status.message || 'task done!';
+    actionEl.textContent = status.message || 'task done';
     if (status.taskSubject) {
       const by = status.teammateName ? ` (by ${status.teammateName})` : '';
       detailEl.textContent = status.taskSubject + by;

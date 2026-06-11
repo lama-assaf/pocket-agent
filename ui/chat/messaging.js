@@ -18,13 +18,13 @@ function setButtonState(loading) {
 
   if (loading) {
     sendBtn.classList.add('stop-btn');
-    sendBtn.title = 'Stop it!';
+    sendBtn.title = 'Stop';
     sendIcon.classList.add('hidden');
     stopIcon.classList.remove('hidden');
     sendBtn.disabled = false;
   } else {
     sendBtn.classList.remove('stop-btn');
-    sendBtn.title = 'Send it!';
+    sendBtn.title = 'Send';
     sendIcon.classList.remove('hidden');
     stopIcon.classList.add('hidden');
   }

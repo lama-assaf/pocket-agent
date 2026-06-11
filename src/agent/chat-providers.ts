@@ -33,6 +33,7 @@ export interface StreamConfig {
   apiKey?: string;
   baseUrl?: string;
   accountId?: string;
+  defaultHeaders?: Record<string, string>;
 }
 
 /** One resolver per provider. Each function receives the provider's PROVIDER_CONFIGS entry. */
@@ -40,9 +41,26 @@ type ProviderResolver = (baseUrl: string | undefined) => Promise<StreamConfig>;
 
 const PROVIDER_STRATEGY: Record<ProviderType, ProviderResolver> = {
   moonshot: async (baseUrl) => {
+    // Check for Kimi OAuth first (uses managed coding endpoint)
+    const kimiAuthMethod = SettingsManager.get('kimi.auth.method');
+    if (kimiAuthMethod === 'oauth') {
+      const { KimiOAuth, kimiCodingHeaders, kimiCodeBaseUrl } = await import('../auth/kimi-oauth');
+      const token = await KimiOAuth.getAccessToken();
+      if (!token) {
+        throw new Error('Kimi session expired. Please re-authenticate in Settings.');
+      }
+      const kimiBaseUrl = SettingsManager.get('kimi.baseUrl') || kimiCodeBaseUrl();
+      return {
+        provider: 'moonshot',
+        apiKey: token,
+        baseUrl: kimiBaseUrl,
+        defaultHeaders: kimiCodingHeaders(),
+      };
+    }
+    // API key path
     const apiKey = SettingsManager.get('moonshot.apiKey');
     if (!apiKey) {
-      throw new Error('Moonshot API key not configured. Please add your key in Settings > Keys.');
+      throw new Error('Moonshot API key not configured. Please add your key in Settings > LLM.');
     }
     return { provider: 'moonshot', apiKey, baseUrl };
   },

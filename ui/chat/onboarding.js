@@ -122,7 +122,7 @@ async function obInitKeychain() {
     const result = await window.pocketAgent.settings.initializeKeychain();
     if (result.available) {
       obKeychainInitialized = true;
-      _obToast('Secure storage enabled!', 'success');
+      _obToast('Secure storage enabled', 'success');
       setTimeout(() => obCheckAndShowPermissions(), 800);
     } else {
       const platform = window.pocketAgent.app.getPlatform();
@@ -654,7 +654,7 @@ async function obInstallCli() {
 
   try {
     await window.pocketAgent.shell.runCommand(_obCliCommands.install);
-    _obToast('Pocket CLI installed!', 'success');
+    _obToast('Pocket CLI installed', 'success');
     btn.innerHTML = OB_ICONS.check + ' Installed';
     setTimeout(() => obShowStep('ob-step-success'), 1500);
   } catch (err) {

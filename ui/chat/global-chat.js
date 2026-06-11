@@ -342,7 +342,7 @@ function renderGlobalChatMessages() {
   if (globalChatMessages.length === 0) {
     const empty = document.createElement('div');
     empty.className = 'global-chat-empty';
-    empty.textContent = "No one's here yet \u2014 say something!";
+    empty.textContent = "No one's here yet \u2014 say something";
     container.appendChild(empty);
     return;
   }

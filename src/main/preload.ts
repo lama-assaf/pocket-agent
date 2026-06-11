@@ -204,6 +204,15 @@ contextBridge.exposeInMainWorld('pocketAgent', {
     logoutOAuth: () => ipcRenderer.invoke('openai:logoutOAuth'),
   },
 
+  // ─── Kimi (Moonshot) OAuth ──────────────────────────────────────────
+  kimiAuth: {
+    startOAuth: () => ipcRenderer.invoke('kimi:startOAuth'),
+    isOAuthPending: () => ipcRenderer.invoke('kimi:isOAuthPending'),
+    cancelOAuth: () => ipcRenderer.invoke('kimi:cancelOAuth'),
+    validateOAuth: () => ipcRenderer.invoke('kimi:validateOAuth'),
+    logoutOAuth: () => ipcRenderer.invoke('kimi:logoutOAuth'),
+  },
+
   // ─── Themes ──────────────────────────────────────────────────────────
   themes: {
     list: () => ipcRenderer.invoke('settings:getThemes'),
@@ -599,6 +608,19 @@ declare global {
       openaiAuth: {
         startOAuth: () => Promise<{ success: boolean; error?: string }>;
         completeOAuth: () => Promise<{ success: boolean; error?: string }>;
+        validateOAuth: () => Promise<{ valid: boolean; error?: string }>;
+        logoutOAuth: () => Promise<{ success: boolean }>;
+      };
+
+      kimiAuth: {
+        startOAuth: () => Promise<{
+          success: boolean;
+          userCode?: string;
+          verificationUri?: string;
+          error?: string;
+        }>;
+        isOAuthPending: () => Promise<boolean>;
+        cancelOAuth: () => Promise<{ success: boolean }>;
         validateOAuth: () => Promise<{ valid: boolean; error?: string }>;
         logoutOAuth: () => Promise<{ success: boolean }>;
       };

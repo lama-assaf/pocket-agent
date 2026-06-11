@@ -350,7 +350,7 @@
         if (result.success) {
           subjectCell.textContent = newSubject;
           contentCell.textContent = newContent;
-          showToast('Updated!', 'success');
+          showToast('Updated', 'success');
         } else {
           showToast('Couldn\'t update that', 'error');
         }
@@ -396,7 +396,7 @@
               loadFacts();
             }
           }
-          showToast('Poof! Forgotten.', 'success');
+          showToast('Forgotten', 'success');
         } else {
           showToast('Couldn\'t forget that', 'error');
         }

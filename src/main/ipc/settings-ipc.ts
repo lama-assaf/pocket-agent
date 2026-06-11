@@ -20,6 +20,8 @@ export function getAvailableModels(): Array<{ id: string; name: string; provider
     !!SettingsManager.get('anthropic.apiKey');
   const hasOpenAI =
     !!SettingsManager.get('openai.apiKey') || SettingsManager.get('openai.auth.method') === 'oauth';
+  const hasMoonshot =
+    !!SettingsManager.get('moonshot.apiKey') || SettingsManager.get('kimi.auth.method') === 'oauth';
 
   // Which providers have credentials configured right now. The model list is
   // built from the gg-core registry (via SUPPORTED_MODELS) and filtered to
@@ -27,7 +29,7 @@ export function getAvailableModels(): Array<{ id: string; name: string; provider
   const providerConfigured: Record<ProviderType, boolean> = {
     anthropic: hasAnthropic,
     openai: hasOpenAI,
-    moonshot: !!SettingsManager.get('moonshot.apiKey'),
+    moonshot: hasMoonshot,
     glm: !!SettingsManager.get('glm.apiKey'),
     xiaomi: !!SettingsManager.get('xiaomi.apiKey'),
     minimax: !!SettingsManager.get('minimax.apiKey'),
@@ -62,6 +64,8 @@ const PROVIDER_CREDENTIAL_KEYS = new Set([
   'auth.method',
   'auth.oauthToken',
   'openai.auth.method',
+  'kimi.auth.method',
+  'kimi.accessToken',
 ]);
 
 export function registerSettingsIPC(deps: IPCDependencies): void {

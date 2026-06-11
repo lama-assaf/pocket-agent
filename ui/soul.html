@@ -266,7 +266,7 @@
         const result = await window.pocketAgent.soul.update(id, { content: newContent });
         if (result.success) {
           contentEl.textContent = newContent;
-          showToast('Updated!', 'success');
+          showToast('Updated', 'success');
         } else {
           showToast('Couldn\'t update that', 'error');
         }
@@ -295,7 +295,7 @@
               loadAspects();
             }
           }
-          showToast('Noted and removed!', 'success');
+          showToast('Noted and removed', 'success');
         } else {
           showToast('Couldn\'t remove that', 'error');
         }

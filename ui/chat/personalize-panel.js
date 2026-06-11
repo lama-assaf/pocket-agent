@@ -93,7 +93,7 @@ async function pzSaveAgentName() {
   try {
     await window.pocketAgent.settings.set('personalize.agentName', name);
     await window.pocketAgent.settings.set('personalize.description', desc);
-    _pzShowToast('Saved! Reboot to apply', 'success');
+    _pzShowToast('Saved — reboot to apply', 'success');
     _pzActivateReboot();
   } catch (e) { _pzShowToast('Couldn\'t save name', 'error'); }
 }
@@ -110,7 +110,7 @@ async function _pzLoadPersonality() {
 async function pzSavePersonality() {
   try {
     await window.pocketAgent.settings.set('personalize.personality', document.getElementById('pz-personality-editor').value);
-    _pzShowToast('Saved! Reboot to apply', 'success');
+    _pzShowToast('Saved — reboot to apply', 'success');
     _pzActivateReboot();
   } catch (e) { _pzShowToast('Couldn\'t save personality', 'error'); }
 }
@@ -144,7 +144,7 @@ async function pzSaveWorld() {
     await window.pocketAgent.settings.set('personalize.goals', document.getElementById('pz-world-goals').value);
     await window.pocketAgent.settings.set('personalize.struggles', document.getElementById('pz-world-struggles').value);
     await window.pocketAgent.settings.set('personalize.funFacts', document.getElementById('pz-world-funfacts').value);
-    _pzShowToast('Saved! Reboot to apply', 'success');
+    _pzShowToast('Saved — reboot to apply', 'success');
     _pzActivateReboot();
   } catch (e) { _pzShowToast('Couldn\'t save world', 'error'); }
 }
@@ -206,7 +206,7 @@ async function pzRestartAgent() {
   try {
     await window.pocketAgent.agent.restart();
     if (btn) { btn.disabled = true; btn.classList.remove('active'); }
-    _pzShowToast('Back online!', 'success');
+    _pzShowToast('Back online', 'success');
   } catch (e) { _pzShowToast('Couldn\'t restart', 'error'); }
 }
 
@@ -269,8 +269,8 @@ async function pzSaveProfile() {
     const month = document.getElementById('pz-profile-birthday-month').value;
     const day = document.getElementById('pz-profile-birthday-day').value;
     await window.pocketAgent.settings.set('profile.birthday', month && day ? `${month} ${day}` : '');
-    if (status) status.textContent = 'Saved! Reboot to apply';
-    _pzShowToast('Got it! Reboot to apply', 'success');
+    if (status) status.textContent = 'Saved — reboot to apply';
+    _pzShowToast('Got it — reboot to apply', 'success');
     _pzActivateReboot();
   } catch (e) {
     if (status) status.textContent = 'Failed to save profile';

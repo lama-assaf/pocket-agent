@@ -157,6 +157,7 @@ export class ChatEngine {
             apiKey: streamCfg.apiKey,
             baseUrl: streamCfg.baseUrl,
             accountId: streamCfg.accountId,
+            defaultHeaders: streamCfg.defaultHeaders,
           });
           const response = await result.response;
           const textParts = (
@@ -410,6 +411,7 @@ export class ChatEngine {
         apiKey: streamConfig.apiKey,
         baseUrl: streamConfig.baseUrl,
         accountId: streamConfig.accountId,
+        defaultHeaders: streamConfig.defaultHeaders,
         signal: abortController.signal,
         cacheRetention: streamConfig.provider === 'anthropic' ? 'short' : 'none',
         transformContext,
@@ -1170,6 +1172,7 @@ export class ChatEngine {
           apiKey: streamCfg.apiKey,
           baseUrl: streamCfg.baseUrl,
           accountId: streamCfg.accountId,
+          defaultHeaders: streamCfg.defaultHeaders,
         });
         const response: StreamResponse = await result.response;
         const textParts = (

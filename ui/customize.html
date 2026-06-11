@@ -362,7 +362,7 @@
         </div>
         <div style="flex: 1;"></div>
         <div class="action-bar">
-          <span class="info">Reboot me to apply changes!</span>
+          <span class="info">Reboot me to apply changes.</span>
           <div class="buttons">
             <button onclick="playNormalClick(); saveAgentName()">Save</button>
           </div>
@@ -428,7 +428,7 @@
           </div>
         </div>
         <div class="action-bar">
-          <span class="info" id="profile-status">I'll remember this!</span>
+          <span class="info" id="profile-status">I'll remember this.</span>
           <div class="buttons">
             <button onclick="playNormalClick(); saveProfile()">Save</button>
           </div>
@@ -445,7 +445,7 @@
           <textarea class="editor" id="personality-editor" placeholder="Waking up…"></textarea>
         </div>
         <div class="action-bar">
-          <span class="info">Reboot me to apply changes!</span>
+          <span class="info">Reboot me to apply changes.</span>
           <div class="buttons">
             <button onclick="playNormalClick(); savePersonality()">Save</button>
           </div>
@@ -479,7 +479,7 @@
           </div>
         </div>
         <div class="action-bar">
-          <span class="info">Reboot me to apply changes!</span>
+          <span class="info">Reboot me to apply changes.</span>
           <div class="buttons">
             <button onclick="playNormalClick(); saveWorld()">Save</button>
           </div>
@@ -551,7 +551,7 @@
       try {
         await window.pocketAgent.settings.set('personalize.agentName', name);
         await window.pocketAgent.settings.set('personalize.description', description);
-        showToast('Saved! Reboot me to apply', 'success');
+        showToast('Saved — reboot to apply', 'success');
         activateReboot();
       } catch (error) {
         showToast('Couldn\'t save name', 'error');
@@ -573,7 +573,7 @@
       const content = document.getElementById('personality-editor').value;
       try {
         await window.pocketAgent.settings.set('personalize.personality', content);
-        showToast('Saved! Reboot me to apply', 'success');
+        showToast('Saved — reboot to apply', 'success');
         activateReboot();
       } catch (error) {
         showToast('Couldn\'t save personality', 'error');
@@ -600,7 +600,7 @@
         await window.pocketAgent.settings.set('personalize.goals', document.getElementById('world-goals').value);
         await window.pocketAgent.settings.set('personalize.struggles', document.getElementById('world-struggles').value);
         await window.pocketAgent.settings.set('personalize.funFacts', document.getElementById('world-funfacts').value);
-        showToast('Saved! Reboot me to apply', 'success');
+        showToast('Saved — reboot to apply', 'success');
         activateReboot();
       } catch (error) {
         showToast('Couldn\'t save world', 'error');
@@ -681,7 +681,7 @@
       try {
         await window.pocketAgent.agent.restart();
         deactivateReboot();
-        showToast('Back online!', 'success');
+        showToast('Back online', 'success');
       } catch (error) {
         showToast('Couldn\'t restart', 'error');
         console.error('Error restarting agent:', error);
@@ -761,8 +761,8 @@
         const day = document.getElementById('profile-birthday-day').value;
         const birthday = month && day ? `${month} ${day}` : '';
         await window.pocketAgent.settings.set('profile.birthday', birthday);
-        status.textContent = 'Saved! Reboot me to apply';
-        showToast('Got it! Reboot me to apply', 'success');
+        status.textContent = 'Saved — reboot to apply';
+        showToast('Got it — reboot to apply', 'success');
         activateReboot();
       } catch (error) {
         status.textContent = 'Failed to save profile';

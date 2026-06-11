@@ -55,6 +55,8 @@ export interface AvailableKeys {
   /** OpenAI OAuth (Codex sign-in). */
   openaiOAuth: boolean;
   moonshot: boolean;
+  /** Kimi (Moonshot) OAuth (device-code sign-in). */
+  moonshotOAuth: boolean;
   glm: boolean;
   xiaomi: boolean;
   minimax: boolean;
@@ -70,6 +72,7 @@ export function getAvailableKeys(): AvailableKeys {
     openai: !!SettingsManager.get('openai.apiKey'),
     openaiOAuth: SettingsManager.get('openai.auth.method') === 'oauth',
     moonshot: !!SettingsManager.get('moonshot.apiKey'),
+    moonshotOAuth: SettingsManager.get('kimi.auth.method') === 'oauth',
     glm: !!SettingsManager.get('glm.apiKey'),
     xiaomi: !!SettingsManager.get('xiaomi.apiKey'),
     minimax: !!SettingsManager.get('minimax.apiKey'),
@@ -85,7 +88,7 @@ function providerHasCredential(provider: ProviderType, keys: AvailableKeys): boo
     case 'openai':
       return keys.openai || keys.openaiOAuth;
     case 'moonshot':
-      return keys.moonshot;
+      return keys.moonshot || keys.moonshotOAuth;
     case 'glm':
       return keys.glm;
     case 'xiaomi':

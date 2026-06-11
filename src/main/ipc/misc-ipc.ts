@@ -189,6 +189,46 @@ export function registerMiscIPC(deps: IPCDependencies): void {
     return { success: true };
   });
 
+  // Kimi (Moonshot) OAuth flow — device-code grant (RFC 8628)
+  ipcMain.handle('kimi:startOAuth', async () => {
+    const { KimiOAuth } = await import('../../auth/kimi-oauth');
+    return KimiOAuth.startFlow();
+  });
+
+  ipcMain.handle('kimi:isOAuthPending', async () => {
+    const { KimiOAuth } = await import('../../auth/kimi-oauth');
+    return KimiOAuth.isPending();
+  });
+
+  ipcMain.handle('kimi:cancelOAuth', async () => {
+    const { KimiOAuth } = await import('../../auth/kimi-oauth');
+    KimiOAuth.cancelFlow();
+    return { success: true };
+  });
+
+  ipcMain.handle('kimi:validateOAuth', async () => {
+    try {
+      const { KimiOAuth } = await import('../../auth/kimi-oauth');
+      const result = await Promise.race([
+        KimiOAuth.getAccessToken().then((token) => ({ valid: token !== null })),
+        new Promise<{ valid: boolean }>((resolve) =>
+          setTimeout(() => resolve({ valid: false }), 5000)
+        ),
+      ]);
+      console.log('[Kimi OAuth] Validation result:', result.valid ? 'valid' : 'expired/failed');
+      return result;
+    } catch (error) {
+      console.error('[Kimi OAuth] Validation error:', error);
+      return { valid: false };
+    }
+  });
+
+  ipcMain.handle('kimi:logoutOAuth', async () => {
+    const { KimiOAuth } = await import('../../auth/kimi-oauth');
+    KimiOAuth.logout();
+    return { success: true };
+  });
+
   // Browser control
   ipcMain.handle('browser:detectInstalled', async () => {
     const { detectInstalledBrowsers } = await import('../../browser/launcher');

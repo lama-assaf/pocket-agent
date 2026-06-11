@@ -328,5 +328,5 @@ async function brainDeleteLog(id) {
 
 function brainRefresh() {
   _brainRefreshActiveTab();
-  _brainShowToast('Refreshed!', 'success');
+  _brainShowToast('Refreshed', 'success');
 }

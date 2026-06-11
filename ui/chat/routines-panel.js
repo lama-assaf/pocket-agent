@@ -192,13 +192,13 @@ async function _rtnLoadJobs() {
 async function rtnToggleJob(name, enabled) {
   try {
     await window.pocketAgent.cron.toggle(name, enabled);
-    _rtnShowToast(enabled ? 'Back at it!' : 'Taking a break', 'success');
+    _rtnShowToast(enabled ? 'Back at it' : 'Taking a break', 'success');
     _rtnLoadJobs();
   } catch (err) { _rtnShowToast(err.message, 'error'); }
 }
 
 async function rtnRunJob(name) {
-  _rtnShowToast('On it!', 'success');
+  _rtnShowToast('On it', 'success');
   try { await window.pocketAgent.cron.run(name); }
   catch (err) { _rtnShowToast(err.message, 'error'); }
 }
@@ -207,7 +207,7 @@ async function rtnDeleteJob(name) {
   if (!confirm(`Delete "${name}"?`)) return;
   try {
     await window.pocketAgent.cron.delete(name);
-    _rtnShowToast('Poof! Gone.', 'success');
+    _rtnShowToast('Removed', 'success');
     _rtnLoadJobs();
   } catch (err) { _rtnShowToast(err.message, 'error'); }
 }

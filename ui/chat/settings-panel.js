@@ -155,6 +155,7 @@ async function _stgLoadSettings() {
     _stgUpdateToggles();
     _stgUpdateAuthStatus();
     _stgUpdateOpenAIAuthStatus();
+    _stgUpdateKimiAuthStatus();
     _stgUpdateDeleteButtons();
   } catch (err) {
     console.error('[Settings] Failed to load settings:', err);
@@ -327,7 +328,7 @@ function _stgSetupAutoSave() {
 
       try {
         await window.pocketAgent.settings.set(key, value);
-        _stgShowToast('Got it!', 'success');
+        _stgShowToast('Got it', 'success');
         const rebootSettings = ['agent.model', 'telegram.allowedUserIds', 'telegram.botToken'];
         if (rebootSettings.includes(key)) _stgActivateReboot();
       } catch (err) {
@@ -365,13 +366,13 @@ function _stgValidateKeyFormat(inputId, key) {
 async function stgSaveKey(inputId) {
   const input = document.getElementById(inputId);
   const key = input.value.trim();
-  if (!key) { _stgShowToast('Need a key first!', 'error'); return; }
+  if (!key) { _stgShowToast('Need a key first', 'error'); return; }
   const validation = _stgValidateKeyFormat(inputId, key);
   if (!validation.valid) { _stgShowToast(validation.error, 'error'); return; }
   try {
     await window.pocketAgent.settings.set(inputId, key);
     _stgSettings[inputId] = key;
-    _stgShowToast('Got it!', 'success');
+    _stgShowToast('Got it', 'success');
     const deleteBtn = document.getElementById(`${inputId}-delete`);
     if (deleteBtn) deleteBtn.classList.add('visible');
     // Provider API keys auto-restart the agent in the main process (see
@@ -416,7 +417,7 @@ async function stgDeleteKey(keyId, inputId) {
     }
     const deleteBtn = document.getElementById(`${actualInputId}-delete`);
     if (deleteBtn) deleteBtn.classList.remove('visible');
-    _stgShowToast('Key removed!', 'success');
+    _stgShowToast('Key removed', 'success');
     _stgActivateReboot();
     if (keyId === 'anthropic.apiKey') _stgUpdateAuthStatus();
   } catch (err) {
@@ -432,7 +433,7 @@ async function stgToggleSetting(key) {
     await window.pocketAgent.settings.set(key, newValue);
     _stgSettings[key] = newValue;
     _stgUpdateToggles();
-    _stgShowToast('Got it!', 'success');
+    _stgShowToast('Got it', 'success');
   } catch (err) {
     console.error('[Settings] Failed to toggle setting:', err);
     _stgShowToast('Oops, couldn\'t save that', 'error');
@@ -452,7 +453,7 @@ async function stgValidateKey(provider) {
     try {
       const result = await window.pocketAgent.validate.storedKey(provider);
       if (result.valid) {
-        _stgShowToast('All good!', 'success');
+        _stgShowToast('All good', 'success');
       } else {
         _stgShowToast(result.error || 'That key didn\'t work', 'error');
       }
@@ -463,7 +464,7 @@ async function stgValidateKey(provider) {
     return;
   }
 
-  if (!key) { _stgShowToast('Key please!', 'error'); return; }
+  if (!key) { _stgShowToast('Key please', 'error'); return; }
   const formatValidation = _stgValidateKeyFormat(inputId, key);
   if (!formatValidation.valid) { _stgShowToast(formatValidation.error, 'error'); return; }
 
@@ -484,7 +485,7 @@ async function stgValidateKey(provider) {
     if (result.valid) {
       await window.pocketAgent.settings.set(inputId, key);
       _stgSettings[inputId] = key;
-      _stgShowToast(result.botInfo ? `Valid! Bot: @${result.botInfo.username}` : 'All good!', 'success');
+      _stgShowToast(result.botInfo ? `Valid — Bot: @${result.botInfo.username}` : 'All good', 'success');
       const deleteBtn = document.getElementById(`${inputId}-delete`);
       if (deleteBtn) deleteBtn.classList.add('visible');
       if (['anthropic', 'telegram'].includes(provider)) _stgActivateReboot();
@@ -529,7 +530,7 @@ async function stgRestartAgent() {
     _stgShowToast('Waking up...', 'success');
     await window.pocketAgent.agent.restart();
     _stgDeactivateReboot();
-    _stgShowToast('I\'m back!', 'success');
+    _stgShowToast('Welcome back', 'success');
   } catch (err) {
     _stgShowToast('Failed to restart: ' + err.message, 'error');
   }
@@ -543,7 +544,7 @@ async function stgSaveTelegramSetting(inputId) {
   try {
     await window.pocketAgent.settings.set(inputId, value);
     _stgSettings[inputId] = value;
-    _stgShowToast('Saved!', 'success');
+    _stgShowToast('Saved', 'success');
     _stgActivateReboot();
   } catch (err) {
     console.error('[Settings] Failed to save telegram setting:', err);
@@ -587,7 +588,7 @@ async function stgSaveChatUsername() {
     input.value = raw;
     await window.pocketAgent.settings.set('chat.username', raw);
     _stgSettings['chat.username'] = raw;
-    _stgShowToast('Username saved!', 'success');
+    _stgShowToast('Username saved', 'success');
   } catch (err) {
     console.error('[Settings] Failed to save username:', err);
     _stgShowToast('Could not reach chat server', 'error');
@@ -599,7 +600,7 @@ async function stgSaveChatAdminKey() {
     const adminKey = document.getElementById('chat.adminKey').value.trim();
     await window.pocketAgent.settings.set('chat.adminKey', adminKey);
     _stgSettings['chat.adminKey'] = adminKey;
-    _stgShowToast('Admin key saved!', 'success');
+    _stgShowToast('Admin key saved', 'success');
     _stgActivateReboot();
   } catch (err) {
     console.error('[Settings] Failed to save admin key:', err);
@@ -673,13 +674,13 @@ async function stgStartOAuth() {
 async function stgCompleteOAuth() {
   const code = document.getElementById('oauth-code').value.trim();
   const submitBtn = document.querySelector('#oauth-code-section button');
-  if (!code) { _stgShowToast('Paste the code!', 'error'); return; }
+  if (!code) { _stgShowToast('Paste the code', 'error'); return; }
   submitBtn.disabled = true;
   submitBtn.textContent = 'Verifying...';
   try {
     const result = await window.pocketAgent.auth.completeOAuth(code);
     if (result.success) {
-      _stgShowToast('Connected!', 'success');
+      _stgShowToast('Connected', 'success');
       document.getElementById('oauth-code-section').classList.add('hidden');
       document.getElementById('oauth-code').value = '';
       await _stgLoadSettings();
@@ -695,7 +696,7 @@ async function stgSaveApiKey() {
   const input = document.getElementById('auth-api-key');
   const button = input.parentElement.querySelector('button:not(.delete-btn)');
   const key = input.value.trim();
-  if (!key) { _stgShowToast('Need your API key!', 'error'); return; }
+  if (!key) { _stgShowToast('Need your API key', 'error'); return; }
   const formatValidation = _stgValidateKeyFormat('anthropic.apiKey', key);
   if (!formatValidation.valid) { _stgShowToast(formatValidation.error, 'error'); return; }
   button.disabled = true;
@@ -705,7 +706,7 @@ async function stgSaveApiKey() {
     if (result.valid) {
       await window.pocketAgent.settings.set('anthropic.apiKey', key);
       await window.pocketAgent.settings.set('auth.method', 'api_key');
-      _stgShowToast('Key saved!', 'success');
+      _stgShowToast('Key saved', 'success');
       _stgActivateReboot();
       const deleteBtn = document.getElementById('auth-api-key-delete');
       if (deleteBtn) deleteBtn.classList.add('visible');
@@ -726,7 +727,7 @@ async function stgLogout() {
     await window.pocketAgent.settings.set('auth.refreshToken', '');
     await window.pocketAgent.settings.set('auth.tokenExpiresAt', '');
     await window.pocketAgent.settings.set('anthropic.apiKey', '');
-    _stgShowToast('See ya!', 'success');
+    _stgShowToast('Signed out', 'success');
     await _stgLoadSettings();
     _stgUpdateAuthStatus();
   } catch (err) { _stgShowToast('Failed to sign out: ' + err.message, 'error'); }
@@ -800,11 +801,164 @@ async function stgStartOpenAIOAuth() {
       await _stgLoadSettings();
       _stgUpdateOpenAIAuthStatus();
       await _stgRefreshModelDropdown();
-      _stgShowToast('Connected!', 'success');
+      _stgShowToast('Connected', 'success');
     } else { _stgShowToast(result.error || 'Failed to start OAuth', 'error'); }
   } catch (err) { _stgShowToast(err.message || 'OAuth failed', 'error'); }
   btn.disabled = false;
   btn.textContent = 'Sign In';
+}
+
+// ---- Kimi (Moonshot) OAuth ----
+
+let _stgKimiPollInterval = null;
+
+async function _stgUpdateKimiAuthStatus() {
+  const statusBadge = document.getElementById('kimi-auth-status');
+  const authBtn = document.getElementById('kimi-oauth-btn');
+  const deviceCodeSection = document.getElementById('kimi-device-code-section');
+  const apiKeySection = document.getElementById('kimi-api-key-section');
+
+  if (!statusBadge || !authBtn) return;
+
+  const authMethod = _stgSettings['kimi.auth.method'];
+  const isOAuth = authMethod === 'oauth';
+
+  // Check pending state via IPC (in-memory on main process)
+  let isPending = false;
+  try {
+    isPending = await window.pocketAgent.kimiAuth.isOAuthPending();
+  } catch { /* ignore */ }
+
+  if (deviceCodeSection) deviceCodeSection.classList.add('hidden');
+
+  if (isOAuth) {
+    statusBadge.className = 'auth-badge loading';
+    statusBadge.textContent = 'Checking…';
+    authBtn.textContent = 'Sign Out';
+    authBtn.className = 'logout-btn';
+    if (apiKeySection) { apiKeySection.classList.add('disabled-section'); apiKeySection.style.pointerEvents = 'none'; }
+
+    try {
+      const result = await window.pocketAgent.kimiAuth.validateOAuth();
+      if (result.valid) {
+        statusBadge.className = 'auth-badge oauth';
+        statusBadge.textContent = 'Connected';
+      } else {
+        statusBadge.className = 'auth-badge none';
+        statusBadge.textContent = 'Session expired';
+        authBtn.textContent = 'Sign In';
+        authBtn.className = 'oauth-btn';
+        if (apiKeySection) { apiKeySection.classList.remove('disabled-section'); apiKeySection.style.pointerEvents = 'auto'; }
+      }
+    } catch {
+      statusBadge.className = 'auth-badge none';
+      statusBadge.textContent = 'Could not verify';
+      authBtn.textContent = 'Sign In';
+      authBtn.className = 'oauth-btn';
+      if (apiKeySection) { apiKeySection.classList.remove('disabled-section'); apiKeySection.style.pointerEvents = 'auto'; }
+    }
+  } else if (isPending) {
+    // Device-code flow in progress — show waiting state
+    statusBadge.className = 'auth-badge loading';
+    statusBadge.textContent = 'Waiting…';
+    authBtn.textContent = 'Cancel';
+    authBtn.className = 'oauth-btn';
+    if (deviceCodeSection) deviceCodeSection.classList.remove('hidden');
+    if (apiKeySection) { apiKeySection.classList.add('disabled-section'); apiKeySection.style.pointerEvents = 'none'; }
+  } else {
+    statusBadge.className = 'auth-badge none hidden';
+    statusBadge.textContent = '';
+    authBtn.textContent = 'Sign In';
+    authBtn.className = 'oauth-btn';
+    if (apiKeySection) { apiKeySection.classList.remove('disabled-section'); apiKeySection.style.pointerEvents = 'auto'; }
+  }
+}
+
+async function stgHandleKimiAuth() {
+  const authBtn = document.getElementById('kimi-oauth-btn');
+  if (authBtn.classList.contains('logout-btn')) {
+    // Sign out
+    if (!confirm('Sign out of Kimi? You will need to re-authenticate.')) return;
+    try {
+      await window.pocketAgent.kimiAuth.logoutOAuth();
+      _stgSettings['kimi.auth.method'] = '';
+      _stgSettings['kimi.accessToken'] = '';
+      _stgStopKimiPolling();
+      await _stgLoadSettings();
+      _stgUpdateKimiAuthStatus();
+      await _stgRefreshModelDropdown();
+      _stgShowToast('Signed out.', 'success');
+    } catch (err) { _stgShowToast('Failed: ' + err.message, 'error'); }
+  } else if (authBtn.textContent === 'Cancel') {
+    // Cancel pending flow
+    await window.pocketAgent.kimiAuth.cancelOAuth();
+    _stgStopKimiPolling();
+    _stgUpdateKimiAuthStatus();
+    _stgShowToast('Cancelled.', 'success');
+  } else {
+    await stgStartKimiOAuth();
+  }
+}
+
+async function stgStartKimiOAuth() {
+  const btn = document.getElementById('kimi-oauth-btn');
+  btn.disabled = true;
+  btn.textContent = 'Starting...';
+  try {
+    const result = await window.pocketAgent.kimiAuth.startOAuth();
+    if (result.success) {
+      // Show device code info
+      const urlEl = document.getElementById('kimi-verification-url');
+      const codeEl = document.getElementById('kimi-user-code');
+      if (urlEl && result.verificationUri) {
+        urlEl.textContent = result.verificationUri;
+        urlEl.onclick = () => window.pocketAgent.app.openExternal(result.verificationUri);
+      }
+      if (codeEl && result.userCode) {
+        codeEl.textContent = result.userCode;
+      }
+
+      _stgUpdateKimiAuthStatus();
+
+      // Start polling for auth completion
+      _stgStartKimiPolling();
+    } else { _stgShowToast(result.error || 'Failed to start Kimi OAuth', 'error'); }
+  } catch (err) { _stgShowToast(err.message || 'OAuth failed', 'error'); }
+  btn.disabled = false;
+  btn.textContent = 'Sign In';
+}
+
+function _stgStartKimiPolling() {
+  _stgStopKimiPolling();
+  _stgKimiPollInterval = setInterval(async () => {
+    try {
+      const isPending = await window.pocketAgent.kimiAuth.isOAuthPending();
+      if (!isPending) {
+        // Auth completed (or failed/timed out)
+        _stgStopKimiPolling();
+        await _stgLoadSettings();
+        _stgUpdateKimiAuthStatus();
+        await _stgRefreshModelDropdown();
+
+        // Check if we actually got authenticated
+        const settings = await window.pocketAgent.settings.getAll();
+        if (settings['kimi.auth.method'] === 'oauth' && settings['kimi.accessToken']) {
+          _stgShowToast('Connected to Kimi', 'success');
+        } else {
+          _stgShowToast('Kimi authorization failed or timed out', 'error');
+        }
+      }
+    } catch {
+      // Ignore polling errors
+    }
+  }, 3000);
+}
+
+function _stgStopKimiPolling() {
+  if (_stgKimiPollInterval) {
+    clearInterval(_stgKimiPollInterval);
+    _stgKimiPollInterval = null;
+  }
 }
 
 // ---- Pocket CLI ----
@@ -920,7 +1074,7 @@ async function stgInstallPocketCli() {
     await window.pocketAgent.shell.runCommand(_stgCliCommands.install);
     await _stgInitPocketCli();
     if (document.getElementById('pocket-cli-status').classList.contains('success')) {
-      _stgShowToast('Pocket CLI installed successfully!' + (_STG_CLI_IS_WINDOWS ? ' Restart your terminal to use it.' : ''), 'success');
+      _stgShowToast('Pocket CLI installed' + (_STG_CLI_IS_WINDOWS ? ' Restart your terminal to use it.' : ''), 'success');
     }
   } catch (err) {
     statusEl.className = 'status error'; statusEl.textContent = 'Install failed';
@@ -941,7 +1095,7 @@ async function stgUpdatePocketCli() {
     await window.pocketAgent.shell.runCommand(_stgCliCommands.install);
     await _stgInitPocketCli();
     if (document.getElementById('pocket-cli-status').classList.contains('success')) {
-      _stgShowToast('Pocket CLI updated successfully!', 'success');
+      _stgShowToast('Pocket CLI updated', 'success');
     }
   } catch (err) {
     statusEl.className = 'status error'; statusEl.textContent = 'Update failed';
@@ -986,7 +1140,7 @@ async function stgLaunchBrowserWithCdp() {
     const result = await window.pocketAgent.browser.launch(browserId, port);
     if (result.success) {
       statusEl.className = 'status success'; statusEl.textContent = 'Connected';
-      _stgShowToast('Browser launched with remote debugging enabled!', 'success');
+      _stgShowToast('Browser launched', 'success');
       const cdpInput = document.getElementById('browser.cdpUrl');
       cdpInput.value = `http://localhost:${port}`;
       await window.pocketAgent.settings.set('browser.cdpUrl', cdpInput.value);
@@ -1063,7 +1217,7 @@ function _stgHandleUpdateStatus(status) {
       break;
     case 'checking': statusEl.className = 'status info'; statusEl.textContent = 'Checking...'; checkBtn.disabled = true; checkBtn.textContent = 'Checking...'; break;
     case 'available':
-      statusEl.className = 'status success'; statusEl.textContent = 'Update available!';
+      statusEl.className = 'status success'; statusEl.textContent = 'Update available';
       if (downloadBtn) downloadBtn.classList.remove('hidden');
       if (infoBox) infoBox.classList.remove('hidden');
       if (infoText) infoText.textContent = `Version ${status.info?.version || 'unknown'} is available for download.`;

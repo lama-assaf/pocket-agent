@@ -32,7 +32,7 @@
   height: 3px;
   top: 0;
   left: 0;
-  animation: pixelcat 1.5s steps(1) infinite;
+  animation: pixelcat 0.6s steps(1) infinite;
   image-rendering: pixelated;
 }
 
