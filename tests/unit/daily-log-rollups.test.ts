@@ -67,8 +67,21 @@ describe('getISOWeek', () => {
 describe('rollUpDailyLogs (before prune)', () => {
   it('creates a week rollup for old logs and leaves the raw rows until pruned', async () => {
     const db = makeDb();
-    const oldDate = dateNDaysAgo(10);
-    const olderDate = dateNDaysAgo(11);
+    // Two consecutive days deterministically in the SAME ISO week.
+    // dateNDaysAgo(10/11) straddles a Mon/Sun week boundary on some run
+    // dates, producing two rollups and a flaky failure. Anchor on the
+    // Monday of the week containing 14-days-ago instead: Monday is 14–20
+    // days old and Tuesday 13–19 — both past retention, always one week.
+    const anchorWeek = getISOWeek(dateNDaysAgo(14));
+    const oldDate = anchorWeek.start; // Monday
+    const olderDate = ((): string => {
+      const d = new Date(`${anchorWeek.start}T12:00:00`);
+      d.setDate(d.getDate() + 1); // Tuesday of the same ISO week
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    })();
     db.prepare('INSERT INTO daily_logs (date, content) VALUES (?, ?)').run(oldDate, 'worked on demo');
     db.prepare('INSERT INTO daily_logs (date, content) VALUES (?, ?)').run(
       olderDate,
@@ -104,7 +117,7 @@ describe('rollUpDailyLogs (before prune)', () => {
   it('is idempotent — re-running does not duplicate the same week rollup', async () => {
     const db = makeDb();
     db.prepare('INSERT INTO daily_logs (date, content) VALUES (?, ?)').run(
-      dateNDaysAgo(10),
+      getISOWeek(dateNDaysAgo(14)).start,
       'something'
     );
     const summarizer = vi.fn(async () => 'summary');
