@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="shared/base.css">
   <style>
     header {
-      background: var(--bg-secondary);
+      background: var(--surface-panel);
       padding: 10px 16px;
       display: flex;
       justify-content: space-between;
@@ -67,11 +67,11 @@
     }
 
     .content::-webkit-scrollbar-track {
-      background: var(--bg-primary);
+      background: var(--surface-canvas);
     }
 
     .content::-webkit-scrollbar-thumb {
-      background: var(--border);
+      background: var(--border-subtle);
       border-radius: 4px;
     }
 
@@ -80,17 +80,17 @@
     }
 
     .aspect-card {
-      background: var(--bg-secondary);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
+      background: var(--surface-panel);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-card);
       padding: 16px;
       margin-bottom: 12px;
       transition: all 0.2s ease;
     }
 
     .aspect-card:hover {
-      border-color: var(--accent);
-      box-shadow: 0 4px 16px rgba(217, 58, 99, 0.1);
+      border-color: var(--border-strong);
+      box-shadow: var(--shadow-focus);
     }
 
     .aspect-header {

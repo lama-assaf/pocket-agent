@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="shared/base.css">
   <style>
     header {
-      background: var(--bg-secondary);
+      background: var(--surface-panel);
       padding: 10px 16px;
       display: flex;
       justify-content: space-between;
@@ -48,8 +48,8 @@
        When changes pending, JS adds .active for the pulsing glow. */
     .header-actions button.reboot.active { animation: rebootGlow 2s ease-in-out infinite; }
     @keyframes rebootGlow {
-      0%, 100% { box-shadow: 0 3px 0 0 var(--accent-shadow), 0 0 12px rgba(217, 58, 99, 0.45); }
-      50% { box-shadow: 0 3px 0 0 var(--accent-shadow), 0 0 18px rgba(217, 58, 99, 0.65); }
+      0%, 100% { box-shadow: var(--shadow-button), 0 0 12px rgba(217, 58, 99, 0.45); }
+      50% { box-shadow: var(--shadow-button), 0 0 18px rgba(217, 58, 99, 0.65); }
     }
 
     .container { flex: 1; display: flex; overflow: hidden; }
@@ -58,8 +58,8 @@
     .sidebar {
       width: 180px;
       margin: 8px 8px 8px 0;
-      background: var(--bg-secondary);
-      border-radius: var(--radius-sm);
+      background: var(--surface-panel);
+      border-radius: var(--radius-control);
       display: flex;
       flex-direction: column;
       gap: 2px;
@@ -81,7 +81,7 @@
       border-left: 3px solid transparent;
     }
 
-    .nav-item:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+    .nav-item:hover { background: var(--surface-card); color: var(--text-primary); }
 
     .nav-item.active {
       background: linear-gradient(90deg, rgba(217, 58, 99, 0.1) 0%, transparent 100%);
@@ -117,12 +117,12 @@
       font-family: 'JetBrains Mono', monospace;
       font-size: 13px;
       line-height: 1.6;
-      border-radius: var(--radius);
+      border-radius: var(--radius-panel);
     }
 
     textarea.editor::-webkit-scrollbar { width: 8px; }
-    textarea.editor::-webkit-scrollbar-track { background: var(--bg-secondary); }
-    textarea.editor::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+    textarea.editor::-webkit-scrollbar-track { background: var(--surface-panel); }
+    textarea.editor::-webkit-scrollbar-thumb { background: var(--border-subtle); border-radius: 4px; }
     textarea.editor::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
 
     /* Read-only display blends into the page (no card chrome). */
@@ -138,8 +138,8 @@
     }
 
     .readonly-display::-webkit-scrollbar { width: 8px; }
-    .readonly-display::-webkit-scrollbar-track { background: var(--bg-secondary); }
-    .readonly-display::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+    .readonly-display::-webkit-scrollbar-track { background: var(--surface-panel); }
+    .readonly-display::-webkit-scrollbar-thumb { background: var(--border-subtle); border-radius: 4px; }
 
     /* .readonly-badge visuals come from shared/badges.css. */
     .readonly-badge { margin-bottom: 12px; }
@@ -157,7 +157,7 @@
       justify-content: space-between;
       margin-top: 16px;
       padding: 16px 0 6px;
-      border-top: 1px solid var(--border);
+      border-top: 1px solid var(--border-subtle);
     }
 
     .action-bar .info { font-size: 12px; color: var(--text-muted); }
@@ -213,8 +213,8 @@
       background-size: 16px;
     }
 
-    .form-group select:focus { border-color: var(--accent); }
-    .form-group select option { background: var(--bg-secondary); color: var(--text-primary); }
+    .form-group select:focus { border-color: var(--border-subtle); }
+    .form-group select option { background: var(--surface-panel); color: var(--text-primary); }
 
     .autocomplete-wrapper { position: relative; width: 100%; }
     .autocomplete-wrapper input { width: 100%; }
@@ -224,10 +224,10 @@
       top: 100%;
       left: 0;
       right: 0;
-      background: var(--bg-secondary);
-      border: 1px solid var(--border);
+      background: var(--surface-panel);
+      border: 1px solid var(--border-subtle);
       border-top: none;
-      border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+      border-radius: 0 0 var(--radius-control) var(--radius-control);
       max-height: 200px;
       overflow-y: auto;
       z-index: 100;
@@ -244,7 +244,7 @@
     }
 
     .autocomplete-item:last-child { border-bottom: none; }
-    .autocomplete-item:hover { background: var(--bg-tertiary); }
+    .autocomplete-item:hover { background: var(--surface-card); }
     .autocomplete-item .city { color: var(--text-primary); font-weight: 500; }
     .autocomplete-item .details { color: var(--text-muted); font-size: 11px; margin-top: 2px; }
 
@@ -255,7 +255,7 @@
     .profile-content { flex: 1; overflow-y: auto; padding-right: 8px; }
     .profile-content::-webkit-scrollbar { width: 6px; }
     .profile-content::-webkit-scrollbar-track { background: transparent; }
-    .profile-content::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    .profile-content::-webkit-scrollbar-thumb { background: var(--border-subtle); border-radius: 3px; }
 
     /* Mode sub-tabs for System Prompt */
     .mode-tabs {
@@ -263,9 +263,9 @@
       gap: 4px;
       margin-bottom: 12px;
       padding: 4px;
-      background: var(--bg-secondary);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-sm);
+      background: var(--surface-panel);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-control);
       overflow-x: auto;
     }
 
@@ -285,12 +285,12 @@
 
     .mode-tab:hover {
       color: var(--text-secondary);
-      background: var(--bg-tertiary);
+      background: var(--surface-card);
     }
 
     .mode-tab.active {
       color: var(--text-primary);
-      background: var(--bg-tertiary);
+      background: var(--surface-card);
       box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
     }
 

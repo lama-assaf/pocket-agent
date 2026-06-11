@@ -19,9 +19,9 @@
   align-items: center;
   gap: 8px;
   padding: 6px 10px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  background: var(--surface-panel);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control);
   font-size: 12px;
   color: var(--text-secondary);
   max-width: 200px;
@@ -41,7 +41,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--bg-tertiary);
+  background: var(--surface-card);
   border-radius: 4px;
   font-size: 9px;
   font-weight: 600;
@@ -89,7 +89,7 @@
 
 .attachment-remove:hover {
   background: var(--error);
-  color: white;
+  color: var(--on-error);
 }
 
 /* Attachment in messages */
@@ -157,9 +157,9 @@
   align-items: center;
   gap: 6px;
   padding: 6px 12px;
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control);
   color: var(--text-secondary);
   font-size: 12px;
   font-weight: 500;
@@ -169,8 +169,8 @@
 
 .background-tasks-toggle:hover {
   border-color: var(--accent);
-  color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 10%, var(--bg-primary));
+  color: var(--accent-readable);
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface-canvas));
 }
 
 .bg-task-pulse {
@@ -201,10 +201,10 @@
   right: 0;
   min-width: 260px;
   max-width: 340px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.35);
+  background: var(--surface-panel);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control);
+  box-shadow: var(--shadow-popover);
   overflow: hidden;
   z-index: 50;
 }
@@ -218,8 +218,8 @@
   align-items: center;
   gap: 8px;
   padding: 10px 12px;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--surface-card);
 }
 
 .bg-dropdown-back {
@@ -237,7 +237,7 @@
 }
 
 .bg-dropdown-back:hover {
-  background: var(--bg-primary);
+  background: var(--surface-canvas);
   color: var(--text-primary);
 }
 
@@ -264,7 +264,7 @@
   align-items: center;
   gap: 8px;
   padding: 9px 12px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--border-subtle);
   font-size: 12px;
   color: var(--text-primary);
   transition: background 0.15s ease;
@@ -275,7 +275,7 @@
 }
 
 .bg-task-item:hover {
-  background: color-mix(in srgb, var(--accent) 5%, var(--bg-primary));
+  background: color-mix(in srgb, var(--accent) 5%, var(--surface-canvas));
 }
 
 .bg-task-item .bg-task-dot {
@@ -325,7 +325,7 @@
 
 .bg-task-close:hover {
   background: var(--error);
-  color: white;
+  color: var(--on-error);
 }
 
 .bg-task-close svg {

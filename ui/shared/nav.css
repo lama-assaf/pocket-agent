@@ -1,9 +1,5 @@
 /* Nav item primitive — single source of truth for left-rail navigation
-   in side panels (settings, brain, personalize, routines, etc.).
-
-   Matches the chat sidebar's .sidebar-btn treatment: a rounded pill row
-   that fills with bg-tertiary on hover and uses the accent on active.
-   No left-bar accent strip — the rounded fill is the only chrome. */
+   in side panels (settings, brain, personalize, routines, etc.). */
 
 .nav-item,
 .settings-nav-item,
@@ -15,14 +11,14 @@
   gap: 8px;
   padding: 7px 8px;
   background: transparent;
-  color: var(--text-secondary);
+  color: var(--text-subtle);
   cursor: pointer;
   font-family: var(--text-color--font-family--heading);
   font-size: 12px;
   font-weight: 400;
-  letter-spacing: 0.02em;
+  letter-spacing: 0;
   border: none;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-control);
   transition:
     background-color 150ms ease,
     color 150ms ease;
@@ -33,8 +29,8 @@
 .brain-nav-item:hover,
 .pz-nav-item:hover,
 .routines-nav-item:hover {
-  background: var(--bg-tertiary);
-  color: var(--text-primary);
+  background: var(--surface-control-hover);
+  color: var(--text-heading);
 }
 
 .nav-item.active,
@@ -42,8 +38,9 @@
 .brain-nav-item.active,
 .pz-nav-item.active,
 .routines-nav-item.active {
-  background: color-mix(in srgb, var(--accent) 10%, var(--bg-primary));
-  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface-control));
+  color: var(--text-heading);
+  box-shadow: none;
 }
 
 /* Icons inside nav items (kept for any future use; the in-page menus

@@ -8,29 +8,23 @@
 .notyf__toast {
   background: #2b2f3a;            /* neutral dark fallback (untyped toasts) */
   border: 1px solid rgba(255, 255, 255, 0.10);
-  border-radius: 14px;
+  border-radius: var(--radius-card);
   padding: 0;
   font-family: 'Roboto', 'Helveticaneue', -apple-system, BlinkMacSystemFont, sans-serif;
   font-size: 13px;
   font-weight: 500;
-  box-shadow:
-    0 8px 24px rgba(0, 0, 0, 0.28),
-    0 0 0 1px rgba(255, 255, 255, 0.06) inset;
+  box-shadow: var(--shadow-popover);
   min-width: 200px;
   max-width: 360px;
   overflow: visible;
 }
 .notyf__toast--success {
   background: #15803d;            /* green-700 — AA contrast with white */
-  box-shadow:
-    0 8px 24px rgba(21, 128, 61, 0.28),
-    0 0 0 1px rgba(255, 255, 255, 0.12) inset;
+  box-shadow: var(--shadow-popover);
 }
 .notyf__toast--error {
   background: #b91c1c;            /* red-700 — AA contrast with white */
-  box-shadow:
-    0 8px 24px rgba(185, 28, 28, 0.28),
-    0 0 0 1px rgba(255, 255, 255, 0.12) inset;
+  box-shadow: var(--shadow-popover);
 }
 .notyf__ripple { display: none; }
 .notyf__wrapper {
@@ -40,7 +34,7 @@
 }
 .notyf__icon {
   width: 32px; height: 32px; min-width: 32px;
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   margin-right: 12px;
   display: flex;
   align-items: center;

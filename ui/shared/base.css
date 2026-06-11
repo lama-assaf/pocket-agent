@@ -18,8 +18,8 @@ body {
 
 body {
   font-family: var(--text-color--font-family--body);
-  background: var(--background-color--background-primary);
-  color: var(--text-color--text-primary);
+  background: var(--surface-canvas);
+  color: var(--text-body);
   height: 100vh;
   display: flex;
   flex-direction: column;
@@ -30,9 +30,10 @@ body {
 /* Headings adopt the brand heading face by default. */
 h1, h2, h3, h4, h5, h6 {
   font-family: var(--text-color--font-family--heading);
-  color: var(--text-color--text-secondary);
-  font-weight: 600;
-  line-height: 1.2;
+  color: var(--text-heading);
+  font-weight: 650;
+  line-height: 1.18;
+  letter-spacing: -0.01em;
 }
 
 /* ---------- Brand heading face for UI chrome ----------
@@ -84,41 +85,40 @@ td {
   font-weight: 400;
 }
 
-/* ---------- Themed scrollbars (warm cocoa on champagne) ---------- */
+/* ---------- Subtle themed scrollbars ---------- */
 * {
   scrollbar-width: thin;
-  scrollbar-color: var(--text-muted) var(--bg-secondary);
+  scrollbar-color: color-mix(in srgb, var(--text-muted) 50%, transparent) transparent;
 }
 
 *::-webkit-scrollbar {
-  width: 12px;
-  height: 12px;
-  background-color: var(--bg-secondary);
+  width: 8px;
+  height: 8px;
+  background-color: transparent;
 }
 
 *::-webkit-scrollbar-track {
-  background-color: var(--bg-secondary);
-  border-left: 1px solid color-mix(in srgb, var(--text-muted) 18%, transparent);
+  background-color: transparent;
 }
 
 *::-webkit-scrollbar-thumb {
-  background-color: color-mix(in srgb, var(--text-muted) 60%, transparent);
-  border: 3px solid var(--bg-secondary);
-  border-radius: 100vw;
+  background-color: color-mix(in srgb, var(--text-muted) 38%, transparent);
+  border: 2px solid transparent;
+  border-radius: var(--radius-pill);
   background-clip: padding-box;
-  min-height: 40px;
+  min-height: 36px;
 }
 
 *::-webkit-scrollbar-thumb:hover {
-  background-color: var(--text-muted);
+  background-color: color-mix(in srgb, var(--text-muted) 62%, transparent);
 }
 
 *::-webkit-scrollbar-thumb:active {
-  background-color: var(--text-secondary);
+  background-color: var(--text-muted);
 }
 
 *::-webkit-scrollbar-corner {
-  background-color: var(--bg-secondary);
+  background-color: transparent;
 }
 
 /* Opt-in for scrollable regions on dark (bean) surfaces. */

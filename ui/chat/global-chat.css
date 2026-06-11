@@ -1,20 +1,20 @@
-/* Floating action buttons — large round cinamon pills, ecomm-king style. */
+/* Floating action buttons — compact elevated controls. */
 .floating-admin-clear-btn {
   position: fixed;
   bottom: 80px;
   right: 24px;
   width: 48px;
   height: 48px;
-  border-radius: 100vw;
-  background: var(--bg-primary);
-  border: 1px solid color-mix(in srgb, var(--text-muted) 30%, transparent);
-  color: var(--text-muted);
+  border-radius: var(--radius-pill);
+  background: var(--surface-control);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-subtle);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 150;
-  box-shadow: 0 3px 0 0 color-mix(in srgb, var(--text-muted) 25%, transparent);
+  box-shadow: var(--shadow-card);
   transition:
     background-color 150ms ease,
     border-color 150ms ease,
@@ -24,14 +24,15 @@
 }
 
 .floating-admin-clear-btn:hover {
-  border-color: var(--accent-shadow);
-  color: var(--accent-shadow);
-  box-shadow: 0 3px 0 0 color-mix(in srgb, var(--accent-shadow) 35%, transparent);
+  background: color-mix(in srgb, var(--error) 10%, var(--surface-control));
+  border-color: color-mix(in srgb, var(--error) 62%, transparent);
+  color: var(--error-readable);
+  box-shadow: var(--shadow-card);
 }
 
 .floating-admin-clear-btn:active {
-  transform: translateY(2px);
-  box-shadow: 0 1px 0 0 color-mix(in srgb, var(--accent-shadow) 35%, transparent);
+  transform: translateY(0);
+  box-shadow: var(--shadow-button);
 }
 
 .floating-admin-clear-btn svg {
@@ -62,16 +63,16 @@
   right: 24px;
   width: 48px;
   height: 48px;
-  border-radius: 100vw;
-  background: var(--bg-primary);
-  border: 1px solid color-mix(in srgb, var(--text-muted) 30%, transparent);
-  color: var(--text-muted);
+  border-radius: var(--radius-pill);
+  background: var(--surface-control);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-subtle);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 150;
-  box-shadow: 0 3px 0 0 color-mix(in srgb, var(--text-muted) 25%, transparent);
+  box-shadow: var(--shadow-card);
   transition:
     background-color 150ms ease,
     border-color 150ms ease,
@@ -81,14 +82,15 @@
 }
 
 .floating-fresh-btn:hover {
-  border-color: var(--accent);
-  color: var(--accent);
-  box-shadow: 0 3px 0 0 var(--accent-shadow);
+  background: var(--surface-control-hover);
+  border-color: transparent;
+  color: var(--text-heading);
+  box-shadow: var(--shadow-card);
 }
 
 .floating-fresh-btn:active {
-  transform: translateY(2px);
-  box-shadow: 0 1px 0 0 var(--accent-shadow);
+  transform: translateY(0);
+  box-shadow: var(--shadow-button);
 }
 
 .floating-fresh-btn svg {
@@ -103,16 +105,16 @@
   right: 24px;
   width: 48px;
   height: 48px;
-  border-radius: 100vw;
-  background: var(--bg-primary);
-  border: 1px solid color-mix(in srgb, var(--text-muted) 30%, transparent);
-  color: var(--text-muted);
+  border-radius: var(--radius-pill);
+  background: var(--surface-control);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-subtle);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 150;
-  box-shadow: 0 3px 0 0 color-mix(in srgb, var(--text-muted) 25%, transparent);
+  box-shadow: var(--shadow-card);
   transition:
     background-color 150ms ease,
     border-color 150ms ease,
@@ -122,21 +124,22 @@
 }
 
 .floating-toggle-btn:hover {
-  border-color: var(--accent);
-  color: var(--accent);
-  box-shadow: 0 3px 0 0 var(--accent-shadow);
+  background: var(--surface-control-hover);
+  border-color: transparent;
+  color: var(--text-heading);
+  box-shadow: var(--shadow-card);
 }
 
 .floating-toggle-btn:active {
-  transform: translateY(2px);
-  box-shadow: 0 1px 0 0 var(--accent-shadow);
+  transform: translateY(0);
+  box-shadow: var(--shadow-button);
 }
 
 .floating-toggle-btn.active {
   background: var(--accent);
   border-color: var(--accent);
-  color: var(--text-color--text-tertiary);
-  box-shadow: 0 3px 0 0 var(--accent-shadow);
+  color: var(--on-accent);
+  box-shadow: var(--shadow-button);
 }
 
 .floating-toggle-btn.active:hover {
@@ -162,10 +165,10 @@
   padding: 6px 12px;
   height: 30px;
   box-sizing: border-box;
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  color: var(--text-secondary);
+  background: var(--surface-control);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control);
+  color: var(--text-subtle);
   font-family: inherit;
   font-size: 12px;
   font-weight: 500;
@@ -174,9 +177,9 @@
 }
 
 .chat-toggle:hover {
-  border-color: var(--accent);
-  color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 10%, var(--bg-primary));
+  border-color: transparent;
+  color: var(--text-heading);
+  background: var(--surface-control-hover);
 }
 
 .chat-toggle svg {
@@ -187,7 +190,7 @@
 .chat-toggle.active {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
 }
 
 .chat-toggle {
@@ -202,15 +205,15 @@
   height: 16px;
   padding: 0 4px;
   background: var(--error);
-  color: #fff;
+  color: var(--on-error);
   font-size: 10px;
   font-weight: 700;
-  border-radius: 8px;
+  border-radius: var(--radius-pill);
   display: flex;
   align-items: center;
   justify-content: center;
   line-height: 1;
-  box-shadow: 0 0 0 2px var(--bg-secondary);
+  box-shadow: 0 0 0 2px var(--surface-panel);
   animation: unread-pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
@@ -225,7 +228,7 @@
   align-items: center;
   gap: 10px;
   padding: 8px 20px;
-  background: var(--bg-secondary);
+  background: var(--surface-panel);
   flex-shrink: 0;
 }
 
@@ -235,14 +238,14 @@
   color: var(--text-secondary);
   cursor: pointer;
   padding: 4px;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-control);
   display: flex;
   align-items: center;
 }
 
 #global-chat-header .chat-back-btn:hover {
-  color: var(--accent);
-  background: var(--bg-tertiary);
+  color: var(--text-heading);
+  background: var(--surface-control-hover);
 }
 
 #global-chat-header .chat-back-btn svg {
@@ -253,7 +256,7 @@
 #global-chat-header .chat-title {
   font-size: 13px;
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--text-heading);
 }
 
 /* .chat-username-badge inherits the subtle pill from shared/badges.css. */
@@ -283,7 +286,7 @@
   gap: 16px;
   scroll-behavior: smooth;
   scrollbar-width: thin;
-  scrollbar-color: var(--border) transparent;
+  scrollbar-color: var(--border-subtle) transparent;
 }
 
 #global-chat-messages > * {
@@ -300,8 +303,8 @@
 }
 
 #global-chat-messages::-webkit-scrollbar-thumb {
-  background: var(--border);
-  border-radius: 3px;
+  background: var(--border-subtle);
+  border-radius: var(--radius-pill);
 }
 
 #global-chat-messages::-webkit-scrollbar-thumb:hover {
@@ -349,29 +352,30 @@
 .message.global-chat-self {
   max-width: 100%;
   background: var(--user-bubble);
-  color: #fff;
+  color: var(--on-user-bubble);
   padding: 12px 16px;
-  border-radius: var(--radius) var(--radius) 4px var(--radius);
+  border: 1px solid color-mix(in srgb, var(--user-bubble) 70%, #000);
+  border-radius: var(--radius-card) var(--radius-card) 4px var(--radius-card);
   font-size: 14px;
   line-height: 1.5;
   word-wrap: break-word;
   overflow-wrap: anywhere;
   word-break: break-word;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--shadow-button);
 }
 
 .message.global-chat-other {
   max-width: 100%;
-  background: var(--bg-tertiary);
-  color: var(--text-primary);
+  background: var(--surface-card);
+  color: var(--text-heading);
   padding: 12px 16px;
-  border-radius: var(--radius) var(--radius) var(--radius) 4px;
+  border-radius: var(--radius-card) var(--radius-card) var(--radius-card) 4px;
   font-size: 14px;
   line-height: 1.5;
   word-wrap: break-word;
   overflow-wrap: anywhere;
   word-break: break-word;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-subtle);
 }
 
 .admin-username {
@@ -662,13 +666,13 @@
 .tier-tooltip {
   position: fixed;
   z-index: 2000;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: 12px;
+  background: var(--surface-panel);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card);
   padding: 14px 16px;
   min-width: 220px;
   max-width: 280px;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  box-shadow: var(--shadow-popover);
   animation: tierTooltipIn 0.2s ease;
 }
 @keyframes tierTooltipIn {
@@ -686,7 +690,7 @@
 }
 .tier-tooltip-divider {
   height: 1px;
-  background: var(--border);
+  background: var(--border-subtle);
   margin: 8px 0;
 }
 .tier-tooltip-list {
@@ -707,7 +711,7 @@
   gap: 6px;
   font-size: 12px;
   padding: 5px 8px;
-  border-radius: 6px;
+  border-radius: var(--radius-control);
   opacity: 0.75;
   background: rgba(255,255,255,0.02);
 }
@@ -717,7 +721,7 @@
 }
 .tier-tooltip-row.current {
   opacity: 1;
-  background: color-mix(in srgb, var(--accent) 12%, var(--bg-primary));
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface-control));
   border: 1px solid rgba(217, 58, 99,0.3);
   box-shadow: 0 0 8px rgba(217, 58, 99,0.1);
 }
@@ -759,8 +763,8 @@
 .tier-tooltip-you {
   font-size: 9px;
   font-weight: 700;
-  color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 15%, var(--bg-primary));
+  color: var(--accent-readable);
+  background: color-mix(in srgb, var(--accent) 15%, var(--surface-control));
   padding: 1px 5px;
   border-radius: 4px;
   flex-shrink: 0;
@@ -788,10 +792,10 @@
   top: calc(100% + 8px);
   right: 0;
   min-width: 160px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  background: var(--surface-panel);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control);
+  box-shadow: var(--shadow-popover);
   opacity: 0;
   visibility: hidden;
   transform: translateY(-8px);
@@ -809,19 +813,19 @@
 .admin-tier-popover {
   position: fixed;
   z-index: 1000;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: 12px;
+  background: var(--surface-panel);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card);
   padding: 12px 14px;
   min-width: 200px;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  box-shadow: var(--shadow-popover);
   animation: tierTooltipIn 0.2s ease;
 }
 .atp-header {
   font-size: 13px;
   font-weight: 600;
   margin-bottom: 6px;
-  color: var(--text-primary);
+  color: var(--text-heading);
 }
 .atp-current {
   font-size: 12px;
@@ -841,10 +845,10 @@
 .atp-btn {
   width: 24px;
   height: 24px;
-  border-radius: 6px;
-  border: 1px solid var(--border);
-  background: var(--bg-tertiary);
-  color: var(--text-primary);
+  border-radius: var(--radius-control);
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-control);
+  color: var(--text-heading);
   font-size: 14px;
   font-weight: 700;
   cursor: pointer;
@@ -888,7 +892,7 @@
   height: 26px;
   border: none;
   border-radius: 50%;
-  background: rgba(255,255,255,0.08);
+  background: var(--surface-control);
   color: var(--text-muted);
   cursor: pointer;
   display: flex;
@@ -905,8 +909,8 @@
 }
 
 .gchat-reply-btn:hover {
-  background: rgba(255,255,255,0.15);
-  color: var(--text-primary);
+  background: var(--surface-control-hover);
+  color: var(--text-heading);
 }
 
 .gchat-reply-btn svg {
@@ -931,7 +935,7 @@
   height: 26px;
   border: none;
   border-radius: 50%;
-  background: rgba(255,255,255,0.08);
+  background: var(--surface-control);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -943,7 +947,7 @@
 }
 
 .gchat-react-picker button:hover {
-  background: rgba(255,255,255,0.18);
+  background: var(--surface-control-hover);
   transform: scale(1.15);
 }
 
@@ -960,9 +964,9 @@
   align-items: center;
   gap: 4px;
   padding: 2px 8px;
-  border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 12px;
-  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card);
+  background: var(--surface-control);
   cursor: pointer;
   font-size: 13px;
   color: var(--text-secondary);
@@ -970,8 +974,8 @@
 }
 
 .gchat-reaction:hover {
-  background: rgba(255,255,255,0.1);
-  border-color: rgba(255,255,255,0.2);
+  background: var(--surface-control-hover);
+  border-color: transparent;
 }
 
 .gchat-reaction:active {
@@ -979,7 +983,7 @@
 }
 
 .gchat-reaction.active {
-  background: color-mix(in srgb, var(--accent) 15%, var(--bg-primary));
+  background: color-mix(in srgb, var(--accent) 15%, var(--surface-control));
   border-color: rgba(217, 58, 99, 0.4);
   color: var(--accent-hover);
 }
@@ -1005,9 +1009,9 @@
   bottom: calc(100% + 6px);
   left: 50%;
   transform: translateX(-50%);
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  background: var(--surface-panel);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-pill);
   padding: 5px 10px;
   font-size: 11px;
   color: var(--text-secondary);
@@ -1030,8 +1034,9 @@
   gap: 10px;
   padding: 8px 16px;
   margin: 0 20px 8px 20px;
-  background: var(--bg-tertiary);
-  border-radius: 6px;
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card);
   animation: gchatReplySlideUp 0.15s ease;
 }
 
@@ -1048,7 +1053,7 @@
 .gchat-reply-banner-label {
   font-size: 11px;
   font-weight: 600;
-  color: var(--accent);
+  color: var(--accent-readable);
   margin-bottom: 2px;
 }
 
@@ -1080,7 +1085,7 @@
 
 .gchat-reply-banner-close:hover {
   background: rgba(255,255,255,0.1);
-  color: var(--text-primary);
+  color: var(--text-heading);
 }
 
 .gchat-reply-banner-close svg {
@@ -1129,7 +1134,7 @@
   margin-bottom: 8px;
   background: rgba(0,0,0,0.2);
   border-left: 3px solid rgba(255,255,255,0.4);
-  border-radius: 6px;
+  border-radius: var(--radius-control);
   cursor: pointer;
   transition: background 0.15s ease;
   max-width: 100%;
@@ -1151,7 +1156,7 @@
 }
 
 .message.global-chat-other .gchat-reply-preview-name {
-  color: var(--accent);
+  color: var(--accent-readable);
 }
 
 .message.global-chat-other .gchat-reply-preview-text {
@@ -1176,7 +1181,7 @@
 
 /* @Mention autocomplete */
 .gchat-mention-list {
-  background: var(--bg-secondary);
+  background: var(--surface-panel);
   border-radius: 10px;
   max-height: 150px;
   overflow-y: auto;
@@ -1189,7 +1194,7 @@
   padding: 8px 12px;
   cursor: pointer;
   font-size: 13px;
-  color: var(--text-primary);
+  color: var(--text-heading);
   transition: background 0.1s;
 }
 
@@ -1207,7 +1212,7 @@
 
 .gchat-mention-item:hover,
 .gchat-mention-item.active {
-  background: rgba(255,255,255,0.08);
+  background: var(--surface-control);
 }
 
 .gchat-mention-item .at-symbol {
@@ -1229,7 +1234,7 @@
   white-space: pre-wrap;
   word-wrap: break-word;
   pointer-events: none;
-  color: var(--text-primary);
+  color: var(--text-heading);
   overflow: hidden;
   z-index: 2;
 }

@@ -1,24 +1,5 @@
-/* ecomm-king button aesthetic — single source of truth.
-   Two visual primitives ported from Clensae:
+/* Shared button system — compact, tactile, and low-shadow. */
 
-     - cinamon pill : solid cinamon, heading-faced, fully rounded,
-                      chunky 3px dark-red drop-shadow, compresses on press.
-     - shell pill   : cream pill with bean border, inverts on hover.
-
-   Per-page CSS files used to define their own naked-<button> styles
-   (gradient pills with soft purple glow shadows). Those have been
-   removed; this file is now the only source. No !important. */
-
-/* ============================================================
-   CINAMON PILL — primary CTAs.
-   Catches:
-     - any naked <button> (no class) — Save / Submit / Test / Apply / etc.
-     - a naked button mid-action that gained the .validating state class
-       (Test → Testing…); without this it would fall out of :not([class])
-       and collapse to default browser button styling.
-     - explicitly tagged primary CTAs across panels.
-   #send-btn (chat send icon) is excluded — it's a 36×36 icon button.
-   ============================================================ */
 button:not([class]):not(#send-btn),
 button.validating:not(#send-btn),
 .header-actions > button.reboot,
@@ -33,29 +14,31 @@ button.is-cinamon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.35rem;
-  height: 26px;
-  padding: 0 12px;
-  border: none;
+  gap: 6px;
+  min-height: 30px;
+  padding: 0 14px;
+  border: 1px solid color-mix(in srgb, var(--accent) 78%, #000);
+  border-radius: var(--radius-pill);
   background: var(--accent);
-  background-image: none;
-  color: var(--text-color--text-tertiary);   /* light text on filled accent (skin-agnostic) */
+  color: var(--text-color--text-tertiary);
   font-family: var(--text-color--font-family--heading);
   font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
+  font-weight: 650;
+  letter-spacing: -0.005em;
   line-height: 1;
   text-transform: none;
-  border-radius: 100vw;
-  box-shadow: 0 3px 0 0 var(--accent-shadow);
+  box-shadow: var(--shadow-button);
   cursor: pointer;
   transition:
-    background-color 150ms ease,
-    box-shadow 150ms ease,
-    transform 150ms ease;
+    background-color var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard),
+    color var(--duration-fast) var(--ease-standard),
+    transform var(--duration-fast) var(--ease-standard),
+    box-shadow var(--duration-fast) var(--ease-standard);
 }
 
 button:not([class]):not(#send-btn):hover:not(:disabled),
+button.validating:not(#send-btn):hover:not(:disabled),
 .header-actions > button.reboot:hover:not(:disabled),
 .pz-header-actions > button.reboot:hover:not(:disabled),
 .ob-btn.primary:hover:not(:disabled),
@@ -66,12 +49,12 @@ button:not([class]):not(#send-btn):hover:not(:disabled),
 .btn-cinamon:hover:not(:disabled),
 button.is-cinamon:hover:not(:disabled) {
   background: var(--accent-hover);
-  background-image: none;
-  box-shadow: 0 3px 0 0 var(--accent-shadow);
-  transform: none;
+  border-color: color-mix(in srgb, var(--accent-hover) 78%, #000);
+  transform: translateY(-1px);
 }
 
 button:not([class]):not(#send-btn):active:not(:disabled),
+button.validating:not(#send-btn):active:not(:disabled),
 .header-actions > button.reboot:active:not(:disabled),
 .pz-header-actions > button.reboot:active:not(:disabled),
 .ob-btn.primary:active:not(:disabled),
@@ -81,11 +64,12 @@ button:not([class]):not(#send-btn):active:not(:disabled),
 .skills-setup-btn:active:not(:disabled),
 .btn-cinamon:active:not(:disabled),
 button.is-cinamon:active:not(:disabled) {
-  transform: translateY(2px);
-  box-shadow: 0 1px 0 0 var(--accent-shadow);
+  transform: translateY(0);
+  box-shadow: inset 0 1px 2px color-mix(in srgb, #000 22%, transparent);
 }
 
 button:not([class]):not(#send-btn):disabled,
+button.validating:not(#send-btn):disabled,
 .header-actions > button.reboot:disabled,
 .pz-header-actions > button.reboot:disabled,
 .ob-btn.primary:disabled,
@@ -95,65 +79,11 @@ button:not([class]):not(#send-btn):disabled,
 .skills-setup-btn:disabled,
 .btn-cinamon:disabled,
 button.is-cinamon:disabled {
-  opacity: 0.5;
+  opacity: 0.48;
   cursor: not-allowed;
   transform: none;
 }
 
-/* ============================================================
-   DANGER PILL — destructive CTAs (Sign out, Delete, Discard …).
-   Same chunky pill primitive as cinamon, but uses --error instead
-   of --accent so destructive actions read as red on every skin.
-   ============================================================ */
-.btn-danger,
-.logout-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.35rem;
-  height: 26px;
-  padding: 0 12px;
-  border: none;
-  background: var(--error);
-  background-image: none;
-  color: var(--text-color--text-tertiary);
-  font-family: var(--text-color--font-family--heading);
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  line-height: 1;
-  text-transform: none;
-  border-radius: 100vw;
-  box-shadow: 0 3px 0 0 var(--error-shadow);
-  cursor: pointer;
-  transition:
-    background-color 150ms ease,
-    box-shadow 150ms ease,
-    transform 150ms ease;
-}
-
-.btn-danger:hover:not(:disabled),
-.logout-btn:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--error) 80%, #000);
-  box-shadow: 0 3px 0 0 var(--error-shadow);
-}
-
-.btn-danger:active:not(:disabled),
-.logout-btn:active:not(:disabled) {
-  transform: translateY(2px);
-  box-shadow: 0 1px 0 0 var(--error-shadow);
-}
-
-.btn-danger:disabled,
-.logout-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  transform: none;
-}
-
-/* ============================================================
-   SHELL PILL — secondary / cancel CTAs.
-   ============================================================ */
 .ob-btn.secondary,
 .plan-btn.plan-btn-reject,
 .header-actions > button.secondary,
@@ -162,26 +92,26 @@ button.is-cinamon:disabled {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.35rem;
-  height: 26px;
-  padding: 0 11px;
-  background: var(--bg-primary);
-  background-image: none;
-  color: var(--text-primary);
-  border: 1px solid var(--text-secondary);
-  border-radius: 100vw;
+  gap: 6px;
+  min-height: 30px;
+  padding: 0 13px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--surface-control) 78%, transparent);
+  color: var(--text-body);
   font-family: var(--text-color--font-family--heading);
   font-size: 12px;
   font-weight: 600;
-  letter-spacing: 0.02em;
+  letter-spacing: -0.005em;
   line-height: 1;
   text-transform: none;
-  box-shadow: none;
+  box-shadow: var(--shadow-button);
   cursor: pointer;
   transition:
-    background-color 150ms ease,
-    color 150ms ease,
-    transform 150ms ease;
+    background-color var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard),
+    color var(--duration-fast) var(--ease-standard),
+    transform var(--duration-fast) var(--ease-standard);
 }
 
 .ob-btn.secondary:hover:not(:disabled),
@@ -189,9 +119,10 @@ button.is-cinamon:disabled {
 .header-actions > button.secondary:hover:not(:disabled),
 .pz-header-actions > button.secondary:hover:not(:disabled),
 .btn-shell:hover:not(:disabled) {
-  background: var(--text-secondary);
-  color: var(--bg-primary);
-  transform: none;
+  background: var(--surface-control-hover);
+  border-color: var(--border-strong);
+  color: var(--text-heading);
+  transform: translateY(-1px);
 }
 
 .ob-btn.secondary:active:not(:disabled),
@@ -199,7 +130,7 @@ button.is-cinamon:disabled {
 .header-actions > button.secondary:active:not(:disabled),
 .pz-header-actions > button.secondary:active:not(:disabled),
 .btn-shell:active:not(:disabled) {
-  transform: translateY(1px);
+  transform: translateY(0);
 }
 
 .ob-btn.secondary:disabled,
@@ -207,6 +138,51 @@ button.is-cinamon:disabled {
 .header-actions > button.secondary:disabled,
 .pz-header-actions > button.secondary:disabled,
 .btn-shell:disabled {
-  opacity: 0.5;
+  opacity: 0.48;
+  cursor: not-allowed;
+}
+
+.btn-danger,
+.logout-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 0 14px;
+  border: 1px solid color-mix(in srgb, var(--error) 62%, transparent);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--error) 10%, var(--surface-control));
+  color: var(--error-readable);
+  font-family: var(--text-color--font-family--heading);
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: -0.005em;
+  line-height: 1;
+  box-shadow: var(--shadow-button);
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard),
+    color var(--duration-fast) var(--ease-standard),
+    transform var(--duration-fast) var(--ease-standard);
+}
+
+.btn-danger:hover:not(:disabled),
+.logout-btn:hover:not(:disabled) {
+  background: var(--error);
+  border-color: var(--error);
+  color: var(--on-error);
+  transform: translateY(-1px);
+}
+
+.btn-danger:active:not(:disabled),
+.logout-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.btn-danger:disabled,
+.logout-btn:disabled {
+  opacity: 0.48;
   cursor: not-allowed;
 }

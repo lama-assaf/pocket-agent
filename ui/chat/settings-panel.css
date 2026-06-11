@@ -14,10 +14,10 @@
 
 /* Settings Header */
 #settings-view .settings-header {
-  background: var(--bg-secondary);
+  background: var(--surface-panel);
   padding: 10px 16px;
  
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-control);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -50,16 +50,10 @@
 
 @keyframes stgRebootGlow {
   0%, 100% {
-    box-shadow:
-      0 3px 0 0 var(--accent-shadow),
-      0 0 12px rgba(217, 58, 99, 0.45),
-      0 0 24px rgba(217, 58, 99, 0.20);
+    box-shadow: var(--shadow-button), var(--shadow-focus);
   }
   50% {
-    box-shadow:
-      0 3px 0 0 var(--accent-shadow),
-      0 0 18px rgba(217, 58, 99, 0.65),
-      0 0 32px rgba(217, 58, 99, 0.30);
+    box-shadow: var(--shadow-button), 0 0 0 4px color-mix(in srgb, var(--accent) 16%, transparent);
   }
 }
 
@@ -74,8 +68,8 @@
 #settings-view .settings-sidebar {
   width: 180px;
   margin: 8px 8px 8px 0;
-  background: var(--bg-secondary);
-  border-radius: var(--radius-sm);
+  background: var(--surface-panel);
+  border-radius: var(--radius-control);
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -102,7 +96,7 @@
 }
 
 #settings-view .settings-content::-webkit-scrollbar-thumb {
-  background: var(--border);
+  background: var(--border-subtle);
   border-radius: 3px;
 }
 
@@ -205,7 +199,7 @@
 #settings-view .toggle {
   width: 40px;
   height: 22px;
-  background: var(--border);
+  background: var(--border-subtle);
   border-radius: 11px;
   position: relative;
   cursor: pointer;
@@ -263,10 +257,10 @@
   gap: 5px;
   margin-top: 6px;
   padding: 3px 10px;
-  background: color-mix(in srgb, var(--bg-primary) 88%, transparent);
+  background: color-mix(in srgb, var(--surface-canvas) 88%, transparent);
   color: var(--text-secondary);
   border: 1px solid color-mix(in srgb, var(--text-muted) 30%, transparent);
-  border-radius: 100vw;
+  border-radius: var(--radius-pill);
   font-family: var(--text-color--font-family--heading);
   font-size: 11px;
   font-weight: 700;
@@ -274,11 +268,11 @@
 }
 
 #settings-view .status.success {
-  color: var(--success);
+  color: var(--success-readable);
   border-color: color-mix(in srgb, var(--success) 45%, transparent);
 }
 #settings-view .status.error {
-  color: var(--accent-shadow);
+  color: var(--error-readable);
   border-color: color-mix(in srgb, var(--accent-shadow) 45%, transparent);
 }
 #settings-view .status.warning {
@@ -286,7 +280,7 @@
   border-color: color-mix(in srgb, var(--text-muted) 55%, transparent);
 }
 #settings-view .status.info {
-  color: var(--accent);
+  color: var(--accent-readable);
   border-color: color-mix(in srgb, var(--accent) 40%, transparent);
 }
 #settings-view .status svg { width: 12px; height: 12px; }
@@ -310,15 +304,15 @@
   right: 0;
   width: 260px;
   padding: 10px 12px;
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control);
   font-size: 12px;
   font-weight: 400;
   text-transform: none;
   color: var(--text-secondary);
   line-height: 1.5;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--shadow-popover);
   z-index: 10;
   white-space: normal;
 }
@@ -342,9 +336,9 @@
 
 /* Card */
 #settings-view .card {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  background: var(--surface-panel);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-panel);
   padding: 14px 16px;
   margin-bottom: 12px;
 }
@@ -361,11 +355,11 @@
   gap: 6px;
 }
 
-#settings-view .card-title svg { width: 14px; height: 14px; color: var(--accent); }
+#settings-view .card-title svg { width: 14px; height: 14px; color: var(--accent-readable); }
 
 /* Info box */
 #settings-view .info-box {
-  background: var(--bg-secondary);
+  background: var(--surface-panel);
   border: 1px solid color-mix(in srgb, var(--text-muted) 30%, transparent);
   border-radius: 12px;
   padding: 10px 12px;
@@ -377,7 +371,7 @@
   gap: 8px;
 }
 
-#settings-view .info-box svg { width: 14px; height: 14px; color: var(--accent); flex-shrink: 0; margin-top: 1px; }
+#settings-view .info-box svg { width: 14px; height: 14px; color: var(--accent-readable); flex-shrink: 0; margin-top: 1px; }
 
 /* .skills-setup-btn (and .btn-accent variant) inherit pill aesthetics
    from shared/buttons.css. */
@@ -385,9 +379,9 @@
 
 /* Compact API Keys Table */
 #settings-view .keys-table {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  background: var(--surface-panel);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control);
   overflow: hidden;
 }
 
@@ -414,7 +408,7 @@
   text-overflow: ellipsis;
 }
 
-#settings-view .key-link:hover { color: var(--accent); }
+#settings-view .key-link:hover { color: var(--accent-readable); }
 
 #settings-view .key-input { display: flex; gap: 4px; min-width: 0; }
 
@@ -441,9 +435,9 @@
 
 /* Compact Auth Boxes */
 #settings-view .auth-box {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  background: var(--surface-panel);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control);
   padding: 12px 14px;
   margin-bottom: 10px;
 }
@@ -456,9 +450,9 @@
 
 /* Compact Settings Grid */
 #settings-view .settings-grid {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  background: var(--surface-panel);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control);
   overflow: hidden;
 }
 
@@ -504,16 +498,16 @@
 }
 
 #settings-view .skin-card {
-  background: var(--bg-tertiary);
-  border: 2px solid var(--border);
-  border-radius: var(--radius);
+  background: var(--surface-card);
+  border: 2px solid var(--border-subtle);
+  border-radius: var(--radius-panel);
   padding: 14px;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 #settings-view .skin-card:hover { border-color: var(--text-muted); transform: translateY(-2px); }
-#settings-view .skin-card.active { border-color: var(--accent); box-shadow: 0 0 16px rgba(217, 58, 99, 0.3); }
+#settings-view .skin-card.active { border-color: var(--border-strong); box-shadow: var(--shadow-focus); }
 
 #settings-view .skin-card .skin-preview {
   display: flex;
@@ -533,7 +527,7 @@
 #settings-view .flex-between { display: flex; justify-content: space-between; align-items: center; }
 #settings-view .flex-row { display: flex; align-items: center; }
 #settings-view .setting-row--stacked { flex-direction: column; align-items: stretch; gap: 6px; }
-#settings-view .card-box { background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 20px; text-align: center; }
+#settings-view .card-box { background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-control); padding: 20px; text-align: center; }
 #settings-view .code-display { font-family: 'Courier New', monospace; font-size: 32px; font-weight: 700; letter-spacing: 8px; padding: 8px 0; cursor: pointer; transition: all 0.2s ease; user-select: all; }
 /* .btn-accent visuals come from shared/buttons.css cinamon-pill rules. */
 #settings-view .btn-accent { margin: 0; }
@@ -543,12 +537,12 @@
 #settings-view .config-section { margin-top: 10px; }
 #settings-view .section-spacer { margin-top: 12px; }
 #settings-view .section-spacer-lg { margin-top: 16px; }
-#settings-view .progress-track { flex: 1; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+#settings-view .progress-track { flex: 1; height: 6px; background: var(--border-subtle); border-radius: 3px; overflow: hidden; }
 #settings-view .progress-fill { width: 0%; height: 100%; background: var(--accent); transition: width 0.3s; }
 #settings-view .progress-row { display: flex; align-items: center; gap: 8px; flex: 1; max-width: 200px; }
 #settings-view .progress-text { font-size: 11px; color: var(--text-muted); }
 #settings-view .info-box--warning {
-  background: color-mix(in srgb, var(--warning) 14%, var(--bg-primary));
+  background: color-mix(in srgb, var(--warning) 14%, var(--surface-canvas));
   border-color: color-mix(in srgb, var(--warning) 40%, transparent);
   color: var(--text-secondary);
 }

@@ -14,10 +14,10 @@
 
 /* Header */
 #routines-view .routines-header {
-  background: var(--bg-secondary);
+  background: var(--surface-panel);
   padding: 10px 16px;
  
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-control);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -52,7 +52,7 @@
 
 #routines-view .routines-content::-webkit-scrollbar { width: 6px; }
 #routines-view .routines-content::-webkit-scrollbar-track { background: transparent; }
-#routines-view .routines-content::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+#routines-view .routines-content::-webkit-scrollbar-thumb { background: var(--border-subtle); border-radius: 3px; }
 
 /* Grid */
 /* Job list — flat, no card chrome, items inset 16px to align with header. */
@@ -71,12 +71,12 @@
   align-items: center;
   gap: 12px;
   padding: 12px 16px;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-control);
   transition: background-color 150ms ease;
 }
 
 #routines-view .rtn-job-item:last-child { border-bottom: none; }
-#routines-view .rtn-job-item:hover { background: var(--bg-tertiary); }
+#routines-view .rtn-job-item:hover { background: var(--surface-card); }
 #routines-view .rtn-job-item.disabled { opacity: 0.5; }
 
 #routines-view .rtn-job-status {
@@ -84,7 +84,7 @@
   height: 8px;
   border-radius: 50%;
   background: linear-gradient(135deg, var(--accent) 0%, var(--accent-secondary) 100%);
-  box-shadow: 0 0 8px var(--accent);
+  box-shadow: var(--shadow-focus);
   flex-shrink: 0;
   animation: rtnPulse 2s ease-in-out infinite;
 }
@@ -113,7 +113,7 @@
 
 /* .rtn-job-session-badge visuals come from shared/badges.css (subtle variant). */
 
-#routines-view .rtn-job-schedule { font-size: 11px; color: var(--accent); font-weight: 500; }
+#routines-view .rtn-job-schedule { font-size: 11px; color: var(--accent-readable); font-weight: 500; }
 
 #routines-view .rtn-job-prompt {
   font-size: 11px;

@@ -4,7 +4,7 @@
   position: absolute;
   inset: 0;
   z-index: 100;
-  background: var(--bg-primary);
+  background: var(--surface-canvas);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -207,9 +207,9 @@ body:not(.onboarding-active) #chat-view {
 }
 
 .ob-auth-option {
-  background: var(--bg-secondary);
-  border: 2px solid var(--border);
-  border-radius: var(--radius);
+  background: var(--surface-panel);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-panel);
   padding: 16px;
   cursor: pointer;
   transition: all 0.2s;
@@ -220,12 +220,12 @@ body:not(.onboarding-active) #chat-view {
 
 .ob-auth-option:hover {
   border-color: var(--accent);
-  background: var(--bg-tertiary);
+  background: var(--surface-card);
 }
 
 .ob-auth-option.selected {
   border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 12%, var(--bg-primary));
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface-canvas));
 }
 
 .ob-auth-option-icon {
@@ -249,7 +249,7 @@ body:not(.onboarding-active) #chat-view {
 .ob-auth-option-icon svg {
   width: 24px;
   height: 24px;
-  color: white;
+  color: var(--on-accent);
 }
 
 .ob-auth-option-text h3 {
@@ -295,9 +295,9 @@ body:not(.onboarding-active) #chat-view {
   right: 0;
   width: 260px;
   padding: 10px 12px;
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control);
   font-size: 12px;
   font-weight: 400;
   text-transform: none;
@@ -335,7 +335,7 @@ body:not(.onboarding-active) #chat-view {
 }
 
 .ob-form-group .ob-hint a {
-  color: var(--accent);
+  color: var(--accent-readable);
   text-decoration: none;
 }
 
@@ -351,7 +351,7 @@ body:not(.onboarding-active) #chat-view {
   font-size: 13px;
   line-height: 1.5;
   padding: 12px 14px;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-control);
   margin-bottom: 16px;
 }
 
@@ -367,18 +367,18 @@ body:not(.onboarding-active) #chat-view {
 }
 
 .ob-status.success {
-  background: color-mix(in srgb, var(--success) 12%, var(--bg-primary));
-  color: var(--success);
+  background: color-mix(in srgb, var(--success) 12%, var(--surface-canvas));
+  color: var(--success-readable);
 }
 
 .ob-status.error {
-  background: color-mix(in srgb, var(--accent-shadow) 12%, var(--bg-primary));
-  color: var(--accent-shadow);
+  background: color-mix(in srgb, var(--accent-shadow) 12%, var(--surface-canvas));
+  color: var(--error-readable);
 }
 
 .ob-status.info {
-  background: color-mix(in srgb, var(--accent) 12%, var(--bg-primary));
-  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface-canvas));
+  color: var(--accent-readable);
 }
 
 /* Buttons */
@@ -393,7 +393,7 @@ body:not(.onboarding-active) #chat-view {
   flex: 1;
   padding: 12px 20px;
   border: none;
-  border-radius: var(--radius);
+  border-radius: var(--radius-panel);
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
@@ -441,9 +441,9 @@ body:not(.onboarding-active) #chat-view {
   align-items: center;
   gap: 12px;
   padding: 12px 14px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  background: var(--surface-panel);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control);
   margin-bottom: 8px;
 }
 
@@ -458,12 +458,12 @@ body:not(.onboarding-active) #chat-view {
 }
 
 .ob-perm-icon.granted {
-  background: color-mix(in srgb, var(--success) 18%, var(--bg-primary));
-  color: var(--success);
+  background: color-mix(in srgb, var(--success) 18%, var(--surface-canvas));
+  color: var(--success-readable);
 }
 
 .ob-perm-icon.missing {
-  background: color-mix(in srgb, var(--warning) 18%, var(--bg-primary));
+  background: color-mix(in srgb, var(--warning) 18%, var(--surface-canvas));
   color: var(--text-muted);
 }
 
@@ -503,7 +503,7 @@ body:not(.onboarding-active) #chat-view {
   left: 0;
   right: 0;
   height: 5px;
-  background: var(--border);
+  background: var(--border-subtle);
   z-index: 10;
 }
 
@@ -609,7 +609,7 @@ body:not(.onboarding-active) #chat-view {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--border);
+  background: var(--border-subtle);
   transition: all 0.3s ease;
 }
 
@@ -648,10 +648,10 @@ body:not(.onboarding-active) #chat-view {
   top: 100%;
   left: 0;
   right: 0;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
+  background: var(--surface-panel);
+  border: 1px solid var(--border-subtle);
   border-top: none;
-  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+  border-radius: 0 0 var(--radius-control) var(--radius-control);
   max-height: 200px;
   overflow-y: auto;
   z-index: 100;
@@ -666,7 +666,7 @@ body:not(.onboarding-active) #chat-view {
   padding: 10px 12px;
   cursor: pointer;
   font-size: 13px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--border-subtle);
   transition: background 0.1s ease;
 }
 
@@ -675,7 +675,7 @@ body:not(.onboarding-active) #chat-view {
 }
 
 .ob-autocomplete-item:hover {
-  background: var(--bg-tertiary);
+  background: var(--surface-card);
 }
 
 .ob-autocomplete-item .city {
@@ -698,9 +698,9 @@ body:not(.onboarding-active) #chat-view {
 .ob-birthday-row select {
   flex: 1;
   padding: 12px 14px;
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-panel);
   color: var(--text-primary);
   font-size: 14px;
   font-family: inherit;
@@ -716,7 +716,7 @@ body:not(.onboarding-active) #chat-view {
 }
 
 .ob-birthday-row select:focus {
-  border-color: var(--accent);
+  border-color: var(--border-subtle);
 }
 
 /* CLI install info */
@@ -774,7 +774,7 @@ body:not(.onboarding-active) #chat-view {
 .ob-success-icon svg {
   width: 32px;
   height: 32px;
-  color: var(--accent);
+  color: var(--accent-readable);
 }
 
 .ob-success-text {
@@ -817,7 +817,7 @@ body:not(.onboarding-active) #chat-view {
   margin-top: 16px;
   margin-bottom: 12px;
   padding-top: 16px;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--border-subtle);
 }
 
 .ob-optional-header {
@@ -874,7 +874,7 @@ body:not(.onboarding-active) #chat-view {
   content: '';
   flex: 1;
   height: 1px;
-  background: var(--border);
+  background: var(--border-subtle);
 }
 
 .hidden { display: none !important; }

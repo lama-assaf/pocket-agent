@@ -1,7 +1,4 @@
-/* Shared UI primitives: headings, buttons, forms, color modifiers.
-   Ported from Clensae. */
-
-/* ---------- Typography ---------- */
+/* Shared UI primitives: typography, color helpers, and surfaces. */
 
 h1,
 h2,
@@ -11,195 +8,114 @@ h5,
 h6 {
   margin: 0;
   font-family: var(--text-color--font-family--heading);
-  color: var(--text-color--text-secondary);
-  font-weight: 600;
-  line-height: 1.2;
+  color: var(--text-heading);
+  font-weight: 650;
+  line-height: 1.18;
+  letter-spacing: -0.01em;
 }
 
 .heading-display {
   font-family: var(--text-color--font-family--display);
-  color: var(--text-color--text-secondary);
+  color: var(--text-heading);
   line-height: 0.95;
-  letter-spacing: -0.01ch;
+  letter-spacing: -0.01em;
 }
 
 .heading-style-h5 {
   font-family: var(--text-color--font-family--heading);
   font-size: var(--size--2rem);
-  font-weight: 600;
+  font-weight: 650;
   line-height: 1;
 }
 
 .heading-style-h6 {
   font-family: var(--text-color--font-family--heading);
   font-size: var(--size--1-5rem);
-  font-weight: 600;
+  font-weight: 650;
   line-height: 1.2;
 }
 
 .text-style-allcaps {
   text-transform: none;
+  letter-spacing: 0;
 }
-
-/* ---------- Color modifiers ---------- */
 
 .is-cinamon {
   background-color: var(--accent);
-  color: var(--text-color--text-tertiary);
+  color: var(--on-accent);
 }
+
 .is-umber {
   background-color: var(--text-muted);
-  color: var(--text-color--text-tertiary);
+  color: var(--on-accent);
 }
+
 .is-safron {
-  background-color: var(--bg-secondary);
+  background-color: var(--surface-card);
 }
+
 .is-dark-pink {
   background-color: var(--accent-secondary);
-  color: var(--text-primary);
-}
-.is-light-pink {
-  background-color: var(--bg-hover);
-}
-.is-red {
-  background-color: var(--accent-hover);
-  color: var(--text-color--text-tertiary);
+  color: var(--on-accent);
 }
 
-/* ---------- Eyebrow pill ---------- */
+.is-light-pink {
+  background-color: var(--surface-control-hover);
+}
+
+.is-red {
+  background-color: var(--error);
+  color: var(--on-error);
+}
 
 .eyebrow {
-  border: 1px solid var(--text-muted);
-  border-radius: var(--radius--round);
-  background-color: var(--bg-primary);
-  color: var(--text-muted);
-  padding: 0.375rem 1rem 0.25rem;
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+  background-color: var(--surface-control);
+  color: var(--text-subtle);
   font-family: var(--text-color--font-family--heading);
   font-size: 0.75rem;
   font-weight: 600;
-  text-transform: none;
-  letter-spacing: 0.08em;
-}
-
-/* ---------- Pill buttons ---------- */
-
-.btn-shell {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.625rem 1.25rem;
-  border: 1px solid var(--text-secondary);
-  background-color: var(--bg-primary);
-  color: var(--text-color--text-primary);
-  font-family: var(--text-color--font-family--heading);
-  font-size: 0.875rem;
-  font-weight: 700;
-  text-transform: none;
-  letter-spacing: 0.04em;
-  border-radius: 100vw;
-  transition:
-    background-color 150ms ease,
-    color 150ms ease,
-    transform 150ms ease;
-  cursor: pointer;
-}
-.btn-shell:hover {
-  background-color: var(--text-secondary);
-  color: var(--text-color--text-tertiary);
-}
-.btn-shell:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.btn-cinamon {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1.5rem;
-  border: none;
-  background-color: var(--accent);
-  color: var(--text-color--text-tertiary);
-  font-family: var(--text-color--font-family--heading);
-  font-size: 0.875rem;
-  font-weight: 700;
-  text-transform: none;
-  letter-spacing: 0.04em;
-  border-radius: 100vw;
-  box-shadow: 0 4px 0 0 var(--accent-shadow);
-  transition:
-    background-color 150ms ease,
-    box-shadow 150ms ease,
-    transform 150ms ease;
-  cursor: pointer;
-}
-.btn-cinamon:hover {
-  background-color: var(--accent-hover);
-  box-shadow: 0 4px 0 0 var(--accent-shadow);
-}
-.btn-cinamon:active {
-  transform: translateY(2px);
-  box-shadow: 0 2px 0 0 var(--accent-shadow);
-}
-.btn-cinamon:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  transform: none;
+  letter-spacing: 0;
 }
 
 .btn-sm {
-  padding: 0.5rem 1rem;
+  min-height: 28px;
+  padding-inline: 10px;
   font-size: 0.8125rem;
 }
-.btn-cinamon.btn-sm {
-  box-shadow: 0 3px 0 0 var(--accent-shadow);
-}
-.btn-cinamon.btn-sm:active {
-  box-shadow: 0 1px 0 0 var(--accent-shadow);
-}
-
-/* ---------- Form inputs ---------- */
 
 .form-input-pill {
-  border-radius: var(--radius--round);
-  background-color: var(--bg-primary);
-  color: var(--text-color--text-primary);
-  border: 1px solid var(--text-muted);
-  padding: 0.625rem 1.25rem;
-  font-size: 0.875rem;
-  font-family: var(--text-color--font-family--body);
-  transition: border-color 150ms ease;
-}
-.form-input-pill:focus {
-  outline: none;
-  border-color: var(--text-secondary);
-}
-.form-input-pill::placeholder {
-  color: rgba(35, 16, 12, 0.6);
+  border-radius: var(--radius-pill);
 }
 
 .form-input-rounded {
-  border-radius: 1rem;
-  background-color: var(--bg-primary);
-  color: var(--text-color--text-primary);
-  border: 1px solid var(--text-muted);
-  padding: 0.625rem 1rem;
-  font-size: 0.875rem;
-  font-family: var(--text-color--font-family--body);
+  border-radius: var(--radius-control);
 }
-.form-input-rounded:focus {
-  outline: none;
-  border-color: var(--text-secondary);
-}
-.form-input-rounded::placeholder {
-  color: rgba(35, 16, 12, 0.6);
-}
-
-/* ---------- Surfaces ---------- */
 
 .surface-card {
-  background-color: var(--bg-secondary);
-  border: 1px solid rgba(122, 68, 50, 0.3);
-  border-radius: 1.25rem;
+  background-color: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}
+
+:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
 }

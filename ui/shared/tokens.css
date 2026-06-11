@@ -127,7 +127,7 @@
      etc., and these semantic tokens cascade through.) */
   --text-color--text-primary: var(--text-primary);
   --text-color--text-secondary: var(--text-secondary);
-  --text-color--text-tertiary: #fff;            /* high-contrast text on filled accent surfaces */
+  --text-color--text-tertiary: var(--on-accent); /* high-contrast text on filled accent surfaces */
   --text-color--text-success: var(--text-primary);
   --text-color--text-error: var(--text-primary);
   --background-color--background-primary: var(--bg-primary);

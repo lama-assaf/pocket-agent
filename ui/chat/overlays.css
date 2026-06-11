@@ -12,13 +12,14 @@
 .modal-overlay.show { display: flex; }
 
 .modal {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  background: var(--surface-panel);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow-popover);
   width: 90%;
   max-width: 360px;
   overflow: hidden;
-  animation: modalIn 0.2s ease;
+  animation: modalIn var(--duration-standard) var(--ease-standard);
 }
 
 @keyframes modalIn {
@@ -28,19 +29,19 @@
 
 .modal-header {
   padding: 14px 16px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--border-subtle);
   display: flex;
   align-items: center;
   gap: 12px;
-  background: var(--bg-secondary);
+  background: var(--surface-panel);
 }
 
 .modal-icon {
   width: 40px;
   height: 40px;
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border);
-  border-radius: 10px;
+  background: var(--surface-control);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -86,7 +87,7 @@
   height: 28px;
   background: transparent;
   border: 1px solid color-mix(in srgb, var(--text-muted) 28%, transparent);
-  border-radius: 100vw;
+  border-radius: var(--radius-pill);
   color: var(--text-muted);
   cursor: pointer;
   padding: 0;
@@ -102,7 +103,7 @@
 .modal-close:hover {
   background: color-mix(in srgb, var(--accent-shadow) 14%, transparent);
   border-color: var(--accent-shadow);
-  color: var(--accent-shadow);
+  color: var(--error-readable);
 }
 
 .modal-body {
@@ -135,10 +136,10 @@
   align-items: center;
   gap: 10px;
   padding: 10px 12px;
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  color: var(--text-primary);
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card);
+  color: var(--text-body);
   text-decoration: none;
   font-size: 13px;
   transition: all 0.15s;
@@ -146,14 +147,14 @@
 }
 
 .about-link:hover {
-  border-color: var(--accent);
-  background: rgba(255, 136, 0, 0.1);
+  border-color: transparent;
+  background: var(--surface-control-hover);
 }
 
 .about-link svg {
   width: 18px;
   height: 18px;
-  color: var(--accent);
+  color: var(--accent-readable);
   flex-shrink: 0;
 }
 
@@ -182,23 +183,23 @@
   display: flex;
 }
 .plan-approval-panel {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  background: var(--surface-panel);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-panel);
   width: 100%;
   max-width: 640px;
   max-height: 70vh;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
-  animation: modalIn 0.2s ease;
+  box-shadow: var(--shadow-popover);
+  animation: modalIn var(--duration-standard) var(--ease-standard);
 }
 .plan-approval-header {
   padding: 16px 20px;
   font-family: 'Cal Sans', sans-serif;
   font-size: 16px;
-  color: var(--accent);
-  border-bottom: 1px solid var(--border);
+  color: var(--accent-readable);
+  border-bottom: 1px solid var(--border-subtle);
   flex-shrink: 0;
 }
 .plan-approval-body {
@@ -207,17 +208,17 @@
   flex: 1;
   font-size: 13px;
   line-height: 1.6;
-  color: var(--text-primary);
+  color: var(--text-body);
 }
 .plan-approval-body pre {
-  background: var(--bg-tertiary);
-  border-radius: 8px;
+  background: var(--surface-control);
+  border-radius: var(--radius-control);
   padding: 12px;
   overflow-x: auto;
   font-size: 12px;
 }
 .plan-approval-body code {
-  background: var(--bg-tertiary);
+  background: var(--surface-control);
   padding: 2px 6px;
   border-radius: 4px;
   font-size: 12px;
@@ -228,16 +229,16 @@
 }
 .plan-approval-actions {
   padding: 12px 20px;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--border-subtle);
   flex-shrink: 0;
 }
 .plan-feedback-input {
   display: block;
   width: 100%;
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  color: var(--text-primary);
+  background: var(--surface-control);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control);
+  color: var(--text-body);
   font-family: 'Roboto', sans-serif;
   font-size: 13px;
   padding: 10px 12px;
@@ -245,12 +246,12 @@
   outline: none;
 }
 .plan-feedback-input:focus {
-  border-color: var(--accent);
+  border-color: var(--border-subtle);
 }
 .plan-btn {
   padding: 8px 20px;
   border: none;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-control);
   font-family: 'Cal Sans', sans-serif;
   font-size: 14px;
   cursor: pointer;
@@ -259,12 +260,12 @@
 .plan-btn:hover { opacity: 0.85; }
 .plan-btn-approve {
   background: var(--accent);
-  color: white;
+  color: var(--on-accent);
 }
 .plan-btn-reject {
-  background: var(--bg-tertiary);
-  color: var(--text-secondary);
-  border: 1px solid var(--border);
+  background: var(--surface-control);
+  color: var(--text-body);
+  border: 1px solid var(--border-subtle);
 }
 
 /* Drag and Drop Overlay */
@@ -293,15 +294,16 @@
   align-items: center;
   gap: 16px;
   padding: 48px 64px;
-  background: var(--bg-secondary);
-  border: 2px dashed var(--accent);
-  border-radius: 16px;
+  background: var(--surface-panel);
+  border: 2px dashed var(--border-strong);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow-popover);
 }
 
 .drag-overlay-icon {
   width: 64px;
   height: 64px;
-  color: var(--accent);
+  color: var(--accent-readable);
   animation: bounce 0.6s ease infinite;
 }
 
@@ -313,7 +315,7 @@
 .drag-overlay-text {
   font-size: 18px;
   font-weight: 500;
-  color: var(--text-primary);
+  color: var(--text-body);
 }
 
 .drag-overlay-hint {

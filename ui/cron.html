@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="shared/base.css">
   <style>
     header {
-      background: var(--bg-secondary);
+      background: var(--surface-panel);
       padding: 10px 16px;
       display: flex;
       justify-content: space-between;
@@ -63,7 +63,7 @@
     }
 
     .content::-webkit-scrollbar-thumb {
-      background: var(--border);
+      background: var(--border-subtle);
       border-radius: 3px;
     }
 
@@ -87,9 +87,9 @@
 
     /* Settings Grid - matching settings.html */
     .settings-grid {
-      background: var(--bg-secondary);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-sm);
+      background: var(--surface-panel);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-control);
       overflow: hidden;
     }
 
@@ -106,7 +106,7 @@
     }
 
     .setting-row:hover {
-      background: var(--bg-tertiary);
+      background: var(--surface-card);
     }
 
     .setting-row label {
@@ -169,8 +169,8 @@
 
     .schedule-tab {
       padding: 5px 10px;
-      background: var(--bg-primary);
-      border: 1px solid var(--border);
+      background: var(--surface-canvas);
+      border: 1px solid var(--border-subtle);
       border-radius: 6px;
       color: var(--text-muted);
       font-size: 11px;
@@ -220,8 +220,8 @@
       width: 36px;
       height: 28px;
       border: 1px solid color-mix(in srgb, var(--text-muted) 30%, transparent);
-      border-radius: 100vw;
-      background: var(--bg-primary);
+      border-radius: var(--radius-pill);
+      background: var(--surface-canvas);
       color: var(--text-muted);
       font-family: var(--text-color--font-family--heading);
       font-size: 11px;
@@ -243,7 +243,7 @@
     .day-btn.selected {
       background: var(--accent);
       border-color: var(--accent);
-      color: var(--bg-primary);
+      color: var(--surface-canvas);
     }
 
     /* Interval input */
@@ -301,7 +301,7 @@
     }
 
     .job-item:hover {
-      background: var(--bg-tertiary);
+      background: var(--surface-card);
     }
 
     @keyframes fadeIn {
@@ -352,7 +352,7 @@
 
     .job-schedule {
       font-size: 11px;
-      color: var(--accent);
+      color: var(--accent-readable);
       font-weight: 500;
     }
 

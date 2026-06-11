@@ -1,6 +1,6 @@
 /* Code blocks in messages */
 .message code {
-  background: rgba(0, 0, 0, 0.3);
+  background: var(--surface-control);
   padding: 2px 6px;
   border-radius: 4px;
   font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
@@ -8,9 +8,9 @@
 }
 
 .message pre {
-  background: rgba(0, 0, 0, 0.4);
+  background: var(--surface-card);
   padding: 12px;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-control);
   overflow-x: auto;
   margin: 8px 0;
 }
@@ -95,18 +95,18 @@
 }
 
 .message.user a {
-  color: #bfdbfe;
-  text-decoration-color: rgba(191, 219, 254, 0.4);
+  color: var(--on-user-bubble);
+  text-decoration-color: currentColor;
 }
 
 .message.user a:hover {
-  color: #ffffff;
-  text-decoration-color: rgba(255, 255, 255, 0.6);
+  color: var(--on-user-bubble);
+  text-decoration-color: currentColor;
 }
 
 .message hr {
   border: none;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--border-subtle);
   margin: 0.6em 0;
 }
 
@@ -131,7 +131,7 @@
 }
 
 .message th, .message td {
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-subtle);
   padding: 0.4em 0.6em;
   text-align: left;
   overflow-wrap: anywhere;
@@ -139,7 +139,7 @@
 }
 
 .message th {
-  background: var(--bg-tertiary);
+  background: var(--surface-card);
 }
 
 .message strong { font-weight: 600; }
