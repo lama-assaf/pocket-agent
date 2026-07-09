@@ -22,7 +22,7 @@
 - **Content delivery (marketplace):** packs are NOT compiled into `src/`. Runtime-canonical content lives at `<userData>/plugins/<id>/` (`app.getPath('userData')`, as used in `src/main/index.ts:444`). A small **seed** copy ships as a build resource for offline first-run only. `PackSyncManager` keeps the userData copy fresh from the og GitHub repos (`lama-assaf/atelier`, `lama-assaf/salon`).
 - **Sync = seed-then-update:** on first run, if `<userData>/plugins/<id>` is empty, copy the seed in. Then, on **startup (background)** and on a **manual button**, fetch the latest commit sha and, if changed, download+extract the repo tarball. Sync failures are non-fatal (last good copy keeps working offline).
 - Tarball extraction uses the `tar` npm package — add it to `dependencies` if absent (`npm i tar`).
-- `getPluginsRoot()` returns `<userData>/plugins`. In unit tests, `PACK_ROOT_OVERRIDE` env var points it at a fixture dir.
+- `getPluginsRoot()` returns `<userData>/plugins` in production (injected by main via `setPluginsRoot()` — the marketplace module never imports electron). Resolution order: `PACK_ROOT_OVERRIDE` env (tests) → injected value → bundled seed (fallback). This project is ESM (`"type":"module"`): reconstruct `__dirname` via `fileURLToPath(import.meta.url)`; never use `require()` or bare `__dirname`.
 
 ---
 
@@ -139,27 +139,33 @@ export interface LoadedPack {
 
 ```ts
 // src/marketplace/paths.ts
+// This project is genuine ESM ("type":"module", tsconfig module ES2022). Do NOT use
+// require()/bare __dirname — reconstruct __dirname via import.meta.url like the rest of
+// src/main/ does (src/main/index.ts:7-8). Keep electron OUT of this module so unit tests
+// need no electron runtime: the main process injects the userData path via setPluginsRoot().
 import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
 
-/**
- * Runtime-canonical plugins dir: <userData>/plugins. Synced from og repos.
- * In unit tests, PACK_ROOT_OVERRIDE points at a fixture dir (avoids importing electron).
- */
-export function getPluginsRoot(): string {
-  if (process.env.PACK_ROOT_OVERRIDE) return process.env.PACK_ROOT_OVERRIDE;
-  try {
-    // Lazy require so tests don't need electron. Matches src/main/index.ts:444.
-    const { app } = require('electron');
-    if (app?.getPath) return path.join(app.getPath('userData'), 'plugins');
-  } catch { /* not running under electron (unit tests) */ }
-  return getSeedRoot(); // non-electron fallback → read seed content directly
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+let pluginsRootOverride: string | null = null;
+
+/** Called once by the Electron main process at startup with <userData>/plugins. */
+export function setPluginsRoot(dir: string): void {
+  pluginsRootOverride = dir;
 }
 
 /**
- * Bundled seed (offline fallback). Packaged: <resources>/seed-plugins; dev: src/marketplace/seed.
+ * Runtime-canonical plugins dir. Resolution order: PACK_ROOT_OVERRIDE (tests) →
+ * value injected by main via setPluginsRoot() (production) → bundled seed (fallback).
  */
+export function getPluginsRoot(): string {
+  return process.env.PACK_ROOT_OVERRIDE || pluginsRootOverride || getSeedRoot();
+}
+
+/** Bundled seed (offline fallback). Packaged: <resources>/seed-plugins; dev: src/marketplace/seed. */
 export function getSeedRoot(): string {
-  const fs = require('fs');
   const packaged = path.join(process.resourcesPath || '', 'seed-plugins');
   if (process.resourcesPath && fs.existsSync(packaged)) return packaged;
   return path.join(__dirname, 'seed');
@@ -173,7 +179,7 @@ export function getSeedRoot(): string {
 import { describe, it, expect } from 'vitest';
 import fs from 'fs';
 import path from 'path';
-import { getSeedRoot, getPluginsRoot } from '../../src/marketplace/paths';
+import { getSeedRoot, getPluginsRoot, setPluginsRoot } from '../../src/marketplace/paths';
 
 describe('marketplace paths', () => {
   it('seed root contains atelier and salon plugin.json', () => {
@@ -186,8 +192,15 @@ describe('marketplace paths', () => {
     expect(getPluginsRoot()).toBe('/tmp/fixture-plugins');
     delete process.env.PACK_ROOT_OVERRIDE;
   });
+  it('falls back to setPluginsRoot value, then to seed', () => {
+    setPluginsRoot('/tmp/injected-plugins');
+    expect(getPluginsRoot()).toBe('/tmp/injected-plugins');
+    setPluginsRoot(''); // clear injection → falls through to seed root
+    expect(getPluginsRoot()).toBe(getSeedRoot());
+  });
 });
 ```
+> Note: `setPluginsRoot('')` clears the injection (empty string is falsy), so `getPluginsRoot()` falls through to the seed. Keep this test last so it doesn't leave a stale override for other cases.
 
 - [ ] **Step 5: Run test — expect PASS.** Run: `npx vitest run tests/unit/marketplace-paths.test.ts`
 
@@ -1568,11 +1581,13 @@ git commit -m "feat(commands): expose namespaced atelier/salon commands to deskt
 
 - [ ] **Step 1: Wire the sync manager into startup (deferred from Task 1B)**
 
-In `src/main/index.ts`, after the app is ready and userData is known (near the existing `app.getPath('userData')` usage, ~line 444/695), add (non-blocking, offline-safe):
+In `src/main/index.ts`, after the app is ready and userData is known (near the existing `app.getPath('userData')` usage, ~line 444/695), add (non-blocking, offline-safe). Call `setPluginsRoot` FIRST so the marketplace module resolves to `<userData>/plugins` (it never imports electron itself):
 ```ts
+import { setPluginsRoot } from '../marketplace/paths';
 import { PackSyncManager } from '../marketplace/sync';
 import { PACK_SOURCES } from '../marketplace/registry';
-// ...inside the ready/init path:
+// ...inside the ready/init path (app is imported statically at top of this file):
+setPluginsRoot(path.join(app.getPath('userData'), 'plugins'));
 const packSync = new PackSyncManager(PACK_SOURCES);
 await packSync.ensureInstalled();               // seeds <userData>/plugins if empty
 void packSync.checkAndUpdate().catch((e) => console.error('[marketplace] update failed', e)); // background
