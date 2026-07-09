@@ -14,6 +14,8 @@ import { createTools as createCoderTools } from '@kenkaiiii/ggcoder';
 import { getCustomTools, ToolsConfig } from '../tools';
 import { wrapToolHandler } from '../tools/diagnostics';
 import { createSubAgentTool } from '../tools/subagent';
+import { getMemoryManager } from '../tools/memory-tools';
+import { AtelierMemoryBridge } from '../memory/atelier-bridge';
 import { skillsForLane } from '../marketplace/registry';
 import type { LaneId } from '../marketplace/types';
 import { getStreamConfig } from './chat-providers';
@@ -111,13 +113,30 @@ function wrapWithWritePathSafety(tool: AgentTool): AgentTool {
             return `Write blocked by tone guard: ${warning}`;
           }
           const result = await originalExecute(args as never, context);
+          notifyAtelierMemoryWrite(filePath);
           return `${warning}\n\n${result}`; // non-blocking: warn + still write
         }
       }
 
-      return originalExecute(args as never, context);
+      const result = await originalExecute(args as never, context);
+      notifyAtelierMemoryWrite(filePath);
+      return result;
     },
   } as AgentTool;
+}
+
+/**
+ * Hook 3: post-write mirror sync.
+ * Fire-and-forget re-sync of the .atelier/memory tree into SQLite
+ * whenever a write/edit lands inside it (memory_init also does this,
+ * but this keeps the mirror fresh for edits made outside memory_init).
+ */
+function notifyAtelierMemoryWrite(filePath: unknown): void {
+  if (typeof filePath !== 'string' || !filePath.includes('.atelier/memory')) return;
+  const memory = getMemoryManager();
+  if (!memory) return;
+  const projectDir = filePath.split('.atelier')[0];
+  void new AtelierMemoryBridge(memory).onMemoryFileWritten(filePath, projectDir);
 }
 
 const WRITE_TOOL_NAMES = new Set(['write', 'edit', 'Write', 'Edit']);

@@ -13,6 +13,10 @@ export function setMemoryManager(memory: MemoryManager): void {
   memoryManager = memory;
 }
 
+export function getMemoryManager(): MemoryManager | null {
+  return memoryManager;
+}
+
 /**
  * Remember tool definition
  */

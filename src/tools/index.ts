@@ -17,6 +17,7 @@ import { getSchedulerTools } from './scheduler-tools';
 import { getNotifyToolDefinition, handleNotifyTool } from './macos';
 import { getProjectTools } from './project-tools';
 import { getSwitchAgentTool } from './agent-mode-tools';
+import { getAtelierMemoryTools } from './atelier-memory-tools';
 import { logActiveToolsStatus } from './diagnostics';
 
 export { logActiveToolsStatus } from './diagnostics';
@@ -175,6 +176,17 @@ export function getCustomTools(config: ToolsConfig): Array<{
   // Project tools
   const projectTools = getProjectTools();
   for (const tool of projectTools) {
+    tools.push({
+      name: tool.name,
+      description: tool.description,
+      input_schema: tool.input_schema as Record<string, unknown>,
+      handler: tool.handler,
+    });
+  }
+
+  // Atelier memory-init tool
+  const atelierMemoryTools = getAtelierMemoryTools();
+  for (const tool of atelierMemoryTools) {
     tools.push({
       name: tool.name,
       description: tool.description,
