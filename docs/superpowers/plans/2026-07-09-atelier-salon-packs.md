@@ -897,8 +897,8 @@ git commit -m "feat(rules): inject per-lane operator rules into system prompt"
 - Test: `tests/unit/lane-skills.test.ts`
 
 **Interfaces:**
-- Consumes: `skillsForLane`, ggcoder `createSkillTool`, `formatSkillsForPrompt`.
-- Produces: `getChatAgentTools(config, cwd, lane?)` adds a `skill` tool for the lane; `formatLaneSkills(lane): string`.
+- Consumes: `skillsForLane` (our registry — it already returns each skill's `{name, description, content}`). NOTE: ggcoder's `createSkillTool`/`formatSkillsForPrompt` are NOT exported from `@kenkaiiii/ggcoder` (the package `exports` field blocks those subpaths), so we build a self-contained skill tool + format the list ourselves.
+- Produces: `getChatAgentTools(config, cwd, lane?)` adds a self-contained `skill` tool for the lane; `formatLaneSkills(lane): string`.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -924,35 +924,55 @@ describe('formatLaneSkills', () => {
 
 - [ ] **Step 3: Implement `formatLaneSkills`** (in `src/agent/lane-context.ts`)
 
+Format our own registry skills (name + description only; full body loads on demand via the `skill` tool). Do NOT use ggcoder's `formatSkillsForPrompt` (not exported).
 ```ts
-import { formatSkillsForPrompt } from '@kenkaiiii/ggcoder';
 import { skillsForLane } from '../marketplace/registry';
+// (LaneId is already imported at the top of lane-context.ts)
 
 export function formatLaneSkills(lane: LaneId): string {
   const skills = skillsForLane(lane);
   if (!skills.length) return '';
-  return formatSkillsForPrompt(skills);
+  return skills.map((s) => `- **${s.name}**: ${s.description}`).join('\n');
 }
 ```
 
-- [ ] **Step 4: Add the skill tool to chat tools**
+- [ ] **Step 4: Add a self-contained skill tool to chat tools**
 
-In `src/agent/chat-tools.ts`, extend the signature and add the tool:
+In `src/agent/chat-tools.ts` (which already imports `z` from 'zod' and `AgentTool`/`ToolContext` from '@kenkaiiii/gg-agent'), add a factory that builds a `skill` tool from our registry, and push it in `getChatAgentTools` BEFORE the existing `createSubAgentTool(...)` line (the subagent tool must stay last):
 ```ts
-import { createSkillTool } from '@kenkaiiii/ggcoder';
 import { skillsForLane } from '../marketplace/registry';
 import type { LaneId } from '../marketplace/types';
 
+// ggcoder's createSkillTool isn't exported; our registry already holds each
+// skill's full content, so build our own on-demand skill loader.
+function buildLaneSkillTool(lane: LaneId): AgentTool {
+  const skills = skillsForLane(lane);
+  const names = skills.map((s) => s.name);
+  const parameters = z.object({
+    skill: z.string().describe(`Skill name to load. One of: ${names.join(', ')}`),
+  });
+  return {
+    name: 'skill',
+    description: `Load a lane skill's full workflow by name when a request matches it. Available: ${names.join(', ')}.`,
+    parameters,
+    execute: async (input: unknown, _context: ToolContext) => {
+      const { skill } = input as z.infer<typeof parameters>;
+      const found = skills.find((s) => s.name === skill);
+      return found ? found.content : `Unknown skill "${skill}". Available: ${names.join(', ')}`;
+    },
+  };
+}
+
 export function getChatAgentTools(config: ToolsConfig, cwd: string, lane?: LaneId): AgentTool[] {
-  // ...existing body...
-  if (lane) {
-    const skills = skillsForLane(lane);
-    if (skills.length) tools.push(createSkillTool(skills));
+  // ...existing body that builds `tools`...
+  if (lane && skillsForLane(lane).length) {
+    tools.push(buildLaneSkillTool(lane)); // add BEFORE the createSubAgentTool line
   }
-  // sub-agent tool line stays last
+  tools.push(createSubAgentTool(tools, getStreamConfig)); // existing last line — unchanged
   return tools;
 }
 ```
+> The signature gains `lane?: LaneId`. Existing callers that pass only `(config, cwd)` still compile (lane is optional).
 
 - [ ] **Step 5: Pass lane + inject skill list in the engine**
 
@@ -979,7 +999,7 @@ if (laneForSkills) {
 ```bash
 npx vitest run tests/unit/lane-skills.test.ts && npm run typecheck && npm run lint
 git add src/agent/chat-tools.ts src/agent/chat-engine.ts src/agent/lane-context.ts tests/unit/lane-skills.test.ts
-git commit -m "feat(skills): enable ggcoder skill discovery per lane in chat modes"
+git commit -m "feat(skills): per-lane skill tool + skill list in chat-mode system prompt"
 ```
 
 ---
