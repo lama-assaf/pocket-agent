@@ -213,13 +213,13 @@ git commit -m "feat(marketplace): types, userData/seed path resolution, seed con
 **Files:**
 - Create: `src/marketplace/sync.ts`
 - Modify: `package.json` (add `tar` dep)
-- Modify: `src/main/index.ts` (startup: ensureInstalled + background checkAndUpdate)
-- Modify: `src/main/ipc/settings-ipc.ts` (manual `marketplace:checkUpdates`)
 - Test: `tests/unit/marketplace-sync.test.ts`
 
+> Startup + manual-IPC **wiring** is deferred to Task 13 (it imports `PACK_SOURCES`, which is created in Task 3). This task builds a self-contained sync module: `PackSyncManager` takes `sources` as a constructor arg, so it depends only on the `PackSource` *type* (Task 1) — no registry import.
+
 **Interfaces:**
-- Consumes: `PACK_SOURCES` (Task 3 — for tests, pass sources in), `getPluginsRoot`, `getSeedRoot`.
-- Produces: `class PackSyncManager { ensureInstalled(): Promise<void>; checkAndUpdate(): Promise<{id;updated;sha}[]> }`, and `installSeed(seedRoot, pluginsRoot, id)`, `latestSha(repo,branch)`, `extractTarball(buf, destDir)` helpers.
+- Consumes: `PackSource` type + `getPluginsRoot`/`getSeedRoot` (Task 1). NOT `PACK_SOURCES` (tests pass sources inline).
+- Produces: `class PackSyncManager { constructor(sources: PackSource[]); ensureInstalled(): Promise<void>; checkAndUpdate(): Promise<{id;updated;sha}[]> }`, and `installSeed(seedRoot, pluginsRoot, id)`, `latestSha(repo,branch)`, `updatePack(source, destDir)` helpers.
 
 - [ ] **Step 1: Add the tar dependency**
 
@@ -347,32 +347,11 @@ export class PackSyncManager {
 
 - [ ] **Step 5: Run test — expect PASS.** Run: `npx vitest run tests/unit/marketplace-sync.test.ts`
 
-- [ ] **Step 6: Wire startup + manual IPC**
-
-In `src/main/index.ts`, after the app is ready and userData is known, add (non-blocking):
-```ts
-import { PackSyncManager } from '../marketplace/sync';
-import { PACK_SOURCES } from '../marketplace/registry';
-// ...
-const sync = new PackSyncManager(PACK_SOURCES);
-await sync.ensureInstalled();               // offline-safe: seeds if empty
-void sync.checkAndUpdate().catch((e) => console.error('[marketplace] update failed', e)); // background
-```
-In `src/main/ipc/settings-ipc.ts`, add:
-```ts
-ipcMain.handle('marketplace:checkUpdates', async () => {
-  const { PackSyncManager } = await import('../../marketplace/sync');
-  const { PACK_SOURCES } = await import('../../marketplace/registry');
-  return new PackSyncManager(PACK_SOURCES).checkAndUpdate();
-});
-```
-(Expose a "Check for updates" button in the settings UI that calls this handler — UI wiring mirrors existing settings buttons.)
-
-- [ ] **Step 7: typecheck + lint. Commit**
+- [ ] **Step 6: typecheck + lint. Commit** (startup/IPC wiring lands in Task 13)
 
 ```bash
 npm run typecheck && npm run lint
-git add src/marketplace/sync.ts src/main/index.ts src/main/ipc/settings-ipc.ts package.json package-lock.json tests/unit/marketplace-sync.test.ts
+git add src/marketplace/sync.ts package.json package-lock.json tests/unit/marketplace-sync.test.ts
 git commit -m "feat(marketplace): sync manager — seed on first run, update from og repos"
 ```
 
@@ -393,12 +372,14 @@ git commit -m "feat(marketplace): sync manager — seed on first run, update fro
 ```ts
 // tests/unit/marketplace-loader.test.ts
 import { describe, it, expect } from 'vitest';
-import { PACK_SOURCES } from '../../src/marketplace/registry';
+import type { PackSource } from '../../src/marketplace/types';
 import { readPack } from '../../src/marketplace/loader';
+
+// Inline source so this task is self-contained (no dependency on Task 3's registry).
+const atelier: PackSource = { id: 'atelier', name: 'Atelier', lanes: ['design', 'product', 'brand'], repo: 'lama-assaf/atelier', branch: 'main' };
 
 describe('readPack', () => {
   it('loads atelier agents, skills, commands, rules', () => {
-    const atelier = PACK_SOURCES.find((p) => p.id === 'atelier')!;
     const loaded = readPack(atelier);
     expect(loaded.agents.length).toBeGreaterThanOrEqual(14);
     expect(loaded.skills.length).toBeGreaterThanOrEqual(30);
@@ -410,13 +391,12 @@ describe('readPack', () => {
     expect(rule.hash).toMatch(/^[a-f0-9]{64}$/);
   });
   it('skips malformed files without throwing', () => {
-    const atelier = PACK_SOURCES.find((p) => p.id === 'atelier')!;
     expect(() => readPack(atelier)).not.toThrow();
   });
 });
 ```
 
-- [ ] **Step 2: Run — expect FAIL** (`readPack`/`PACK_SOURCES` not defined). Run: `npx vitest run tests/unit/marketplace-loader.test.ts`
+- [ ] **Step 2: Run — expect FAIL** (`readPack` not defined). Run: `npx vitest run tests/unit/marketplace-loader.test.ts`
 
 - [ ] **Step 3: Implement the loader**
 
@@ -542,7 +522,7 @@ export function loadAllPacks(sources: PackSource[]): LoadedPack[] {
 }
 ```
 
-- [ ] **Step 4: Run — expect PASS.** Run: `npx vitest run tests/unit/marketplace-loader.test.ts` (requires Task 3's `registry.ts`; if running standalone, create `registry.ts` first per Task 3 Step 3).
+- [ ] **Step 4: Run — expect PASS.** Run: `npx vitest run tests/unit/marketplace-loader.test.ts` (self-contained — reads seed content via the non-electron fallback in `getPluginsRoot`).
 
 - [ ] **Step 5: Commit**
 
@@ -1578,33 +1558,56 @@ git commit -m "feat(commands): expose namespaced atelier/salon commands to deskt
 
 ---
 
-## Task 13: Full-suite verification + feature flag default
+## Task 13: Startup/IPC wiring + verification + feature flag default
 
 **Files:**
+- Modify: `src/main/index.ts` (startup: `ensureInstalled` + background `checkAndUpdate`)
+- Modify: `src/main/ipc/settings-ipc.ts` (manual `marketplace:checkUpdates` handler)
 - Modify: `src/settings/index.ts` (default `features.operatorPacks='true'` if a defaults map exists)
 - Test: run the whole suite
 
-- [ ] **Step 1: Set the default flag** where settings defaults live (search `features.` in `src/settings/`), add `features.operatorPacks` default `'true'`. If defaults are implicit (read with fallback), ensure every `SettingsManager.get('features.operatorPacks')` call treats `undefined` as enabled (`!== 'false'`).
+- [ ] **Step 1: Wire the sync manager into startup (deferred from Task 1B)**
 
-- [ ] **Step 2: Run the entire suite**
+In `src/main/index.ts`, after the app is ready and userData is known (near the existing `app.getPath('userData')` usage, ~line 444/695), add (non-blocking, offline-safe):
+```ts
+import { PackSyncManager } from '../marketplace/sync';
+import { PACK_SOURCES } from '../marketplace/registry';
+// ...inside the ready/init path:
+const packSync = new PackSyncManager(PACK_SOURCES);
+await packSync.ensureInstalled();               // seeds <userData>/plugins if empty
+void packSync.checkAndUpdate().catch((e) => console.error('[marketplace] update failed', e)); // background
+```
+In `src/main/ipc/settings-ipc.ts`, add a manual handler (mirrors existing `ipcMain.handle` blocks):
+```ts
+ipcMain.handle('marketplace:checkUpdates', async () => {
+  const { PackSyncManager } = await import('../../marketplace/sync');
+  const { PACK_SOURCES } = await import('../../marketplace/registry');
+  return new PackSyncManager(PACK_SOURCES).checkAndUpdate();
+});
+```
+(A "Check for updates" settings button calling this handler is optional UI polish — wire it the way existing settings buttons are wired; not required for this task's tests.)
+
+- [ ] **Step 2: Set the default flag** where settings defaults live (search `features.` in `src/settings/`), add `features.operatorPacks` default `'true'`. If defaults are implicit (read with fallback), ensure every `SettingsManager.get('features.operatorPacks')` call treats `undefined` as enabled (`!== 'false'`).
+
+- [ ] **Step 3: Run the entire suite**
 
 Run: `npm run test`
-Expected: all pass, including the 11 new test files.
+Expected: all pass, including the new test files.
 
-- [ ] **Step 3: Full quality gate**
+- [ ] **Step 4: Full quality gate**
 
 Run: `npm run typecheck && npm run lint`
 Expected: zero errors/warnings.
 
-- [ ] **Step 4: Manual smoke (documented, not automated)**
+- [ ] **Step 5: Manual smoke (documented, not automated)**
 
-Run the app (`npm run dev`), switch to **Design** mode, ask "run a design review on this button: [describe]" — verify: (a) lane rules present in prompt logs, (b) the `skill` tool fires or design-reviewer subagent dispatches, (c) switching modes shows Coder last. Then `/atelier:memory-init` in a project session → `.atelier/memory/` seeded and mirrored (facts UI shows `atelier-memory` rows).
+Run the app (`npm run dev`), switch to **Design** mode, ask "run a design review on this button: [describe]" — verify: (a) lane rules present in prompt logs, (b) the `skill` tool fires or design-reviewer subagent dispatches, (c) switching modes shows Coder last. Then `/atelier:memory-init` in a project session → `.atelier/memory/` seeded and mirrored (facts UI shows `atelier-memory` rows). Confirm `<userData>/plugins/atelier` and `salon` exist after launch.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 git add -A
-git commit -m "chore(packs): default operator-packs feature flag on + suite green"
+git commit -m "chore(marketplace): wire startup sync + default operator-packs flag on"
 ```
 
 ---
