@@ -1,0 +1,13 @@
+{
+  "name": "salon",
+  "version": "0.1.0",
+  "description": "social campaign operator for X, LinkedIn, Discord and Telegram. strategy, platform-native content, engagement and comment playbooks, insight-driven listening.",
+  "author": {
+    "name": "lama-assaf",
+    "url": "https://github.com/lama-assaf"
+  },
+  "homepage": "https://github.com/lama-assaf/salon",
+  "repository": "https://github.com/lama-assaf/salon",
+  "license": "MIT",
+  "keywords": ["social-media", "campaigns", "engagement", "community", "per-project-memory"]
+}

@@ -142,6 +142,11 @@
       {
         "from": ".claude/",
         "to": "app/.claude/"
+      },
+      {
+        "from": "src/marketplace/seed",
+        "to": "seed-plugins",
+        "filter": ["**/*.md", "**/*.json"]
       }
     ]
   },

@@ -1,0 +1,13 @@
+{
+  "name": "atelier",
+  "version": "0.1.0",
+  "description": "harness-native operator system for design, product and brand work. agents, skills, hooks, rules and commands for ai coding agents.",
+  "author": {
+    "name": "lama-assaf",
+    "url": "https://github.com/lama-assaf"
+  },
+  "homepage": "https://github.com/lama-assaf/atelier",
+  "repository": "https://github.com/lama-assaf/atelier",
+  "license": "MIT",
+  "keywords": ["design-system", "brand-voice", "product-management", "per-project-memory"]
+}
