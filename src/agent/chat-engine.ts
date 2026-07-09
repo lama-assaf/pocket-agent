@@ -30,6 +30,7 @@ import { resolveModel } from './resolve-model';
 import { getProviderForModel } from './providers';
 import { getContextWindow } from './model-catalog';
 import { getChatAgentTools, getCoderAgentTools } from './chat-tools';
+import { formatLaneSkills } from './lane-context';
 import {
   buildSystemPrompt as buildCoderSystemPrompt,
   shouldCompact,
@@ -339,7 +340,11 @@ export class ChatEngine {
       const agentTools =
         sessionMode === 'coder'
           ? getCoderAgentTools(this.toolsConfig, this.getCoderCwd(sessionId))
-          : getChatAgentTools(this.toolsConfig, this.workspace);
+          : getChatAgentTools(
+              this.toolsConfig,
+              this.workspace,
+              getModeConfig(sessionMode).lane ?? undefined
+            );
 
       // Map thinking level
       const thinkingLevel = SettingsManager.get('agent.thinkingLevel') || 'normal';
@@ -791,6 +796,21 @@ export class ChatEngine {
       console.log(
         `[ChatEngine] Mode prompt injected (${sessionMode}): ${modeConfig.systemPrompt.length} chars`
       );
+    }
+
+    // 2a. Lane skill list — names/descriptions only; full body loads on
+    //     demand via the `skill` tool (see chat-tools.ts buildLaneSkillTool)
+    const laneForSkills = modeConfig.lane;
+    if (laneForSkills) {
+      const skillList = formatLaneSkills(laneForSkills);
+      if (skillList) {
+        staticParts.push(
+          `## Available skills (${laneForSkills})\nInvoke by name via the \`skill\` tool when a request matches.\n\n${skillList}`
+        );
+        console.log(
+          `[ChatEngine] Lane skills injected (${laneForSkills}): ${skillList.length} chars`
+        );
+      }
     }
 
     // 2b. Dynamic routing instructions — mode-specific handoff targets

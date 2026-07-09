@@ -14,6 +14,8 @@ import { createTools as createCoderTools } from '@kenkaiiii/ggcoder';
 import { getCustomTools, ToolsConfig } from '../tools';
 import { wrapToolHandler } from '../tools/diagnostics';
 import { createSubAgentTool } from '../tools/subagent';
+import { skillsForLane } from '../marketplace/registry';
+import type { LaneId } from '../marketplace/types';
 import { getStreamConfig } from './chat-providers';
 import { validateBashCommand, validateWritePath } from './safety';
 
@@ -98,10 +100,35 @@ function wrapWithWritePathSafety(tool: AgentTool): AgentTool {
 const WRITE_TOOL_NAMES = new Set(['write', 'edit', 'Write', 'Edit']);
 
 /**
+ * Build a self-contained `skill` tool for the given lane. ggcoder's
+ * createSkillTool/formatSkillsForPrompt aren't exported from
+ * '@kenkaiiii/ggcoder' (blocked by the package's `exports` field), so we
+ * build our own on-demand skill loader from the marketplace registry, which
+ * already holds each skill's full content.
+ */
+function buildLaneSkillTool(lane: LaneId): AgentTool {
+  const skills = skillsForLane(lane);
+  const names = skills.map((s) => s.name);
+  const parameters = z.object({
+    skill: z.string().describe(`Skill name to load. One of: ${names.join(', ')}`),
+  });
+  return {
+    name: 'skill',
+    description: `Load a lane skill's full workflow by name when a request matches it. Available: ${names.join(', ')}.`,
+    parameters,
+    execute: async (input: unknown, _context: ToolContext) => {
+      const { skill } = input as z.infer<typeof parameters>;
+      const found = skills.find((s) => s.name === skill);
+      return found ? found.content : `Unknown skill "${skill}". Available: ${names.join(', ')}`;
+    },
+  };
+}
+
+/**
  * Build the AgentTool array for Chat mode.
  * Wraps each handler with diagnostics and returns AgentTool[] compatible with @kenkaiiii/gg-agent.
  */
-export function getChatAgentTools(config: ToolsConfig, cwd: string): AgentTool[] {
+export function getChatAgentTools(config: ToolsConfig, cwd: string, lane?: LaneId): AgentTool[] {
   const customTools = getCustomTools(config);
   const tools: AgentTool[] = [];
 
@@ -138,6 +165,11 @@ export function getChatAgentTools(config: ToolsConfig, cwd: string): AgentTool[]
 
   // Add shell_command tool
   tools.push(buildShellCommandTool());
+
+  // Add per-lane skill tool (loads full skill content on demand)
+  if (lane && skillsForLane(lane).length) {
+    tools.push(buildLaneSkillTool(lane));
+  }
 
   // Add sub-agent tool (receives parent tools so it can select a subset)
   tools.push(createSubAgentTool(tools, getStreamConfig));
