@@ -653,10 +653,16 @@ app.whenReady().then(async () => {
     // === Operator packs (Atelier + Salon) ===
     // Seed bundled packs on first run, then update from the og repos in the
     // background. The marketplace module never imports Electron — inject userData here.
-    setPluginsRoot(path.join(app.getPath('userData'), 'plugins'));
-    const packSync = new PackSyncManager(PACK_SOURCES);
-    await packSync.ensureInstalled();
-    void packSync.checkAndUpdate().catch((e) => console.error('[marketplace] pack update failed', e));
+    // Isolated in its own try/catch: a seed FS failure must degrade to empty lanes,
+    // never abort core agent initialization further down this block.
+    try {
+      setPluginsRoot(path.join(app.getPath('userData'), 'plugins'));
+      const packSync = new PackSyncManager(PACK_SOURCES);
+      await packSync.ensureInstalled();
+      void packSync.checkAndUpdate().catch((e) => console.error('[marketplace] pack update failed', e));
+    } catch (e) {
+      console.error('[marketplace] pack seeding failed; continuing without operator packs', e);
+    }
 
     // === Power Management ===
     // Let macOS manage power naturally — App Nap may coalesce timers by a few

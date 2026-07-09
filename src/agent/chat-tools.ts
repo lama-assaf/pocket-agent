@@ -84,14 +84,15 @@ function jsonSchemaToZod(
  * delegating to the underlying tool. Blocks writes to dangerous paths (e.g.
  * /etc, ~/.ssh, /System) and returns a string explaining the block.
  *
- * Also runs the marketplace operator packs' anti-AI-tone / banned-words guard
- * (ported from Atelier/Salon) against the content being written. This guard
- * is non-blocking by default: on a hit it still performs the write and
- * prepends a warning to the result, unless `features.toneHardBlock` is
- * explicitly set to 'true', in which case the write is blocked instead.
- * Controlled by `features.operatorPacks` (disable with 'false').
+ * When a `lane` is active (operator-pack modes: design/product/brand/social),
+ * it also runs the packs' anti-AI-tone / banned-words guard (ported from
+ * Atelier/Salon) against the content being written. This guard is scoped to
+ * lane modes so the existing non-lane modes (general/coder/researcher/writer/
+ * therapist) are behavior-unchanged. It is non-blocking by default: on a hit it
+ * still performs the write and prepends a warning, unless `features.toneHardBlock`
+ * is 'true' (block instead). Disable entirely with `features.operatorPacks='false'`.
  */
-function wrapWithWritePathSafety(tool: AgentTool): AgentTool {
+function wrapWithWritePathSafety(tool: AgentTool, lane?: LaneId): AgentTool {
   const originalExecute = tool.execute.bind(tool);
   return {
     ...tool,
@@ -105,7 +106,7 @@ function wrapWithWritePathSafety(tool: AgentTool): AgentTool {
       }
 
       const content = (args as { content?: unknown })?.content;
-      if (typeof content === 'string' && SettingsManager.get('features.operatorPacks') !== 'false') {
+      if (lane && typeof content === 'string' && SettingsManager.get('features.operatorPacks') !== 'false') {
         const { warning } = scanForBannedTone(content);
         if (warning) {
           const hardBlock = SettingsManager.get('features.toneHardBlock') === 'true';
@@ -202,7 +203,7 @@ export function getChatAgentTools(config: ToolsConfig, cwd: string, lane?: LaneI
   const fileToolNames = new Set(['read', 'write', 'edit']);
   for (const t of coderNativeTools) {
     if (fileToolNames.has(t.name)) {
-      tools.push(WRITE_TOOL_NAMES.has(t.name) ? wrapWithWritePathSafety(t) : t);
+      tools.push(WRITE_TOOL_NAMES.has(t.name) ? wrapWithWritePathSafety(t, lane) : t);
     }
   }
 
