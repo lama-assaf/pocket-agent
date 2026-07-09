@@ -62,8 +62,18 @@ export async function updatePack(source: PackSource, destDir: string): Promise<v
   // flatten .claude-plugin/plugin.json → plugin.json
   const nested = path.join(tmp, '.claude-plugin', 'plugin.json');
   if (fs.existsSync(nested)) fs.copyFileSync(nested, path.join(tmp, 'plugin.json'));
-  fs.rmSync(destDir, { recursive: true, force: true });
-  fs.renameSync(tmp, destDir);
+  // Atomic-ish swap: keep the previous install as a backup until the new one is in place.
+  const backup = `${destDir}.bak`;
+  fs.rmSync(backup, { recursive: true, force: true });
+  const hadOld = fs.existsSync(destDir);
+  if (hadOld) fs.renameSync(destDir, backup);
+  try {
+    fs.renameSync(tmp, destDir);
+  } catch (e) {
+    if (hadOld) fs.renameSync(backup, destDir); // restore last good copy
+    throw e;
+  }
+  fs.rmSync(backup, { recursive: true, force: true });
 }
 
 export class PackSyncManager {
