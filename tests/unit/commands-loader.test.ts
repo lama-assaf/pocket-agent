@@ -25,6 +25,14 @@ vi.mock('os', () => ({
   },
 }));
 
+// Isolate this unit: loadWorkflowCommands() now also merges the operator packs'
+// commands (via the marketplace registry, which reads the real filesystem). These
+// tests exercise the user-directory loading path only, so stub the pack source to
+// empty — the pack-command integration is covered by tests/unit/pack-commands.test.ts.
+vi.mock('../../src/marketplace/registry', () => ({
+  commandsForPacks: () => [],
+}));
+
 // Import mocked modules
 import fs from 'fs';
 import os from 'os';
