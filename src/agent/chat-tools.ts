@@ -172,7 +172,7 @@ export function getChatAgentTools(config: ToolsConfig, cwd: string, lane?: LaneI
   }
 
   // Add sub-agent tool (receives parent tools so it can select a subset)
-  tools.push(createSubAgentTool(tools, getStreamConfig));
+  tools.push(createSubAgentTool(tools, getStreamConfig, lane));
 
   return tools;
 }

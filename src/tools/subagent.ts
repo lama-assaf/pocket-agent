@@ -18,6 +18,8 @@ import type { Message } from '@kenkaiiii/gg-ai';
 import type { StreamConfig } from '../agent/chat-providers';
 import { registerSubAgent, updateSubAgent, removeSubAgent } from './subagent-registry';
 import { SettingsManager } from '../settings';
+import { agentsForLane } from '../marketplace/registry';
+import type { LaneId } from '../marketplace/types';
 
 // ── Constants ──
 
@@ -36,10 +38,38 @@ const ALLOWED_SUB_AGENT_TOOLS = new Set([
 const SUB_AGENT_SYSTEM_PROMPT =
   "You are a task worker. Execute the given task completely and efficiently. No small talk, no explanations unless asked. Do the work, report what you did and the result. If something fails, say what failed and why. That's it.";
 
+/** Maps Claude Code tool names (used by marketplace pack agents) to Pocket Agent tool names. */
+const CC_TO_POCKET_TOOL: Record<string, string> = {
+  Read: 'read',
+  Write: 'write',
+  Edit: 'edit',
+  Grep: 'shell_command',
+  Glob: 'shell_command',
+  Bash: 'shell_command',
+  WebFetch: 'web_fetch',
+  WebSearch: 'web_fetch',
+};
+
+/** Look up a named specialist within a lane's pack agents. Returns null if not found. */
+export function resolveSpecialist(lane: LaneId, name: string) {
+  return agentsForLane(lane).find((a) => a.name === name) ?? null;
+}
+
+/** Map Claude Code tool names to Pocket Agent tool names, dropping unknown ones. */
+export function mapAgentTools(tools: string[]): string[] {
+  const out = new Set<string>();
+  for (const t of tools) {
+    const mapped = CC_TO_POCKET_TOOL[t];
+    if (mapped) out.add(mapped);
+  }
+  return [...out];
+}
+
 // ── Parameters ──
 
 const SubAgentParams = z.object({
   task: z.string().describe('The task to delegate to the sub-agent'),
+  agent: z.string().optional().describe('Optional named specialist for this lane'),
 });
 
 // ── Factory ──
@@ -49,15 +79,22 @@ const SubAgentParams = z.object({
  *
  * @param parentTools - The parent agent's full tool array (we pick only allowed ones)
  * @param getStreamConfig - Async function returning current provider/model config
+ * @param lane - Optional lane the caller is operating in; when set, enables dispatch to
+ *   named pack specialists via the `agent` param.
  */
 export function createSubAgentTool(
   parentTools: AgentTool[],
-  getStreamConfig: (model: string) => Promise<StreamConfig>
+  getStreamConfig: (model: string) => Promise<StreamConfig>,
+  lane?: LaneId
 ): AgentTool<typeof SubAgentParams> {
+  const specialistNames = lane ? agentsForLane(lane).map((a) => a.name) : [];
+  const description = specialistNames.length
+    ? `Spawn a clean, isolated sub-agent to handle a focused task. The sub-agent has no memory, no personality, no conversation context — just tools (web_fetch, shell, browser) and a task. Use for work that benefits from isolation or parallelism. Blocks until complete. Optionally set "agent" to dispatch to a named specialist for this lane: ${specialistNames.join(', ')}.`
+    : 'Spawn a clean, isolated sub-agent to handle a focused task. The sub-agent has no memory, no personality, no conversation context — just tools (web_fetch, shell, browser) and a task. Use for work that benefits from isolation or parallelism. Blocks until complete.';
+
   return {
     name: 'subagent',
-    description:
-      'Spawn a clean, isolated sub-agent to handle a focused task. The sub-agent has no memory, no personality, no conversation context — just tools (web_fetch, shell, browser) and a task. Use for work that benefits from isolation or parallelism. Blocks until complete.',
+    description,
     parameters: SubAgentParams,
     execute: async (
       args: z.infer<typeof SubAgentParams>,
@@ -78,8 +115,16 @@ export function createSubAgentTool(
       });
 
       try {
+        // Resolve a named specialist when the caller asked for one and a lane is set.
+        // Falls back to the generic worker prompt/tool set otherwise — unchanged behavior.
+        const spec = args.agent && lane ? resolveSpecialist(lane, args.agent) : null;
+        const system = spec ? spec.prompt : SUB_AGENT_SYSTEM_PROMPT;
+        const allowedToolNames = spec
+          ? new Set([...mapAgentTools(spec.tools), ...ALLOWED_SUB_AGENT_TOOLS])
+          : ALLOWED_SUB_AGENT_TOOLS;
+
         // Build sub-agent tool set — only explicitly allowed tools
-        const subTools = parentTools.filter((t) => ALLOWED_SUB_AGENT_TOOLS.has(t.name));
+        const subTools = parentTools.filter((t) => allowedToolNames.has(t.name));
 
         // Get provider config (same model as parent)
         const model = SettingsManager.get('agent.model') || 'claude-sonnet-4-6';
@@ -89,7 +134,7 @@ export function createSubAgentTool(
         const agentOptions: AgentOptions = {
           provider: streamConfig.provider,
           model,
-          system: SUB_AGENT_SYSTEM_PROMPT,
+          system,
           tools: subTools,
           webSearch: true,
           maxTurns: SUB_AGENT_MAX_TURNS,
