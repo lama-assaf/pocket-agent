@@ -39,7 +39,9 @@
 | hooks (`hooks.json`) | native seams in chat-engine / chat-tools | 3 ported hooks, see §8 |
 
 ### Decisions locked during brainstorming
-- **Scope:** Atelier + Salon bundled specifically (no marketplace / cross-harness adapters). Loaded from bundled folders so a 3rd pack later is additive.
+- **Scope / delivery:** Atelier + Salon specifically, but as a **marketplace-inside-the-app**: the two repos are hardcoded *sources*, and their content is **synced from the og GitHub repos** into `<userData>/plugins/` (not vendored/compiled). A small **seed fallback** ships in the app for offline first-run; the synced copy is canonical and auto-updates. A 3rd pack later is one registry line.
+- **No `src/packs/` content tree:** compiled content is frozen/read-only in a packaged app and can't self-update; the app already has a writable home (`app.getPath('userData')`, used for DB/models/attachments). Plugins live there. The repo gains only a small `src/marketplace/` code module + a small seed.
+- **Update cadence:** background check on **app startup** + a manual **"Check for updates"** button. (No daily cron in v1.)
 - **Agent surfacing:** 4 lane modes (Design, Product, Brand, Social); specialist agents are dispatchable subagents within a lane.
 - **Switcher order:** operator lanes prominent, **Coder last**.
 - **Memory:** do both — file tree canonical, mirrored into SQLite.
@@ -49,33 +51,47 @@
 
 ## 2. Architecture
 
-### 2.1 Pack bundling & loader
+### 2.1 Marketplace: seed + sync + loader
 
-Vendor both repos' content (agents/skills/commands/rules/memory templates, minus `.git`, `docs`, `tests`, `adapters`) into the app:
+Content is **not** vendored into a compiled `src/packs/`. It is installed to a writable per-user location and kept fresh from the og repos:
 
 ```
-src/packs/
-  registry.ts        # PACKS array: id, name, lanes, dir  — this is the "hardcoded both"
+src/marketplace/
+  registry.ts        # PACK_SOURCES: id, name, lanes, repo, branch — the "hardcoded both" (as sources)
+  sync.ts            # PackSyncManager: seed → install → check → update from GitHub
   loader.ts          # readPack(dir) → { agents, skills, commands, rules, memoryTemplates }
-  atelier/           # vendored content
-  salon/             # vendored content
+  paths.ts           # getPluginsRoot() = <userData>/plugins ; getSeedRoot() = bundled seed
+  seed/              # small offline fallback copy, shipped as a build resource
+    atelier/  salon/
+
+<userData>/plugins/  # RUNTIME CANONICAL — synced from repos
+  atelier/  salon/
 ```
 
-- `registry.ts` explicitly lists the two packs and maps each lane → pack (Design/Product/Brand → atelier, Social → salon). This is the deliberate "hardcoded" wiring.
-- `loader.ts` is a thin filesystem reader (parse frontmatter, return typed records). Pure, no side effects, unit-testable in isolation. Adding a pack = add a folder + one registry entry.
-- At build time the `src/packs/*` content dirs are copied into the packaged app resources (electron-builder `extraResources` / `files`), and resolved at runtime via an app-paths helper so it works both in `npm run dev` and in the built binary.
+- **`registry.ts`** lists the two packs as `{ id, name, lanes, repo: 'lama-assaf/atelier', branch: 'main' }` and maps each lane → pack (Design/Product/Brand → atelier, Social → salon). Deliberate "hardcoded" wiring; a 3rd pack is one entry.
+- **`PackSyncManager`** (`sync.ts`):
+  - `ensureInstalled()` — on first run, if `<userData>/plugins/<id>` is empty, copy the bundled **seed** in so the app works offline immediately.
+  - `checkAndUpdate()` — for each source, fetch the latest commit sha (`api.github.com/repos/<repo>/commits/<branch>`), compare to the stored `<userData>/plugins/<id>/.sha`; if changed, download the **tarball** (`codeload.github.com/<repo>/tar.gz/refs/heads/<branch>`), extract into `<userData>/plugins/<id>/`, write the new sha. No `git` dependency; extraction via the `tar` npm package.
+  - Triggered on **startup** (background, non-blocking) and by a manual **"Check for updates"** IPC/button. Failure is non-fatal — the last good installed copy (or seed) keeps working offline.
+- **`loader.ts`** is a pure filesystem reader (parse frontmatter → typed records) pointed at `getPluginsRoot()`. Unit-testable against a fixture dir.
 
 **Interface:**
 ```ts
-interface Pack { id: string; name: string; lanes: LaneId[]; dir: string; }
+interface PackSource { id: string; name: string; lanes: LaneId[]; repo: string; branch: string; }
 interface LoadedPack {
-  agents: PackAgent[];      // { name, description, tools, model, prompt }
+  id: string;
+  agents: PackAgent[];      // { name, description, tools, model, prompt, source }
   skills: Skill[];          // ggcoder Skill shape { name, description, content, source }
-  commands: WorkflowCommand[];
-  rules: Record<LaneId, RuleFile[]>;   // { lane, filename, content }
+  commands: { name; description; filename; content }[];
+  rules: RuleFile[];        // { lane, filename, content, hash }
   memoryTemplates: MemoryTemplate[];   // { relativePath, content }
 }
-function readPack(pack: Pack): LoadedPack;
+function getPluginsRoot(): string;                 // <userData>/plugins
+function readPack(source: PackSource): LoadedPack; // reads getPluginsRoot()/<id>
+class PackSyncManager {
+  ensureInstalled(): Promise<void>;
+  checkAndUpdate(): Promise<{ id: string; updated: boolean; sha: string }[]>;
+}
 ```
 
 ### 2.2 Modes
@@ -209,8 +225,10 @@ User (desktop / Telegram) → AgentManager.processMessage(sessionId, msg)
 
 | Unit | Responsibility | Depends on |
 |---|---|---|
-| `src/packs/registry.ts` | Declares the two packs + lane map | — |
-| `src/packs/loader.ts` | Read pack markdown → typed records | fs, frontmatter parse |
+| `src/marketplace/registry.ts` | Declares the two pack sources (repos) + lane map | — |
+| `src/marketplace/sync.ts` | Seed on first run; check + download + extract updates from GitHub | fs, fetch, tar |
+| `src/marketplace/paths.ts` | `getPluginsRoot()` (userData) + `getSeedRoot()` (bundled) | Electron app paths |
+| `src/marketplace/loader.ts` | Read pack markdown → typed records | fs, frontmatter parse |
 | `src/agent/agent-modes.ts` (edit) | 4 lane modes + display order | packs registry |
 | `src/tools/subagent.ts` (edit) | Named specialist workers | pack agents |
 | `src/agent/chat-tools.ts` (edit) | Skill tool + write guards | ggcoder, packs, rules |
@@ -242,7 +260,7 @@ Each is independently testable; edits to existing files are additive and keep cu
 - `rules` de-dupe: identical brand/copy rules injected once.
 
 ## 9. Out of scope (v1)
-Marketplace/install UX, cross-harness adapters (Cursor/Codex/…), dashboard site, install profiles, `allowedTools` enforcement, iOS-specific surfaces, syncing SQLite edits back to the file tree (mirror is one-way).
+Cross-harness adapters (Cursor/Codex/…), dashboard site, install profiles, browsable marketplace *UI* beyond a "Check for updates" button, private-repo auth tokens, daily scheduled sync, `allowedTools` enforcement, iOS-specific surfaces, syncing SQLite edits back to the file tree (mirror is one-way). In-app *sync from the og repos* IS in scope (§2.1).
 
 ## 10. Open questions
 - Persona source: distill ATELIER.md/SOUL.md into each lane prompt, or ship a single shared operator preamble + thin lane deltas? (Leaning: shared preamble + lane delta, to avoid 4 near-duplicate prompts.)

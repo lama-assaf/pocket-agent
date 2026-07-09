@@ -4,7 +4,7 @@
 
 **Goal:** Ship Pocket Agent prebuilt with the Atelier (design/product/brand) and Salon (social/campaigns) operator systems, surfaced as native lane modes, skills, commands, rules, hooks, and memory.
 
-**Architecture:** Vendor both plugins' markdown into `src/packs/`, read by a pure loader. Four new lane modes in `AGENT_MODES` compose their lane's rules (system prompt), skills (ggcoder `discoverSkills`/`createSkillTool`, currently dormant), and specialist agents (dispatchable subagents). Operator memory lives in a canonical `.atelier/memory/` file tree, mirrored one-way into SQLite for semantic recall + UI. Three Claude Code hooks are re-mapped onto native seams in `chat-engine.ts` / `chat-tools.ts`.
+**Architecture:** Sync both plugins' markdown from the og GitHub repos into `<userData>/plugins/` (bundled seed as offline fallback), read by a pure loader. Four new lane modes in `AGENT_MODES` compose their lane's rules (system prompt), skills (ggcoder `discoverSkills`/`createSkillTool`, currently dormant), and specialist agents (dispatchable subagents). Operator memory lives in a canonical `.atelier/memory/` file tree, mirrored one-way into SQLite for semantic recall + UI. Three Claude Code hooks are re-mapped onto native seams in `chat-engine.ts` / `chat-tools.ts`.
 
 **Tech Stack:** TypeScript, Electron, `@kenkaiiii/gg-agent` + `@kenkaiiii/ggcoder`, better-sqlite3, Vitest, Zod.
 
@@ -19,17 +19,22 @@
 - Everything gated by setting `features.operatorPacks` (default `'true'`).
 - Frontmatter parsing follows the existing regex pattern in `src/config/commands-loader.ts:40` (`/^---\n([\s\S]*?)\n---\n([\s\S]*)$/`).
 - Lane ids: `'design' | 'product' | 'brand' | 'social'`. New mode ids added to `AgentModeId`.
+- **Content delivery (marketplace):** packs are NOT compiled into `src/`. Runtime-canonical content lives at `<userData>/plugins/<id>/` (`app.getPath('userData')`, as used in `src/main/index.ts:444`). A small **seed** copy ships as a build resource for offline first-run only. `PackSyncManager` keeps the userData copy fresh from the og GitHub repos (`lama-assaf/atelier`, `lama-assaf/salon`).
+- **Sync = seed-then-update:** on first run, if `<userData>/plugins/<id>` is empty, copy the seed in. Then, on **startup (background)** and on a **manual button**, fetch the latest commit sha and, if changed, download+extract the repo tarball. Sync failures are non-fatal (last good copy keeps working offline).
+- Tarball extraction uses the `tar` npm package — add it to `dependencies` if absent (`npm i tar`).
+- `getPluginsRoot()` returns `<userData>/plugins`. In unit tests, `PACK_ROOT_OVERRIDE` env var points it at a fixture dir.
 
 ---
 
 ## File Structure
 
 **Create:**
-- `src/packs/types.ts` — shared types (`LaneId`, `Pack`, `LoadedPack`, `PackAgent`, `RuleFile`, `MemoryTemplate`).
-- `src/packs/registry.ts` — the two packs + lane maps (the "hardcoded" wiring).
-- `src/packs/loader.ts` — `readPack()`, `loadAllPacks()`, frontmatter parse.
-- `src/packs/paths.ts` — resolve vendored pack dir in dev vs packaged app.
-- `src/packs/atelier/`, `src/packs/salon/` — vendored content + `lanes.json`.
+- `src/marketplace/types.ts` — shared types (`LaneId`, `PackSource`, `LoadedPack`, `PackAgent`, `RuleFile`, `MemoryTemplate`, `Skill`).
+- `src/marketplace/paths.ts` — `getPluginsRoot()` (`<userData>/plugins`) + `getSeedRoot()` (bundled seed).
+- `src/marketplace/registry.ts` — `PACK_SOURCES` (the two repos) + lane maps (the "hardcoded" wiring).
+- `src/marketplace/sync.ts` — `PackSyncManager`: seed on first run, check + download + extract updates from GitHub.
+- `src/marketplace/loader.ts` — `readPack()`, `loadAllPacks()`, frontmatter parse.
+- `src/marketplace/seed/atelier/`, `src/marketplace/seed/salon/` — small offline fallback copy (build resource).
 - `src/memory/atelier-bridge.ts` — file tree → SQLite mirror.
 - `src/tools/atelier-memory-tools.ts` — `memory-init` tool.
 - `src/agent/lane-context.ts` — keyword→rule/skill injector (hook 1) + rule composition.
@@ -43,49 +48,52 @@
 - `src/agent/chat-engine.ts` — skills in system prompt, lane context injection, post-write sync.
 - `src/tools/subagent.ts` — named specialist agents.
 - `src/config/commands-loader.ts` — load + namespace pack commands.
-- `src/main/ipc/settings-ipc.ts:306` — expose mode `order`.
-- `package.json` / electron-builder config — ship `src/packs/*` content as resources.
+- `src/main/index.ts` — call `PackSyncManager.ensureInstalled()` + background `checkAndUpdate()` on startup.
+- `src/main/ipc/settings-ipc.ts:306` — expose mode `order`/`lane`; add `marketplace:checkUpdates` IPC handler.
+- `package.json` — add `tar` dep; ship `src/marketplace/seed/*` as electron-builder resources.
 
 ---
 
-## Task 1: Vendor pack content + types + path resolution
+## Task 1: Types + seed content + path resolution
 
 **Files:**
-- Create: `src/packs/types.ts`, `src/packs/paths.ts`
-- Create (vendored): `src/packs/atelier/**`, `src/packs/salon/**`
-- Test: `tests/unit/packs-paths.test.ts`
+- Create: `src/marketplace/types.ts`, `src/marketplace/paths.ts`
+- Create (seed): `src/marketplace/seed/atelier/**`, `src/marketplace/seed/salon/**`
+- Test: `tests/unit/marketplace-paths.test.ts`
 
 **Interfaces:**
-- Produces: `LaneId`, `Pack`, `PackAgent`, `RuleFile`, `MemoryTemplate`, `LoadedPack`, `getPacksRoot(): string`.
+- Produces: `LaneId`, `PackSource`, `PackAgent`, `RuleFile`, `MemoryTemplate`, `Skill`, `LoadedPack`, `getPluginsRoot(): string`, `getSeedRoot(): string`.
 
-- [ ] **Step 1: Vendor the two repos' content**
+- [ ] **Step 1: Fetch the seed content**
 
 ```bash
 cd /tmp && rm -rf atelier salon
 git clone --depth 1 https://github.com/lama-assaf/atelier.git
 git clone --depth 1 https://github.com/lama-assaf/salon.git
 cd /Users/zilliqa/Desktop/workhere/pocket-agent
-mkdir -p src/packs/atelier src/packs/salon
+mkdir -p src/marketplace/seed/atelier src/marketplace/seed/salon
 for d in agents skills commands rules memory; do
-  cp -R /tmp/atelier/$d src/packs/atelier/$d
-  cp -R /tmp/salon/$d   src/packs/salon/$d
+  cp -R /tmp/atelier/$d src/marketplace/seed/atelier/$d
+  cp -R /tmp/salon/$d   src/marketplace/seed/salon/$d
 done
-cp /tmp/atelier/.claude-plugin/plugin.json src/packs/atelier/plugin.json
-cp /tmp/salon/.claude-plugin/plugin.json   src/packs/salon/plugin.json
-# Do NOT copy .git, docs, tests, adapters, scripts, hooks (hooks are re-implemented natively).
+cp /tmp/atelier/VERSION /tmp/atelier/.claude-plugin/plugin.json src/marketplace/seed/atelier/
+cp /tmp/salon/VERSION   /tmp/salon/.claude-plugin/plugin.json   src/marketplace/seed/salon/
+# Seed is the OFFLINE FALLBACK only — the canonical copy is synced to <userData>/plugins at runtime.
+# Do NOT copy .git, docs, tests, adapters, scripts, hooks.
 ```
 
 - [ ] **Step 2: Write the types**
 
 ```ts
-// src/packs/types.ts
+// src/marketplace/types.ts
 export type LaneId = 'design' | 'product' | 'brand' | 'social';
 
-export interface Pack {
+export interface PackSource {
   id: string;          // 'atelier' | 'salon'
   name: string;
   lanes: LaneId[];
-  dir: string;         // absolute path to vendored content
+  repo: string;        // 'lama-assaf/atelier'
+  branch: string;      // 'main'
 }
 
 export interface PackAgent {
@@ -130,58 +138,242 @@ export interface LoadedPack {
 - [ ] **Step 3: Write path resolution**
 
 ```ts
-// src/packs/paths.ts
+// src/marketplace/paths.ts
 import path from 'path';
-import fs from 'fs';
 
 /**
- * Resolve the directory holding vendored packs. In dev this is src/packs;
- * in a packaged Electron app it is under process.resourcesPath.
+ * Runtime-canonical plugins dir: <userData>/plugins. Synced from og repos.
+ * In unit tests, PACK_ROOT_OVERRIDE points at a fixture dir (avoids importing electron).
  */
-export function getPacksRoot(): string {
-  const packaged = path.join(process.resourcesPath || '', 'packs');
+export function getPluginsRoot(): string {
+  if (process.env.PACK_ROOT_OVERRIDE) return process.env.PACK_ROOT_OVERRIDE;
+  try {
+    // Lazy require so tests don't need electron. Matches src/main/index.ts:444.
+    const { app } = require('electron');
+    if (app?.getPath) return path.join(app.getPath('userData'), 'plugins');
+  } catch { /* not running under electron (unit tests) */ }
+  return getSeedRoot(); // non-electron fallback → read seed content directly
+}
+
+/**
+ * Bundled seed (offline fallback). Packaged: <resources>/seed-plugins; dev: src/marketplace/seed.
+ */
+export function getSeedRoot(): string {
+  const fs = require('fs');
+  const packaged = path.join(process.resourcesPath || '', 'seed-plugins');
   if (process.resourcesPath && fs.existsSync(packaged)) return packaged;
-  // dev / ts-node / compiled dist both resolve back to source packs dir
-  return path.join(__dirname);
+  return path.join(__dirname, 'seed');
 }
 ```
 
 - [ ] **Step 4: Write the failing test**
 
 ```ts
-// tests/unit/packs-paths.test.ts
+// tests/unit/marketplace-paths.test.ts
 import { describe, it, expect } from 'vitest';
 import fs from 'fs';
 import path from 'path';
-import { getPacksRoot } from '../../src/packs/paths';
+import { getSeedRoot, getPluginsRoot } from '../../src/marketplace/paths';
 
-describe('getPacksRoot', () => {
-  it('resolves to a directory containing atelier and salon', () => {
-    const root = getPacksRoot();
-    expect(fs.existsSync(path.join(root, 'atelier', 'plugin.json'))).toBe(true);
-    expect(fs.existsSync(path.join(root, 'salon', 'plugin.json'))).toBe(true);
+describe('marketplace paths', () => {
+  it('seed root contains atelier and salon plugin.json', () => {
+    const seed = getSeedRoot();
+    expect(fs.existsSync(path.join(seed, 'atelier', 'plugin.json'))).toBe(true);
+    expect(fs.existsSync(path.join(seed, 'salon', 'plugin.json'))).toBe(true);
+  });
+  it('getPluginsRoot honors PACK_ROOT_OVERRIDE without importing electron', () => {
+    process.env.PACK_ROOT_OVERRIDE = '/tmp/fixture-plugins';
+    expect(getPluginsRoot()).toBe('/tmp/fixture-plugins');
+    delete process.env.PACK_ROOT_OVERRIDE;
   });
 });
 ```
 
-- [ ] **Step 5: Run test — expect PASS**
+- [ ] **Step 5: Run test — expect PASS.** Run: `npx vitest run tests/unit/marketplace-paths.test.ts`
 
-Run: `npx vitest run tests/unit/packs-paths.test.ts`
-Expected: PASS (content was vendored in Step 1).
+- [ ] **Step 6: Ship the seed as a build resource**
 
-- [ ] **Step 6: Ship packs as build resources**
-
-In `package.json` electron-builder `build.extraResources` (or `files`), add:
+In `package.json` electron-builder `build.extraResources`, add:
 ```json
-{ "from": "src/packs", "to": "packs", "filter": ["**/*.md", "**/*.json"] }
+{ "from": "src/marketplace/seed", "to": "seed-plugins", "filter": ["**/*.md", "**/*.json"] }
 ```
 Run: `npm run typecheck` → Expected: no errors.
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/packs tests/unit/packs-paths.test.ts package.json
-git commit -m "feat(packs): vendor atelier + salon content and path resolution"
+git add src/marketplace/types.ts src/marketplace/paths.ts src/marketplace/seed tests/unit/marketplace-paths.test.ts package.json
+git commit -m "feat(marketplace): types, userData/seed path resolution, seed content"
+```
+
+---
+
+## Task 1B: Pack sync manager (seed + update from og repos)
+
+**Files:**
+- Create: `src/marketplace/sync.ts`
+- Modify: `package.json` (add `tar` dep)
+- Modify: `src/main/index.ts` (startup: ensureInstalled + background checkAndUpdate)
+- Modify: `src/main/ipc/settings-ipc.ts` (manual `marketplace:checkUpdates`)
+- Test: `tests/unit/marketplace-sync.test.ts`
+
+**Interfaces:**
+- Consumes: `PACK_SOURCES` (Task 3 — for tests, pass sources in), `getPluginsRoot`, `getSeedRoot`.
+- Produces: `class PackSyncManager { ensureInstalled(): Promise<void>; checkAndUpdate(): Promise<{id;updated;sha}[]> }`, and `installSeed(seedRoot, pluginsRoot, id)`, `latestSha(repo,branch)`, `extractTarball(buf, destDir)` helpers.
+
+- [ ] **Step 1: Add the tar dependency**
+
+Run: `npm i tar` → Expected: added to `dependencies`.
+
+- [ ] **Step 2: Write the failing test** (seed-copy + idempotent sha behavior; network calls stubbed)
+
+```ts
+// tests/unit/marketplace-sync.test.ts
+import { describe, it, expect, beforeEach } from 'vitest';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
+import { installSeed } from '../../src/marketplace/sync';
+
+describe('installSeed', () => {
+  let seed: string; let plugins: string;
+  beforeEach(() => {
+    const base = fs.mkdtempSync(path.join(os.tmpdir(), 'mkt-'));
+    seed = path.join(base, 'seed'); plugins = path.join(base, 'plugins');
+    fs.mkdirSync(path.join(seed, 'atelier'), { recursive: true });
+    fs.writeFileSync(path.join(seed, 'atelier', 'plugin.json'), '{"name":"atelier"}');
+    fs.writeFileSync(path.join(seed, 'atelier', 'VERSION'), '0.1.0');
+  });
+  it('copies the seed into an empty plugins dir', () => {
+    const copied = installSeed(seed, plugins, 'atelier');
+    expect(copied).toBe(true);
+    expect(fs.existsSync(path.join(plugins, 'atelier', 'plugin.json'))).toBe(true);
+  });
+  it('does not overwrite an already-installed pack', () => {
+    fs.mkdirSync(path.join(plugins, 'atelier'), { recursive: true });
+    fs.writeFileSync(path.join(plugins, 'atelier', 'VERSION'), '9.9.9');
+    installSeed(seed, plugins, 'atelier');
+    expect(fs.readFileSync(path.join(plugins, 'atelier', 'VERSION'), 'utf-8')).toBe('9.9.9');
+  });
+});
+```
+
+- [ ] **Step 3: Run — expect FAIL.** Run: `npx vitest run tests/unit/marketplace-sync.test.ts`
+
+- [ ] **Step 4: Implement the sync manager**
+
+```ts
+// src/marketplace/sync.ts
+import fs from 'fs';
+import path from 'path';
+import { pipeline } from 'stream/promises';
+import { Readable } from 'stream';
+import * as tar from 'tar';
+import type { PackSource } from './types';
+import { getPluginsRoot, getSeedRoot } from './paths';
+
+/** Copy the bundled seed into pluginsRoot/<id> if that pack is not yet installed. Returns true if copied. */
+export function installSeed(seedRoot: string, pluginsRoot: string, id: string): boolean {
+  const dest = path.join(pluginsRoot, id);
+  if (fs.existsSync(path.join(dest, 'plugin.json'))) return false; // already installed
+  const src = path.join(seedRoot, id);
+  if (!fs.existsSync(src)) return false;
+  fs.mkdirSync(dest, { recursive: true });
+  fs.cpSync(src, dest, { recursive: true });
+  return true;
+}
+
+/** Latest commit sha for repo/branch via GitHub API (unauthenticated; 60 req/hr is plenty). */
+export async function latestSha(repo: string, branch: string): Promise<string | null> {
+  try {
+    const res = await fetch(`https://api.github.com/repos/${repo}/commits/${branch}`, {
+      headers: { Accept: 'application/vnd.github.sha', 'User-Agent': 'pocket-agent' },
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!res.ok) return null;
+    return (await res.text()).trim();
+  } catch { return null; }
+}
+
+/** Download+extract the repo tarball into destDir (strips the top-level <repo>-<sha>/ folder). */
+export async function updatePack(source: PackSource, destDir: string): Promise<void> {
+  const url = `https://codeload.github.com/${source.repo}/tar.gz/refs/heads/${source.branch}`;
+  const res = await fetch(url, { headers: { 'User-Agent': 'pocket-agent' }, signal: AbortSignal.timeout(60000) });
+  if (!res.ok || !res.body) throw new Error(`tarball fetch failed: ${res.status}`);
+  const tmp = `${destDir}.incoming`;
+  fs.rmSync(tmp, { recursive: true, force: true });
+  fs.mkdirSync(tmp, { recursive: true });
+  // Only extract the content dirs we use.
+  await pipeline(
+    Readable.fromWeb(res.body as any),
+    tar.x({ cwd: tmp, strip: 1, filter: (p) => /\/(agents|skills|commands|rules|memory)\/|\/(VERSION|\.claude-plugin\/plugin\.json)$/.test(`/${p}`) })
+  );
+  // flatten .claude-plugin/plugin.json → plugin.json
+  const nested = path.join(tmp, '.claude-plugin', 'plugin.json');
+  if (fs.existsSync(nested)) fs.copyFileSync(nested, path.join(tmp, 'plugin.json'));
+  fs.rmSync(destDir, { recursive: true, force: true });
+  fs.renameSync(tmp, destDir);
+}
+
+export class PackSyncManager {
+  constructor(private sources: PackSource[]) {}
+
+  async ensureInstalled(): Promise<void> {
+    const seed = getSeedRoot(); const root = getPluginsRoot();
+    fs.mkdirSync(root, { recursive: true });
+    for (const s of this.sources) installSeed(seed, root, s.id);
+  }
+
+  async checkAndUpdate(): Promise<{ id: string; updated: boolean; sha: string }[]> {
+    const root = getPluginsRoot();
+    const out: { id: string; updated: boolean; sha: string }[] = [];
+    for (const s of this.sources) {
+      const dest = path.join(root, s.id);
+      const shaFile = path.join(dest, '.sha');
+      const remote = await latestSha(s.repo, s.branch);
+      if (!remote) { out.push({ id: s.id, updated: false, sha: '' }); continue; }
+      const local = fs.existsSync(shaFile) ? fs.readFileSync(shaFile, 'utf-8').trim() : '';
+      if (remote === local) { out.push({ id: s.id, updated: false, sha: remote }); continue; }
+      try {
+        await updatePack(s, dest);
+        fs.writeFileSync(shaFile, remote);
+        out.push({ id: s.id, updated: true, sha: remote });
+      } catch { out.push({ id: s.id, updated: false, sha: local }); } // keep last good copy
+    }
+    return out;
+  }
+}
+```
+
+- [ ] **Step 5: Run test — expect PASS.** Run: `npx vitest run tests/unit/marketplace-sync.test.ts`
+
+- [ ] **Step 6: Wire startup + manual IPC**
+
+In `src/main/index.ts`, after the app is ready and userData is known, add (non-blocking):
+```ts
+import { PackSyncManager } from '../marketplace/sync';
+import { PACK_SOURCES } from '../marketplace/registry';
+// ...
+const sync = new PackSyncManager(PACK_SOURCES);
+await sync.ensureInstalled();               // offline-safe: seeds if empty
+void sync.checkAndUpdate().catch((e) => console.error('[marketplace] update failed', e)); // background
+```
+In `src/main/ipc/settings-ipc.ts`, add:
+```ts
+ipcMain.handle('marketplace:checkUpdates', async () => {
+  const { PackSyncManager } = await import('../../marketplace/sync');
+  const { PACK_SOURCES } = await import('../../marketplace/registry');
+  return new PackSyncManager(PACK_SOURCES).checkAndUpdate();
+});
+```
+(Expose a "Check for updates" button in the settings UI that calls this handler — UI wiring mirrors existing settings buttons.)
+
+- [ ] **Step 7: typecheck + lint. Commit**
+
+```bash
+npm run typecheck && npm run lint
+git add src/marketplace/sync.ts src/main/index.ts src/main/ipc/settings-ipc.ts package.json package-lock.json tests/unit/marketplace-sync.test.ts
+git commit -m "feat(marketplace): sync manager — seed on first run, update from og repos"
 ```
 
 ---
@@ -189,24 +381,24 @@ git commit -m "feat(packs): vendor atelier + salon content and path resolution"
 ## Task 2: Pack loader
 
 **Files:**
-- Create: `src/packs/loader.ts`
-- Test: `tests/unit/packs-loader.test.ts`
+- Create: `src/marketplace/loader.ts`
+- Test: `tests/unit/marketplace-loader.test.ts`
 
 **Interfaces:**
-- Consumes: types from Task 1, `getPacksRoot()`.
-- Produces: `readPack(pack: Pack): LoadedPack`, `loadAllPacks(): LoadedPack[]`, `parseFrontmatter(raw): {name,description,meta,body}`.
+- Consumes: types from Task 1, `getPluginsRoot()`.
+- Produces: `readPack(source: PackSource): LoadedPack`, `loadAllPacks(sources: PackSource[]): LoadedPack[]`, `parseFrontmatter(raw): {name,description,meta,body}`.
 
 - [ ] **Step 1: Write the failing test**
 
 ```ts
-// tests/unit/packs-loader.test.ts
+// tests/unit/marketplace-loader.test.ts
 import { describe, it, expect } from 'vitest';
-import { PACKS } from '../../src/packs/registry';
-import { readPack } from '../../src/packs/loader';
+import { PACK_SOURCES } from '../../src/marketplace/registry';
+import { readPack } from '../../src/marketplace/loader';
 
 describe('readPack', () => {
   it('loads atelier agents, skills, commands, rules', () => {
-    const atelier = PACKS.find((p) => p.id === 'atelier')!;
+    const atelier = PACK_SOURCES.find((p) => p.id === 'atelier')!;
     const loaded = readPack(atelier);
     expect(loaded.agents.length).toBeGreaterThanOrEqual(14);
     expect(loaded.skills.length).toBeGreaterThanOrEqual(30);
@@ -218,22 +410,23 @@ describe('readPack', () => {
     expect(rule.hash).toMatch(/^[a-f0-9]{64}$/);
   });
   it('skips malformed files without throwing', () => {
-    const atelier = PACKS.find((p) => p.id === 'atelier')!;
+    const atelier = PACK_SOURCES.find((p) => p.id === 'atelier')!;
     expect(() => readPack(atelier)).not.toThrow();
   });
 });
 ```
 
-- [ ] **Step 2: Run — expect FAIL** (`readPack`/`PACKS` not defined). Run: `npx vitest run tests/unit/packs-loader.test.ts`
+- [ ] **Step 2: Run — expect FAIL** (`readPack`/`PACK_SOURCES` not defined). Run: `npx vitest run tests/unit/marketplace-loader.test.ts`
 
 - [ ] **Step 3: Implement the loader**
 
 ```ts
-// src/packs/loader.ts
+// src/marketplace/loader.ts
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
-import type { Pack, LoadedPack, PackAgent, RuleFile, MemoryTemplate, Skill } from './types';
+import type { PackSource, LoadedPack, PackAgent, RuleFile, MemoryTemplate, Skill } from './types';
+import { getPluginsRoot } from './paths';
 
 const FM_RE = /^---\n([\s\S]*?)\n---\n([\s\S]*)$/;
 
@@ -332,28 +525,29 @@ function loadMemoryTemplates(dir: string): MemoryTemplate[] {
   return out;
 }
 
-export function readPack(pack: Pack): LoadedPack {
+export function readPack(source: PackSource): LoadedPack {
+  const dir = path.join(getPluginsRoot(), source.id); // <userData>/plugins/<id> (or seed in tests)
   return {
-    id: pack.id,
-    agents: loadAgents(path.join(pack.dir, 'agents')),
-    skills: loadSkills(path.join(pack.dir, 'skills')),
-    commands: loadCommands(path.join(pack.dir, 'commands')),
-    rules: loadRules(path.join(pack.dir, 'rules')),
-    memoryTemplates: loadMemoryTemplates(path.join(pack.dir, 'memory')),
+    id: source.id,
+    agents: loadAgents(path.join(dir, 'agents')),
+    skills: loadSkills(path.join(dir, 'skills')),
+    commands: loadCommands(path.join(dir, 'commands')),
+    rules: loadRules(path.join(dir, 'rules')),
+    memoryTemplates: loadMemoryTemplates(path.join(dir, 'memory')),
   };
 }
 
-export function loadAllPacks(packs: Pack[]): LoadedPack[] {
-  return packs.map(readPack);
+export function loadAllPacks(sources: PackSource[]): LoadedPack[] {
+  return sources.map(readPack);
 }
 ```
 
-- [ ] **Step 4: Run — expect PASS.** Run: `npx vitest run tests/unit/packs-loader.test.ts` (requires Task 3's `registry.ts`; if running standalone, create `registry.ts` first per Task 3 Step 3).
+- [ ] **Step 4: Run — expect PASS.** Run: `npx vitest run tests/unit/marketplace-loader.test.ts` (requires Task 3's `registry.ts`; if running standalone, create `registry.ts` first per Task 3 Step 3).
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/packs/loader.ts tests/unit/packs-loader.test.ts
+git add src/marketplace/loader.ts tests/unit/marketplace-loader.test.ts
 git commit -m "feat(packs): pure markdown loader for agents/skills/commands/rules/memory"
 ```
 
@@ -362,60 +556,27 @@ git commit -m "feat(packs): pure markdown loader for agents/skills/commands/rule
 ## Task 3: Registry + lane maps
 
 **Files:**
-- Create: `src/packs/registry.ts`, `src/packs/atelier/lanes.json`, `src/packs/salon/lanes.json`
-- Test: `tests/unit/packs-registry.test.ts`
+- Create: `src/marketplace/registry.ts`
+- Test: `tests/unit/marketplace-registry.test.ts`
 
 **Interfaces:**
-- Consumes: `readPack`, `getPacksRoot`.
-- Produces: `PACKS: Pack[]`, `laneForSkill(skillName): LaneId | null`, `laneForAgent(agentName): LaneId | null`, `skillsForLane(lane): Skill[]`, `agentsForLane(lane): PackAgent[]`, `rulesForLane(lane): RuleFile[]`, `commandsForPacks(): {ns, name, description, content}[]`.
+- Consumes: `readPack`, `getPluginsRoot`.
+- Produces: `PACK_SOURCES: PackSource[]`, `skillsForLane(lane): Skill[]`, `agentsForLane(lane): PackAgent[]`, `rulesForLane(lane): RuleFile[]`, `commandsForPacks(): {ns, name, description, content}[]`, `allBannedAndToneRules(): RuleFile[]`.
 
-- [ ] **Step 1: Author the lane maps**
+- [ ] **Step 1: Note on lane maps**
 
-`src/packs/salon/lanes.json` — every Salon skill/agent is `social`:
-```json
-{ "defaultLane": "social", "skills": {}, "agents": {} }
-```
-
-`src/packs/atelier/lanes.json` — map each skill/agent dir to its lane, per Atelier's README lane grouping (design / product / brand). Author by reading `src/packs/atelier/skills/*` and `agents/*`. Any entry not listed falls back to `defaultLane`. Known grouping:
-```json
-{
-  "defaultLane": "product",
-  "skills": {
-    "design-review": "design", "design-system-audit": "design", "accessibility-audit": "design",
-    "dark-mode-pairing": "design", "component-spec": "design", "data-viz-design": "design",
-    "iconography-system": "design", "motion-direction": "design", "figma-handoff-spec": "design",
-    "prd-writing": "product", "spec-writing": "product", "jtbd-framing": "product",
-    "roadmap-planning": "product", "feature-scoping": "product", "metric-design": "product",
-    "ab-test-design": "product", "competitive-analysis": "product", "launch-planning": "product",
-    "research-synthesis": "product",
-    "brand-voice-extraction": "brand", "naming-generation": "brand", "tagline-writing": "brand",
-    "positioning-statement": "brand", "messaging-architecture": "brand", "value-prop-writing": "brand",
-    "microcopy-writing": "brand", "landing-copy": "brand", "case-study-writing": "brand",
-    "release-narrative": "brand", "brand-identity-audit": "brand", "content-calendar": "brand",
-    "email-sequence": "brand"
-  },
-  "agents": {
-    "design-reviewer": "design", "accessibility-reviewer": "design", "design-system-auditor": "design",
-    "product-strategist": "product", "competitor-analyst": "product", "ux-research-synthesizer": "product",
-    "taxonomy-architect": "product", "narrative-architect": "product",
-    "brand-voice-keeper": "brand", "copywriter": "brand", "microcopy-writer": "brand",
-    "naming-generator": "brand", "case-study-writer": "brand", "pitch-deck-writer": "brand",
-    "release-narrator": "brand"
-  }
-}
-```
-> Verify each name against the vendored dirs; add any missing dir to the correct lane (design=how it looks, product=what/why, brand=how it sounds). No name may be absent from its map without intentionally relying on `defaultLane`.
+Lane maps are **our** metadata, not pack content — the og repos don't ship them and a sync would clobber a JSON dropped in the pack dir. So they live **inline in `registry.ts`** (`LANE_MAPS` below), keyed by pack id, with a `defaultLane` fallback. Verify each skill/agent name against the seed dirs (`src/marketplace/seed/*`); design = how it looks, product = what/why, brand = how it sounds. No name may be absent without intentionally relying on `defaultLane`.
 
 - [ ] **Step 2: Write the failing test**
 
 ```ts
-// tests/unit/packs-registry.test.ts
+// tests/unit/marketplace-registry.test.ts
 import { describe, it, expect } from 'vitest';
-import { PACKS, skillsForLane, agentsForLane, rulesForLane, commandsForPacks } from '../../src/packs/registry';
+import { PACK_SOURCES, skillsForLane, agentsForLane, rulesForLane, commandsForPacks } from '../../src/marketplace/registry';
 
 describe('registry lane maps', () => {
-  it('has two packs', () => {
-    expect(PACKS.map((p) => p.id).sort()).toEqual(['atelier', 'salon']);
+  it('has two pack sources', () => {
+    expect(PACK_SOURCES.map((p) => p.id).sort()).toEqual(['atelier', 'salon']);
   });
   it('splits atelier skills across lanes and puts salon in social', () => {
     expect(skillsForLane('design').some((s) => s.name === 'design-review')).toBe(true);
@@ -441,25 +602,49 @@ describe('registry lane maps', () => {
 - [ ] **Step 3: Implement the registry**
 
 ```ts
-// src/packs/registry.ts
-import path from 'path';
-import fs from 'fs';
-import type { LaneId, Pack, LoadedPack, Skill, PackAgent, RuleFile } from './types';
-import { getPacksRoot } from './paths';
+// src/marketplace/registry.ts
+import type { LaneId, PackSource, LoadedPack, Skill, PackAgent, RuleFile } from './types';
 import { readPack } from './loader';
 
-const root = getPacksRoot();
-
-export const PACKS: Pack[] = [
-  { id: 'atelier', name: 'Atelier', lanes: ['design', 'product', 'brand'], dir: path.join(root, 'atelier') },
-  { id: 'salon', name: 'Salon', lanes: ['social'], dir: path.join(root, 'salon') },
+export const PACK_SOURCES: PackSource[] = [
+  { id: 'atelier', name: 'Atelier', lanes: ['design', 'product', 'brand'], repo: 'lama-assaf/atelier', branch: 'main' },
+  { id: 'salon',   name: 'Salon',   lanes: ['social'],                     repo: 'lama-assaf/salon',   branch: 'main' },
 ];
 
 interface LaneMap { defaultLane: LaneId; skills: Record<string, LaneId>; agents: Record<string, LaneId>; }
 
-function readLaneMap(pack: Pack): LaneMap {
-  try { return JSON.parse(fs.readFileSync(path.join(pack.dir, 'lanes.json'), 'utf-8')); }
-  catch { return { defaultLane: pack.lanes[0], skills: {}, agents: {} }; }
+// Our metadata about the packs (NOT pack content). Verify names against seed dirs.
+const LANE_MAPS: Record<string, LaneMap> = {
+  salon: { defaultLane: 'social', skills: {}, agents: {} },
+  atelier: {
+    defaultLane: 'product',
+    skills: {
+      'design-review': 'design', 'design-system-audit': 'design', 'accessibility-audit': 'design',
+      'dark-mode-pairing': 'design', 'component-spec': 'design', 'data-viz-design': 'design',
+      'iconography-system': 'design', 'motion-direction': 'design', 'figma-handoff-spec': 'design',
+      'prd-writing': 'product', 'spec-writing': 'product', 'jtbd-framing': 'product',
+      'roadmap-planning': 'product', 'feature-scoping': 'product', 'metric-design': 'product',
+      'ab-test-design': 'product', 'competitive-analysis': 'product', 'launch-planning': 'product',
+      'research-synthesis': 'product',
+      'brand-voice-extraction': 'brand', 'naming-generation': 'brand', 'tagline-writing': 'brand',
+      'positioning-statement': 'brand', 'messaging-architecture': 'brand', 'value-prop-writing': 'brand',
+      'microcopy-writing': 'brand', 'landing-copy': 'brand', 'case-study-writing': 'brand',
+      'release-narrative': 'brand', 'brand-identity-audit': 'brand', 'content-calendar': 'brand',
+      'email-sequence': 'brand',
+    },
+    agents: {
+      'design-reviewer': 'design', 'accessibility-reviewer': 'design', 'design-system-auditor': 'design',
+      'product-strategist': 'product', 'competitor-analyst': 'product', 'ux-research-synthesizer': 'product',
+      'taxonomy-architect': 'product', 'narrative-architect': 'product',
+      'brand-voice-keeper': 'brand', 'copywriter': 'brand', 'microcopy-writer': 'brand',
+      'naming-generator': 'brand', 'case-study-writer': 'brand', 'pitch-deck-writer': 'brand',
+      'release-narrator': 'brand',
+    },
+  },
+};
+
+function laneMapFor(id: string): LaneMap {
+  return LANE_MAPS[id] ?? { defaultLane: (PACK_SOURCES.find((p) => p.id === id)?.lanes[0] ?? 'product'), skills: {}, agents: {} };
 }
 
 // Which rules subdirs feed each lane (common always included).
@@ -471,17 +656,16 @@ const LANE_RULE_DIRS: Record<LaneId, string[]> = {
 };
 
 const loaded: Map<string, LoadedPack> = new Map();
-const laneMaps: Map<string, LaneMap> = new Map();
 function ensureLoaded() {
   if (loaded.size) return;
-  for (const p of PACKS) { loaded.set(p.id, readPack(p)); laneMaps.set(p.id, readLaneMap(p)); }
+  for (const p of PACK_SOURCES) loaded.set(p.id, readPack(p));
 }
 
 export function skillsForLane(lane: LaneId): Skill[] {
   ensureLoaded();
   const out: Skill[] = [];
-  for (const p of PACKS) {
-    const lp = loaded.get(p.id)!; const lm = laneMaps.get(p.id)!;
+  for (const p of PACK_SOURCES) {
+    const lp = loaded.get(p.id)!; const lm = laneMapFor(p.id);
     for (const s of lp.skills) if ((lm.skills[s.name] ?? lm.defaultLane) === lane) out.push(s);
   }
   return out;
@@ -490,8 +674,8 @@ export function skillsForLane(lane: LaneId): Skill[] {
 export function agentsForLane(lane: LaneId): PackAgent[] {
   ensureLoaded();
   const out: PackAgent[] = [];
-  for (const p of PACKS) {
-    const lp = loaded.get(p.id)!; const lm = laneMaps.get(p.id)!;
+  for (const p of PACK_SOURCES) {
+    const lp = loaded.get(p.id)!; const lm = laneMapFor(p.id);
     for (const a of lp.agents) if ((lm.agents[a.name] ?? lm.defaultLane) === lane) out.push(a);
   }
   return out;
@@ -502,7 +686,7 @@ export function rulesForLane(lane: LaneId): RuleFile[] {
   const wanted = new Set(LANE_RULE_DIRS[lane]);
   const seen = new Set<string>();
   const out: RuleFile[] = [];
-  for (const p of PACKS) for (const r of loaded.get(p.id)!.rules) {
+  for (const p of PACK_SOURCES) for (const r of loaded.get(p.id)!.rules) {
     if (!wanted.has(r.lane)) continue;
     if (seen.has(r.hash)) continue;        // de-dupe identical brand/copy rules
     seen.add(r.hash); out.push(r);
@@ -513,7 +697,7 @@ export function rulesForLane(lane: LaneId): RuleFile[] {
 export function commandsForPacks(): { ns: string; name: string; description: string; content: string }[] {
   ensureLoaded();
   const out: { ns: string; name: string; description: string; content: string }[] = [];
-  for (const p of PACKS) for (const c of loaded.get(p.id)!.commands)
+  for (const p of PACK_SOURCES) for (const c of loaded.get(p.id)!.commands)
     out.push({ ns: `${p.id}:${c.name}`, name: c.name, description: c.description, content: c.content });
   return out;
 }
@@ -521,22 +705,23 @@ export function commandsForPacks(): { ns: string; name: string; description: str
 export function allBannedAndToneRules(): RuleFile[] {
   ensureLoaded();
   const seen = new Set<string>(); const out: RuleFile[] = [];
-  for (const p of PACKS) for (const r of loaded.get(p.id)!.rules)
+  for (const p of PACK_SOURCES) for (const r of loaded.get(p.id)!.rules)
     if (/banned-words|anti-ai-tone/.test(r.filename) && !seen.has(r.hash)) { seen.add(r.hash); out.push(r); }
   return out;
 }
 ```
+> `loaded` is a module-level cache filled once from the seed/userData dir. After a sync updates `<userData>/plugins`, it refreshes on next app start (acceptable for v1; a `reload()` export can bust it later if hot-reload is wanted).
 
 - [ ] **Step 4: Run both test files — expect PASS.**
 
-Run: `npx vitest run tests/unit/packs-registry.test.ts tests/unit/packs-loader.test.ts`
-Expected: PASS.
+Run: `npx vitest run tests/unit/marketplace-registry.test.ts tests/unit/marketplace-loader.test.ts`
+Expected: PASS (both read seed content via the non-electron fallback in `getPluginsRoot`).
 
 - [ ] **Step 5: `npm run typecheck && npm run lint` — expect clean. Commit**
 
 ```bash
-git add src/packs/registry.ts src/packs/atelier/lanes.json src/packs/salon/lanes.json tests/unit/packs-registry.test.ts
-git commit -m "feat(packs): registry with lane maps for skills/agents/rules/commands"
+git add src/marketplace/registry.ts tests/unit/marketplace-registry.test.ts
+git commit -m "feat(marketplace): registry + inline lane maps for skills/agents/rules/commands"
 ```
 
 ---
@@ -584,7 +769,7 @@ describe('lane modes', () => {
 
 In `src/agent/agent-modes.ts`:
 - Line 10 → `export type AgentModeId = 'general' | 'design' | 'product' | 'brand' | 'social' | 'coder' | 'researcher' | 'writer' | 'therapist';`
-- Add to `AgentMode` interface: `lane?: import('../packs/types').LaneId;`
+- Add to `AgentMode` interface: `lane?: import('../marketplace/types').LaneId;`
 - Add a shared preamble constant and four mode entries. Example (design; replicate for product/brand/social with lane-specific one-liners):
 
 ```ts
@@ -673,8 +858,8 @@ describe('composeLaneRules', () => {
 
 ```ts
 // src/agent/lane-context.ts
-import type { LaneId } from '../packs/types';
-import { rulesForLane } from '../packs/registry';
+import type { LaneId } from '../marketplace/types';
+import { rulesForLane } from '../marketplace/registry';
 
 export function composeLaneRules(lane: LaneId): string {
   const rules = rulesForLane(lane);
@@ -748,7 +933,7 @@ describe('formatLaneSkills', () => {
 
 ```ts
 import { formatSkillsForPrompt } from '@kenkaiiii/ggcoder';
-import { skillsForLane } from '../packs/registry';
+import { skillsForLane } from '../marketplace/registry';
 
 export function formatLaneSkills(lane: LaneId): string {
   const skills = skillsForLane(lane);
@@ -762,8 +947,8 @@ export function formatLaneSkills(lane: LaneId): string {
 In `src/agent/chat-tools.ts`, extend the signature and add the tool:
 ```ts
 import { createSkillTool } from '@kenkaiiii/ggcoder';
-import { skillsForLane } from '../packs/registry';
-import type { LaneId } from '../packs/types';
+import { skillsForLane } from '../marketplace/registry';
+import type { LaneId } from '../marketplace/types';
 
 export function getChatAgentTools(config: ToolsConfig, cwd: string, lane?: LaneId): AgentTool[] {
   // ...existing body...
@@ -845,8 +1030,8 @@ describe('named specialist resolution', () => {
 
 In `src/tools/subagent.ts`:
 ```ts
-import { agentsForLane } from '../packs/registry';
-import type { LaneId } from '../packs/types';
+import { agentsForLane } from '../marketplace/registry';
+import type { LaneId } from '../marketplace/types';
 
 const CC_TO_POCKET_TOOL: Record<string, string> = {
   Read: 'read', Write: 'write', Edit: 'edit', Grep: 'shell_command', Glob: 'shell_command',
@@ -1032,7 +1217,7 @@ describe('scanForBannedTone', () => {
 
 ```ts
 // src/agent/write-guards.ts
-import { allBannedAndToneRules } from '../packs/registry';
+import { allBannedAndToneRules } from '../marketplace/registry';
 
 let cachedWords: string[] | null = null;
 
@@ -1165,7 +1350,7 @@ describe('AtelierMemoryBridge', () => {
 import fs from 'fs';
 import path from 'path';
 import type { MemoryManager } from './index';
-import type { MemoryTemplate } from '../packs/types';
+import type { MemoryTemplate } from '../marketplace/types';
 
 const CATEGORY = 'atelier-memory';
 
@@ -1252,7 +1437,7 @@ git commit -m "feat(memory): one-way .atelier/memory → SQLite mirror bridge"
 - Test: `tests/unit/atelier-memory-tools.test.ts`
 
 **Interfaces:**
-- Consumes: `AtelierMemoryBridge`, `PACKS`/`loadAllPacks`, `getCurrentSessionId`, `MemoryManager`.
+- Consumes: `AtelierMemoryBridge`, `PACK_SOURCES`/`loadAllPacks`, `getCurrentSessionId`, `MemoryManager`.
 - Produces: `getAtelierMemoryTools()` → `[{ name: 'memory_init', ... }]`; post-write hook calls `bridge.onMemoryFileWritten`.
 
 - [ ] **Step 1: Write the failing test**
@@ -1279,8 +1464,8 @@ describe('memory_init tool', () => {
 ```ts
 // src/tools/atelier-memory-tools.ts
 import { AtelierMemoryBridge } from '../memory/atelier-bridge';
-import { loadAllPacks } from '../packs/loader';
-import { PACKS } from '../packs/registry';
+import { loadAllPacks } from '../marketplace/loader';
+import { PACK_SOURCES } from '../marketplace/registry';
 import { getMemoryManager } from './memory-tools'; // existing accessor; add if absent
 
 export function getAtelierMemoryTools() {
@@ -1293,7 +1478,7 @@ export function getAtelierMemoryTools() {
       if (!memory) return 'Memory not available.';
       const projectDir = memory.getSessionWorkingDirectory(/* current */ '') || process.cwd();
       const bridge = new AtelierMemoryBridge(memory);
-      const templates = loadAllPacks(PACKS).flatMap((p) => p.memoryTemplates);
+      const templates = loadAllPacks(PACK_SOURCES).flatMap((p) => p.memoryTemplates);
       const created = await bridge.seed(projectDir, templates);
       await bridge.syncProject(projectDir);
       return created.length
@@ -1371,7 +1556,7 @@ describe('pack commands', () => {
 
 In `src/config/commands-loader.ts`, extend `loadWorkflowCommands()`:
 ```ts
-import { commandsForPacks } from '../packs/registry';
+import { commandsForPacks } from '../marketplace/registry';
 
 export function loadWorkflowCommands(): WorkflowCommand[] {
   const userCmds = loadWorkflowCommandsFromDir(getCommandsDir());
@@ -1427,7 +1612,7 @@ git commit -m "chore(packs): default operator-packs feature flag on + suite gree
 ## Self-Review
 
 **Spec coverage:**
-- §2.1 pack bundling/loader → Tasks 1–3. §2.2 modes/order → Task 4. §2.3 specialist subagents → Task 7. §2.4 skills → Task 6. §2.5 commands → Task 12. §2.6 rules → Task 5. §3 memory both-layers → Tasks 10–11. §4.1/4.2/4.3 hooks → Tasks 8/9/11. Feature flag → Task 13. All covered.
+- §2.1 marketplace (seed/sync/loader) → Tasks 1, 1B, 2, 3. §2.2 modes/order → Task 4. §2.3 specialist subagents → Task 7. §2.4 skills → Task 6. §2.5 commands → Task 12. §2.6 rules → Task 5. §3 memory both-layers → Tasks 10–11. §4.1/4.2/4.3 hooks → Tasks 8/9/11. Feature flag → Task 13. First-run seed + startup/manual update cadence → Task 1B. All covered.
 
 **Placeholder scan:** No "TBD/TODO/handle edge cases". Two spec-level open questions (persona shape, memory-init auto-run) were resolved in the plan: shared `OPERATOR_PREAMBLE` + lane delta (Task 4), explicit `memory_init` tool (Task 11).
 
