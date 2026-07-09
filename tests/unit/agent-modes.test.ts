@@ -43,10 +43,20 @@ describe('buildSystemGuidelines', () => {
 });
 
 describe('Agent Modes', () => {
-  const EXPECTED_MODES: AgentModeId[] = ['general', 'coder', 'researcher', 'writer', 'therapist'];
+  const EXPECTED_MODES: AgentModeId[] = [
+    'general',
+    'design',
+    'product',
+    'brand',
+    'social',
+    'coder',
+    'researcher',
+    'writer',
+    'therapist',
+  ];
 
   describe('AGENT_MODES registry', () => {
-    it('should contain all 5 expected modes', () => {
+    it('should contain all 9 expected modes', () => {
       expect(Object.keys(AGENT_MODES).sort()).toEqual([...EXPECTED_MODES].sort());
     });
 

@@ -7,13 +7,26 @@
 
 // ── Types ──
 
-export type AgentModeId = 'general' | 'coder' | 'researcher' | 'writer' | 'therapist';
+import type { LaneId } from '../marketplace/types';
+
+export type AgentModeId =
+  | 'general'
+  | 'design'
+  | 'product'
+  | 'brand'
+  | 'social'
+  | 'coder'
+  | 'researcher'
+  | 'writer'
+  | 'therapist';
 
 export interface AgentMode {
   id: AgentModeId;
   name: string;
   icon: string;
   engine: 'chat';
+  /** Marketplace lane this mode belongs to, if any */
+  lane?: LaneId;
   systemPrompt: string;
   /**
    * Intended tool surface for this mode. NOTE: not currently enforced — actual
@@ -152,6 +165,28 @@ You are in supportive listening mode. The user wants to talk through something �
 - You are not a clinician: never diagnose. If they mention self-harm or crisis, respond with care and gently point them to professional/crisis support
 - If the conversation shifts to tasks, coding, or research, switch back to the appropriate agent`;
 
+const OPERATOR_PREAMBLE = `You are an operator, not a chat bot. Every request is one of four moves — review, build, decide, synthesize. Name the move, then use the matching skill or specialist. Produce structured artifacts, not vibes. The rules loaded for this lane hold across every output.`;
+
+const DESIGN_PROMPT = `${OPERATOR_PREAMBLE}
+
+## Design lane
+How it looks and feels. Critique against hierarchy, spacing, type, color, alignment, density, affordance. Delegate deep critiques to the design-reviewer / accessibility-reviewer specialists. Do not redesign on a critique request; critique within the design's own intent.`;
+
+const PRODUCT_PROMPT = `${OPERATOR_PREAMBLE}
+
+## Product lane
+What to build and why. Frame every request as problem, user, tradeoff, and success metric before scoping a solution. Push back on feature requests that skip the "why" — decide, don't just draft options.`;
+
+const BRAND_PROMPT = `${OPERATOR_PREAMBLE}
+
+## Brand lane
+How it sounds. Guard voice, tone, and message consistency across surfaces. Synthesize scattered copy into one point of view; flag drift from established brand rules rather than silently rewriting them.`;
+
+const SOCIAL_PROMPT = `${OPERATOR_PREAMBLE}
+
+## Social lane
+Campaigns and platform-native content. Build for the platform's format and audience first, brand voice second — but never contradict it. Hand off to brand when voice/positioning questions surface mid-campaign.`;
+
 // ── Mode registry ──
 
 export const AGENT_MODES: Record<AgentModeId, AgentMode> = {
@@ -175,6 +210,62 @@ export const AGENT_MODES: Record<AgentModeId, AgentMode> = {
     description: 'Personal assistant — remembers, schedules, browses, manages life',
     handoffDescription: 'General conversation, scheduling, reminders, task management',
     canHandoffTo: ['coder', 'researcher', 'writer', 'therapist'],
+    technicalMode: false,
+  },
+  design: {
+    id: 'design',
+    name: 'Design',
+    icon: '🎨',
+    engine: 'chat',
+    lane: 'design',
+    systemPrompt: DESIGN_PROMPT,
+    allowedTools: [...MEMORY_TOOLS, ...SOUL_TOOLS, ...NOTIFY_TOOLS, ...SWITCH_TOOL],
+    mcpServers: ['pocket-agent'],
+    description: 'Design lane — critique, systems, accessibility',
+    handoffDescription: 'Design critique, design systems, accessibility, visual work',
+    canHandoffTo: ['product', 'brand', 'general'],
+    technicalMode: false,
+  },
+  product: {
+    id: 'product',
+    name: 'Product',
+    icon: '📐',
+    engine: 'chat',
+    lane: 'product',
+    systemPrompt: PRODUCT_PROMPT,
+    allowedTools: [...MEMORY_TOOLS, ...SOUL_TOOLS, ...NOTIFY_TOOLS, ...SWITCH_TOOL],
+    mcpServers: ['pocket-agent'],
+    description: 'Product lane — scoping, tradeoffs, prioritization',
+    handoffDescription: 'What to build and why, scoping, prioritization, tradeoffs',
+    canHandoffTo: ['design', 'brand', 'general'],
+    technicalMode: false,
+  },
+  brand: {
+    id: 'brand',
+    name: 'Brand',
+    icon: '✨',
+    engine: 'chat',
+    lane: 'brand',
+    systemPrompt: BRAND_PROMPT,
+    allowedTools: [...MEMORY_TOOLS, ...SOUL_TOOLS, ...NOTIFY_TOOLS, ...SWITCH_TOOL],
+    mcpServers: ['pocket-agent'],
+    description: 'Brand lane — voice, tone, message consistency',
+    handoffDescription: 'Brand voice, tone, messaging consistency',
+    canHandoffTo: ['design', 'product', 'general'],
+    technicalMode: false,
+  },
+  social: {
+    id: 'social',
+    name: 'Social',
+    icon: '📣',
+    engine: 'chat',
+    lane: 'social',
+    systemPrompt: SOCIAL_PROMPT,
+    allowedTools: [...MEMORY_TOOLS, ...SOUL_TOOLS, ...NOTIFY_TOOLS, ...SWITCH_TOOL],
+    mcpServers: ['pocket-agent'],
+    description: 'Social lane — campaigns, platform-native content',
+    handoffDescription: 'Social campaigns, platform-native content',
+    canHandoffTo: ['brand', 'general'],
     technicalMode: false,
   },
   coder: {
@@ -237,8 +328,18 @@ export const AGENT_MODES: Record<AgentModeId, AgentMode> = {
   },
 };
 
-/** All valid mode IDs */
-export const ALL_MODE_IDS: AgentModeId[] = Object.keys(AGENT_MODES) as AgentModeId[];
+/** All valid mode IDs, in display order (Coder last) */
+export const ALL_MODE_IDS: AgentModeId[] = [
+  'general',
+  'design',
+  'product',
+  'brand',
+  'social',
+  'researcher',
+  'writer',
+  'therapist',
+  'coder',
+];
 
 /** Check if a string is a valid mode ID */
 export function isValidModeId(mode: string): mode is AgentModeId {

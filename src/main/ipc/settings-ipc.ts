@@ -309,6 +309,7 @@ export function registerSettingsIPC(deps: IPCDependencies): void {
       icon: m.icon,
       systemPrompt: m.systemPrompt,
       description: m.description,
+      lane: m.lane,
     }));
   });
 
