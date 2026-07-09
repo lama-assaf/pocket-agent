@@ -74,6 +74,12 @@ export function registerSettingsIPC(deps: IPCDependencies): void {
   // Keys that are encrypted but must be accessible from the renderer
   const RENDERER_ALLOWED_ENCRYPTED_KEYS = new Set(['chat.adminKey']);
 
+  ipcMain.handle('marketplace:checkUpdates', async () => {
+    const { PackSyncManager } = await import('../../marketplace/sync');
+    const { PACK_SOURCES } = await import('../../marketplace/registry');
+    return new PackSyncManager(PACK_SOURCES).checkAndUpdate();
+  });
+
   ipcMain.handle('settings:getAll', async () => {
     return SettingsManager.getAllSafe();
   });

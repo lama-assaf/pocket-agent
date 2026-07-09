@@ -15,6 +15,9 @@ import { createTelegramBot, TelegramBot } from '../channels/telegram';
 import { SettingsManager } from '../settings';
 import { DEFAULT_COMMANDS } from '../config/commands';
 import { getBrowserManager } from '../browser';
+import { setPluginsRoot } from '../marketplace/paths';
+import { PackSyncManager } from '../marketplace/sync';
+import { PACK_SOURCES } from '../marketplace/registry';
 import { initializeUpdater, setupUpdaterIPC, setSettingsWindow, setChatWindow } from './updater';
 import { createWindow, getWindow } from './windows';
 import { fixPathForPackagedApp } from './node-paths';
@@ -646,6 +649,14 @@ app.whenReady().then(async () => {
     // the app bundle in a packaged build). The browser module itself never
     // imports Electron — we inject the path here.
     getBrowserManager({ downloadPath: app.getPath('downloads') });
+
+    // === Operator packs (Atelier + Salon) ===
+    // Seed bundled packs on first run, then update from the og repos in the
+    // background. The marketplace module never imports Electron — inject userData here.
+    setPluginsRoot(path.join(app.getPath('userData'), 'plugins'));
+    const packSync = new PackSyncManager(PACK_SOURCES);
+    await packSync.ensureInstalled();
+    void packSync.checkAndUpdate().catch((e) => console.error('[marketplace] pack update failed', e));
 
     // === Power Management ===
     // Let macOS manage power naturally — App Nap may coalesce timers by a few

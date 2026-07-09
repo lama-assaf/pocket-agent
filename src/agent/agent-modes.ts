@@ -209,7 +209,7 @@ export const AGENT_MODES: Record<AgentModeId, AgentMode> = {
     mcpServers: ['pocket-agent'],
     description: 'Personal assistant — remembers, schedules, browses, manages life',
     handoffDescription: 'General conversation, scheduling, reminders, task management',
-    canHandoffTo: ['coder', 'researcher', 'writer', 'therapist'],
+    canHandoffTo: ['design', 'product', 'brand', 'social', 'coder', 'researcher', 'writer', 'therapist'],
     technicalMode: false,
   },
   design: {
