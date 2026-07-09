@@ -11,6 +11,9 @@
  * better instruction following.
  */
 
+import { AGENT_MODES } from '../agent/agent-modes';
+import { composeLaneRules } from '../agent/lane-context';
+
 const MEMORY_SECTION = `## Memory — You Own It
 
 Your memory is bounded. You are the curator — save what matters, update what changed, remove what's stale.
@@ -110,11 +113,15 @@ const SECTIONS: ReadonlyArray<{ content: string; modes: ReadonlySet<string> | 'a
  * to the mode's job are included (writer/therapist skip CLI and scheduler).
  */
 export function buildSystemGuidelines(mode: string): string {
-  return (
-    SECTIONS.filter((s) => s.modes === 'all' || s.modes.has(mode))
-      .map((s) => s.content)
-      .join('\n\n') + '\n'
-  );
+  const base = SECTIONS.filter((s) => s.modes === 'all' || s.modes.has(mode)).map((s) => s.content);
+
+  const laneId = AGENT_MODES[mode as keyof typeof AGENT_MODES]?.lane;
+  if (laneId) {
+    const laneRules = composeLaneRules(laneId);
+    if (laneRules) base.push(laneRules);
+  }
+
+  return base.join('\n\n') + '\n';
 }
 
 /**
