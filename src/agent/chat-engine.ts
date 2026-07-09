@@ -30,7 +30,7 @@ import { resolveModel } from './resolve-model';
 import { getProviderForModel } from './providers';
 import { getContextWindow } from './model-catalog';
 import { getChatAgentTools, getCoderAgentTools } from './chat-tools';
-import { formatLaneSkills } from './lane-context';
+import { formatLaneSkills, buildLaneContextInjection } from './lane-context';
 import {
   buildSystemPrompt as buildCoderSystemPrompt,
   shouldCompact,
@@ -888,6 +888,17 @@ export class ChatEngine {
           dynamicParts.push(rollups);
           console.log(`[ChatEngine] Rollups injected: ${rollups.length} chars`);
         }
+      }
+    }
+
+    // 5b. Keyword-triggered lane context — surface full skill/rule body when
+    // the user's message matches a known keyword for the current lane.
+    const laneForInject = getModeConfig(sessionMode).lane;
+    if (laneForInject && userMessage) {
+      const laneInjection = buildLaneContextInjection(userMessage, laneForInject);
+      if (laneInjection) {
+        dynamicParts.push(laneInjection);
+        console.log(`[ChatEngine] Lane context injected: ${laneInjection.length} chars`);
       }
     }
 
