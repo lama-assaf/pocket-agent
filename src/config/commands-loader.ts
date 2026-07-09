@@ -9,6 +9,8 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 
+import { commandsForPacks } from '../marketplace/registry';
+
 export interface WorkflowCommand {
   name: string;
   description: string;
@@ -56,10 +58,19 @@ export function loadWorkflowCommandsFromDir(commandsDir: string): WorkflowComman
 }
 
 /**
- * Load all workflow commands from the default commands directory
+ * Load all workflow commands from the default commands directory, plus
+ * the namespaced commands exposed by installed marketplace packs
+ * (e.g. `atelier:design-review`, `salon:campaign`).
  */
 export function loadWorkflowCommands(): WorkflowCommand[] {
-  return loadWorkflowCommandsFromDir(getCommandsDir());
+  const userCmds = loadWorkflowCommandsFromDir(getCommandsDir());
+  const packCmds: WorkflowCommand[] = commandsForPacks().map((c) => ({
+    name: c.ns,
+    description: c.description,
+    filename: `${c.ns}.md`,
+    content: c.content,
+  }));
+  return [...packCmds, ...userCmds];
 }
 
 /**
