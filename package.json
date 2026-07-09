@@ -170,6 +170,7 @@
     "officeparser": "^7.0.3",
     "ogg-opus-decoder": "^1.7.3",
     "puppeteer-core": "^25.0.4",
+    "tar": "^7.5.15",
     "ws": "^8.19.0"
   },
   "devDependencies": {
