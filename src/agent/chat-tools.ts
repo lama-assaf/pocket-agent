@@ -18,6 +18,8 @@ import { skillsForLane } from '../marketplace/registry';
 import type { LaneId } from '../marketplace/types';
 import { getStreamConfig } from './chat-providers';
 import { validateBashCommand, validateWritePath } from './safety';
+import { scanForBannedTone } from './write-guards';
+import { SettingsManager } from '../settings';
 
 const execAsync = promisify(exec);
 const IS_WINDOWS = process.platform === 'win32';
@@ -79,6 +81,13 @@ function jsonSchemaToZod(
  * Wrap a write/edit AgentTool so its execute() runs validateWritePath before
  * delegating to the underlying tool. Blocks writes to dangerous paths (e.g.
  * /etc, ~/.ssh, /System) and returns a string explaining the block.
+ *
+ * Also runs the marketplace operator packs' anti-AI-tone / banned-words guard
+ * (ported from Atelier/Salon) against the content being written. This guard
+ * is non-blocking by default: on a hit it still performs the write and
+ * prepends a warning to the result, unless `features.toneHardBlock` is
+ * explicitly set to 'true', in which case the write is blocked instead.
+ * Controlled by `features.operatorPacks` (disable with 'false').
  */
 function wrapWithWritePathSafety(tool: AgentTool): AgentTool {
   const originalExecute = tool.execute.bind(tool);
@@ -92,6 +101,20 @@ function wrapWithWritePathSafety(tool: AgentTool): AgentTool {
           return `Write blocked by safety filter: ${safety.reason}`;
         }
       }
+
+      const content = (args as { content?: unknown })?.content;
+      if (typeof content === 'string' && SettingsManager.get('features.operatorPacks') !== 'false') {
+        const { warning } = scanForBannedTone(content);
+        if (warning) {
+          const hardBlock = SettingsManager.get('features.toneHardBlock') === 'true';
+          if (hardBlock) {
+            return `Write blocked by tone guard: ${warning}`;
+          }
+          const result = await originalExecute(args as never, context);
+          return `${warning}\n\n${result}`; // non-blocking: warn + still write
+        }
+      }
+
       return originalExecute(args as never, context);
     },
   } as AgentTool;
