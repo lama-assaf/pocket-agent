@@ -136,7 +136,11 @@ function notifyAtelierMemoryWrite(filePath: unknown): void {
   const memory = getMemoryManager();
   if (!memory) return;
   const projectDir = filePath.split('.atelier')[0];
-  void new AtelierMemoryBridge(memory).onMemoryFileWritten(filePath, projectDir);
+  // Fire-and-forget: a mirror-sync failure must never surface as an unhandled
+  // rejection (this runs 24/7). Swallow-and-log; the canonical file tree is unaffected.
+  void new AtelierMemoryBridge(memory)
+    .onMemoryFileWritten(filePath, projectDir)
+    .catch((e) => console.error('[atelier-memory] mirror sync failed', e));
 }
 
 const WRITE_TOOL_NAMES = new Set(['write', 'edit', 'Write', 'Edit']);
