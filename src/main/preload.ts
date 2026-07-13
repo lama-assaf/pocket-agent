@@ -56,6 +56,35 @@ contextBridge.exposeInMainWorld('pocketAgent', {
   },
 
   // ─── Sessions ────────────────────────────────────────────────────────
+  clients: {
+    list: () => ipcRenderer.invoke('clients:list'),
+    create: (input: {
+      id: string;
+      name: string;
+      syncMode?: 'live' | 'manual';
+      repoUrl?: string | null;
+    }) => ipcRenderer.invoke('clients:create', input),
+  },
+  projects: {
+    list: (clientId: string) => ipcRenderer.invoke('projects:list', clientId),
+    create: (input: {
+      id: string;
+      clientId: string;
+      name: string;
+      workingDirectory?: string | null;
+    }) => ipcRenderer.invoke('projects:create', input),
+    update: (id: string, fields: { name?: string; workingDirectory?: string | null }) =>
+      ipcRenderer.invoke('projects:update', id, fields),
+    delete: (id: string) => ipcRenderer.invoke('projects:delete', id),
+  },
+  sync: {
+    pull: (scope: string) => ipcRenderer.invoke('sync:pull', scope),
+    publish: (scope: string, message?: string) =>
+      ipcRenderer.invoke('sync:publish', scope, message),
+    status: (scope: string) => ipcRenderer.invoke('sync:status', scope),
+    setClientMode: (id: string, mode: 'live' | 'manual') =>
+      ipcRenderer.invoke('sync:setClientMode', id, mode),
+  },
   sessions: {
     list: () => ipcRenderer.invoke('sessions:list'),
     create: (name: string) => ipcRenderer.invoke('sessions:create', name),
@@ -63,6 +92,15 @@ contextBridge.exposeInMainWorld('pocketAgent', {
     delete: (id: string) => ipcRenderer.invoke('sessions:delete', id),
     setPulseEnabled: (id: string, enabled: boolean) =>
       ipcRenderer.invoke('sessions:setPulseEnabled', id, enabled),
+    getContext: (id: string) => ipcRenderer.invoke('sessions:getContext', id),
+    setContext: (
+      id: string,
+      context: {
+        contextType: 'personal' | 'world' | 'client' | 'project';
+        clientId?: string | null;
+        projectKey?: string | null;
+      }
+    ) => ipcRenderer.invoke('sessions:setContext', id, context),
     onChanged: (callback: () => void) => {
       const listener = () => callback();
       ipcRenderer.on('sessions:changed', listener);
@@ -78,15 +116,22 @@ contextBridge.exposeInMainWorld('pocketAgent', {
 
   // ─── Facts ───────────────────────────────────────────────────────────
   facts: {
-    list: () => ipcRenderer.invoke('facts:list'),
+    list: (scope?: string) => ipcRenderer.invoke('facts:list', scope),
     search: (query: string) => ipcRenderer.invoke('facts:search', query),
     getCategories: () => ipcRenderer.invoke('facts:categories'),
+    create: (input: {
+      category: string;
+      subject: string;
+      content: string;
+      sensitive?: boolean;
+      scope?: string;
+    }) => ipcRenderer.invoke('facts:create', input),
     delete: (id: number) => ipcRenderer.invoke('facts:delete', id),
     update: (id: number, fields: { category?: string; subject?: string; content?: string }) =>
       ipcRenderer.invoke('facts:update', id, fields),
     setSensitive: (id: number, sensitive: boolean) =>
       ipcRenderer.invoke('facts:setSensitive', id, sensitive),
-    memoryUsage: () => ipcRenderer.invoke('facts:memoryUsage'),
+    memoryUsage: (scope?: string) => ipcRenderer.invoke('facts:memoryUsage', scope),
     export: (format: 'json' | 'markdown' = 'json') => ipcRenderer.invoke('memory:export', format),
   },
 
@@ -137,6 +182,118 @@ contextBridge.exposeInMainWorld('pocketAgent', {
   customize: {
     getSystemPrompt: () => ipcRenderer.invoke('customize:getSystemPrompt'),
     getAgentModes: () => ipcRenderer.invoke('customize:getAgentModes'),
+  },
+
+  // ─── Marketplace (Atelier/Salon pack agents) ──────────────────────────
+  marketplace: {
+    listAgents: (context?: {
+      contextType: 'personal' | 'world' | 'client' | 'project';
+      clientId?: string | null;
+      projectKey?: string | null;
+    }) => ipcRenderer.invoke('marketplace:listAgents', context),
+    getAgent: (
+      packId: string,
+      name: string,
+      context?: {
+        contextType: 'personal' | 'world' | 'client' | 'project';
+        clientId?: string | null;
+        projectKey?: string | null;
+      }
+    ) => ipcRenderer.invoke('marketplace:getAgent', packId, name, context),
+    getAgentOverride: (
+      packId: string,
+      name: string,
+      context: {
+        contextType: 'personal' | 'world' | 'client' | 'project';
+        clientId?: string | null;
+        projectKey?: string | null;
+      }
+    ) => ipcRenderer.invoke('marketplace:getAgentOverride', packId, name, context),
+    setAgentOverride: (
+      packId: string,
+      name: string,
+      fields: { prompt?: string; tools?: string[]; model?: string },
+      context: {
+        contextType: 'personal' | 'world' | 'client' | 'project';
+        clientId?: string | null;
+        projectKey?: string | null;
+      }
+    ) => ipcRenderer.invoke('marketplace:setAgentOverride', packId, name, fields, context),
+    clearAgentOverride: (
+      packId: string,
+      name: string,
+      context: {
+        contextType: 'personal' | 'world' | 'client' | 'project';
+        clientId?: string | null;
+        projectKey?: string | null;
+      }
+    ) => ipcRenderer.invoke('marketplace:clearAgentOverride', packId, name, context),
+    getAgentEnablement: (
+      packId: string,
+      name: string,
+      context: {
+        contextType: 'personal' | 'world' | 'client' | 'project';
+        clientId?: string | null;
+        projectKey?: string | null;
+      }
+    ) => ipcRenderer.invoke('marketplace:getAgentEnablement', packId, name, context),
+    setAgentEnablement: (
+      packId: string,
+      name: string,
+      enabled: boolean,
+      context: {
+        contextType: 'personal' | 'world' | 'client' | 'project';
+        clientId?: string | null;
+        projectKey?: string | null;
+      }
+    ) => ipcRenderer.invoke('marketplace:setAgentEnablement', packId, name, enabled, context),
+    clearAgentEnablement: (
+      packId: string,
+      name: string,
+      context: {
+        contextType: 'personal' | 'world' | 'client' | 'project';
+        clientId?: string | null;
+        projectKey?: string | null;
+      }
+    ) => ipcRenderer.invoke('marketplace:clearAgentEnablement', packId, name, context),
+  },
+
+  // ─── MCP Servers (first-party + marketplace-sourced) ───────────────
+  mcp: {
+    listServers: (context?: {
+      contextType: 'personal' | 'world' | 'client' | 'project';
+      clientId?: string | null;
+      projectKey?: string | null;
+    }) => ipcRenderer.invoke('mcp:listServers', context),
+    setServerEnabled: (id: string, enabled: boolean, confirmed?: boolean) =>
+      ipcRenderer.invoke('mcp:setServerEnabled', id, enabled, confirmed),
+    setServerEnv: (id: string, env: Record<string, string>) =>
+      ipcRenderer.invoke('mcp:setServerEnv', id, env),
+    getServerScopeEnablement: (
+      id: string,
+      context: {
+        contextType: 'personal' | 'world' | 'client' | 'project';
+        clientId?: string | null;
+        projectKey?: string | null;
+      }
+    ) => ipcRenderer.invoke('mcp:getServerScopeEnablement', id, context),
+    setServerScopeEnablement: (
+      id: string,
+      enabled: boolean,
+      context: {
+        contextType: 'personal' | 'world' | 'client' | 'project';
+        clientId?: string | null;
+        projectKey?: string | null;
+      }
+    ) => ipcRenderer.invoke('mcp:setServerScopeEnablement', id, enabled, context),
+    clearServerScopeEnablement: (
+      id: string,
+      context: {
+        contextType: 'personal' | 'world' | 'client' | 'project';
+        clientId?: string | null;
+        projectKey?: string | null;
+      }
+    ) => ipcRenderer.invoke('mcp:clearServerScopeEnablement', id, context),
   },
 
   // ─── Location & Timezone ─────────────────────────────────────────────
@@ -354,6 +511,36 @@ interface Session {
   updated_at: string;
   telegram_linked?: boolean;
   telegram_group_name?: string | null;
+  context_type?: 'personal' | 'world' | 'client' | 'project';
+  client_id?: string | null;
+  project_key?: string | null;
+}
+
+// Selected memory context (scoped memory)
+interface SessionContext {
+  contextType: 'personal' | 'world' | 'client' | 'project';
+  clientId: string | null;
+  projectKey: string | null;
+}
+
+// Client (brand) record
+interface Client {
+  id: string;
+  name: string;
+  sync_mode: 'live' | 'manual';
+  repo_url: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// Project (sub-scope under a client) record
+interface Project {
+  id: string;
+  client_id: string;
+  name: string;
+  working_directory: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 // Type declarations for renderer
@@ -426,25 +613,92 @@ declare global {
         rename: (id: string, name: string) => Promise<{ success: boolean; error?: string }>;
         delete: (id: string) => Promise<{ success: boolean }>;
         setPulseEnabled: (id: string, enabled: boolean) => Promise<{ success: boolean }>;
+        getContext: (id: string) => Promise<SessionContext>;
+        setContext: (
+          id: string,
+          context: {
+            contextType: 'personal' | 'world' | 'client' | 'project';
+            clientId?: string | null;
+            projectKey?: string | null;
+          }
+        ) => Promise<{ success: boolean; error?: string }>;
         onChanged: (callback: () => void) => () => void;
         onCleared: (callback: (sessionId: string) => void) => () => void;
       };
 
+      clients: {
+        list: () => Promise<Client[]>;
+        create: (input: {
+          id: string;
+          name: string;
+          syncMode?: 'live' | 'manual';
+          repoUrl?: string | null;
+        }) => Promise<{ success: boolean; client?: Client; error?: string }>;
+      };
+
+      projects: {
+        list: (clientId: string) => Promise<Project[]>;
+        create: (input: {
+          id: string;
+          clientId: string;
+          name: string;
+          workingDirectory?: string | null;
+        }) => Promise<{ success: boolean; project?: Project; error?: string }>;
+        update: (
+          id: string,
+          fields: { name?: string; workingDirectory?: string | null }
+        ) => Promise<{ success: boolean; error?: string }>;
+        delete: (id: string) => Promise<{ success: boolean }>;
+      };
+
+      sync: {
+        pull: (
+          scope: string
+        ) => Promise<{ ok: boolean; cloned?: boolean; merged?: boolean; error?: string }>;
+        publish: (
+          scope: string,
+          message?: string
+        ) => Promise<{ ok: boolean; committed?: boolean; pushed?: boolean; error?: string }>;
+        status: (scope: string) => Promise<{ configured: boolean; cloned: boolean }>;
+        setClientMode: (id: string, mode: 'live' | 'manual') => Promise<{ success: boolean }>;
+      };
+
       facts: {
-        list: () => Promise<
-          Array<{ id: number; category: string; subject: string; content: string }>
+        list: (
+          scope?: string
+        ) => Promise<
+          Array<{ id: number; category: string; subject: string; content: string; scope?: string }>
         >;
         search: (
           query: string
         ) => Promise<Array<{ category: string; subject: string; content: string }>>;
         getCategories: () => Promise<string[]>;
+        create: (input: {
+          category: string;
+          subject: string;
+          content: string;
+          sensitive?: boolean;
+          scope?: string;
+        }) => Promise<{
+          success: boolean;
+          fact?: {
+            id: number;
+            category: string;
+            subject: string;
+            content: string;
+            scope: string;
+          } | null;
+          error?: string;
+        }>;
         delete: (id: number) => Promise<{ success: boolean }>;
         update: (
           id: number,
           fields: { category?: string; subject?: string; content?: string }
         ) => Promise<{ success: boolean }>;
         setSensitive: (id: number, sensitive: boolean) => Promise<{ success: boolean }>;
-        memoryUsage: () => Promise<{ usedChars: number; budgetChars: number; pct: number }>;
+        memoryUsage: (
+          scope?: string
+        ) => Promise<{ usedChars: number; budgetChars: number; pct: number }>;
         export: (format?: 'json' | 'markdown') => Promise<unknown>;
       };
 
@@ -509,6 +763,166 @@ declare global {
             description: string;
           }>
         >;
+      };
+
+      marketplace: {
+        listAgents: (context?: {
+          contextType: 'personal' | 'world' | 'client' | 'project';
+          clientId?: string | null;
+          projectKey?: string | null;
+        }) => Promise<
+          Array<{
+            packId: string;
+            packName: string;
+            lane: string;
+            name: string;
+            description: string;
+            tools: string[];
+            model?: string;
+            hasOverride: boolean;
+            enabled: boolean;
+            enablementScope: string;
+          }>
+        >;
+        getAgent: (
+          packId: string,
+          name: string,
+          context?: {
+            contextType: 'personal' | 'world' | 'client' | 'project';
+            clientId?: string | null;
+            projectKey?: string | null;
+          }
+        ) => Promise<{
+          packId: string;
+          packName: string;
+          lane: string;
+          name: string;
+          description: string;
+          tools: string[];
+          model?: string;
+          hasOverride: boolean;
+          enabled: boolean;
+          enablementScope: string;
+          prompt: string;
+          basePrompt: string;
+          overrideScope?: string;
+        } | null>;
+        getAgentOverride: (
+          packId: string,
+          name: string,
+          context: {
+            contextType: 'personal' | 'world' | 'client' | 'project';
+            clientId?: string | null;
+            projectKey?: string | null;
+          }
+        ) => Promise<{
+          scope: string;
+          fields: { prompt?: string; tools?: string[]; model?: string };
+        } | null>;
+        setAgentOverride: (
+          packId: string,
+          name: string,
+          fields: { prompt?: string; tools?: string[]; model?: string },
+          context: {
+            contextType: 'personal' | 'world' | 'client' | 'project';
+            clientId?: string | null;
+            projectKey?: string | null;
+          }
+        ) => Promise<{ success: boolean; scope?: string; error?: string }>;
+        clearAgentOverride: (
+          packId: string,
+          name: string,
+          context: {
+            contextType: 'personal' | 'world' | 'client' | 'project';
+            clientId?: string | null;
+            projectKey?: string | null;
+          }
+        ) => Promise<{ success: boolean; scope: string }>;
+        getAgentEnablement: (
+          packId: string,
+          name: string,
+          context: {
+            contextType: 'personal' | 'world' | 'client' | 'project';
+            clientId?: string | null;
+            projectKey?: string | null;
+          }
+        ) => Promise<{ scope: string; enabled: boolean } | null>;
+        setAgentEnablement: (
+          packId: string,
+          name: string,
+          enabled: boolean,
+          context: {
+            contextType: 'personal' | 'world' | 'client' | 'project';
+            clientId?: string | null;
+            projectKey?: string | null;
+          }
+        ) => Promise<{ success: boolean; scope?: string; error?: string }>;
+        clearAgentEnablement: (
+          packId: string,
+          name: string,
+          context: {
+            contextType: 'personal' | 'world' | 'client' | 'project';
+            clientId?: string | null;
+            projectKey?: string | null;
+          }
+        ) => Promise<{ success: boolean; scope: string }>;
+      };
+
+      mcp: {
+        listServers: (context?: {
+          contextType: 'personal' | 'world' | 'client' | 'project';
+          clientId?: string | null;
+          projectKey?: string | null;
+        }) => Promise<
+          Array<{
+            id: string;
+            source: string;
+            kind: 'stdio' | 'url';
+            name: string;
+            description?: string;
+            requiredEnv: string[];
+            configured: boolean;
+            enabled: boolean;
+            toggleable: boolean;
+            riskNote?: string;
+            scopeEnabled: boolean;
+            scopeEnablementScope: string;
+          }>
+        >;
+        setServerEnabled: (
+          id: string,
+          enabled: boolean,
+          confirmed?: boolean
+        ) => Promise<{ success: boolean; error?: string; riskNote?: string }>;
+        setServerEnv: (
+          id: string,
+          env: Record<string, string>
+        ) => Promise<{ success: boolean; error?: string }>;
+        getServerScopeEnablement: (
+          id: string,
+          context: {
+            contextType: 'personal' | 'world' | 'client' | 'project';
+            clientId?: string | null;
+            projectKey?: string | null;
+          }
+        ) => Promise<{ scope: string; enabled: boolean } | null>;
+        setServerScopeEnablement: (
+          id: string,
+          enabled: boolean,
+          context: {
+            contextType: 'personal' | 'world' | 'client' | 'project';
+            clientId?: string | null;
+            projectKey?: string | null;
+          }
+        ) => Promise<{ success: boolean; scope?: string; error?: string }>;
+        clearServerScopeEnablement: (
+          id: string,
+          context: {
+            contextType: 'personal' | 'world' | 'client' | 'project';
+            clientId?: string | null;
+            projectKey?: string | null;
+          }
+        ) => Promise<{ success: boolean; scope: string }>;
       };
 
       location: {

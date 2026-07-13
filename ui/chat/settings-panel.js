@@ -14,8 +14,10 @@ function _dismissOtherPanels(keepId) {
   const panels = {
     'settings-view': 'sidebar-settings-btn',
     'brain-view': 'sidebar-brain-btn',
+    'agents-view': 'sidebar-agents-btn',
     'routines-view': 'sidebar-routines-btn',
     'personalize-view': 'sidebar-personalize-btn',
+    'clients-view': 'active-client-header',
   };
   for (const [viewId, btnId] of Object.entries(panels)) {
     if (viewId === keepId) continue;
@@ -127,6 +129,7 @@ function _initSettingsPanel() {
     _stgSetupAutoSave();
     _stgRefreshModelDropdown();
     _stgInitializeBrowserSection();
+    _stgInitMcpSection();
     _stgInitPocketCli();
     _stgInitSkinPicker();
     _stgInitializeUpdates();
@@ -1175,6 +1178,283 @@ async function stgTestBrowserConnection() {
     } else { statusEl.className = 'status error'; statusEl.textContent = 'Not connected'; }
   } catch (err) { statusEl.className = 'status error'; statusEl.textContent = 'Error'; }
   finally { testBtn.disabled = false; testBtn.textContent = 'Test Connection'; }
+}
+
+// ---- MCP Servers ----
+// First-party (built-in) servers merged with marketplace-sourced ones
+// (Atelier/Salon catalogs). Toggling/env are settings-backed, scoped to a
+// single per-server row; risk-flagged entries require an explicit confirm
+// dialog before their first enable (also enforced server-side, see
+// src/main/ipc/mcp-ipc.ts). Server rows never inline JSON into onclick
+// attributes (double quotes in a JSON blob would break the HTML) — instead
+// every handler looks the server up by id in this module-level cache, which
+// _stgLoadMcpServers refreshes on every load/toggle/save.
+let _stgMcpServersCache = [];
+
+function _stgMcpEscapeHtml(text) {
+  if (!text) return '';
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+function _stgMcpEscapeAttr(text) {
+  return String(text).replace(/'/g, "\\'").replace(/"/g, '\\"');
+}
+
+function _stgMcpFindServer(id) {
+  return _stgMcpServersCache.find((s) => s.id === id);
+}
+
+// The active workspace context (personal/world/client/project) — same shape
+// clients-view.js's getActiveWorkspace() returns, used to resolve per-scope
+// enablement (src/agent/enablement.ts) for the current brand/project.
+function _stgMcpContext() {
+  if (typeof getActiveWorkspace === 'function') return getActiveWorkspace();
+  return { contextType: 'personal', clientId: null, projectKey: null };
+}
+
+// Mirrors src/memory/scope.ts resolveNearestScope.
+function _stgMcpNearestScope(ctx) {
+  switch (ctx.contextType) {
+    case 'world':
+      return 'world';
+    case 'client':
+      return ctx.clientId ? `client:${ctx.clientId}` : 'world';
+    case 'project':
+      if (ctx.projectKey) return `project:${ctx.projectKey}`;
+      if (ctx.clientId) return `client:${ctx.clientId}`;
+      return 'world';
+    case 'personal':
+    default:
+      return 'user';
+  }
+}
+
+let _stgMcpClientsCache = null;
+
+async function _stgMcpEnsureClientsCache() {
+  if (_stgMcpClientsCache) return;
+  try {
+    _stgMcpClientsCache = (await window.pocketAgent.clients.list()) || [];
+  } catch (_) {
+    _stgMcpClientsCache = [];
+  }
+}
+
+// Synchronous — call _stgMcpEnsureClientsCache() first so client names resolve.
+function _stgMcpScopeLabel(scope) {
+  if (!scope || scope === 'default') return 'Agency-wide (default)';
+  if (scope === 'world') return 'Agency-wide';
+  if (scope === 'user') return 'Personal';
+  if (scope.startsWith('client:')) {
+    const id = scope.slice('client:'.length);
+    const client = (_stgMcpClientsCache || []).find((c) => c.id === id);
+    return client ? client.name : id;
+  }
+  return scope;
+}
+
+async function _stgInitMcpSection() {
+  await _stgLoadMcpServers();
+}
+
+async function _stgLoadMcpServers() {
+  const listEl = document.getElementById('mcp-server-list');
+  const emptyEl = document.getElementById('mcp-server-empty');
+  if (!listEl) return;
+
+  try {
+    await _stgMcpEnsureClientsCache();
+    const servers = await window.pocketAgent.mcp.listServers(_stgMcpContext());
+    _stgMcpServersCache = servers || [];
+    if (_stgMcpServersCache.length === 0) {
+      listEl.innerHTML = '';
+      if (emptyEl) emptyEl.classList.remove('hidden');
+      return;
+    }
+    if (emptyEl) emptyEl.classList.add('hidden');
+
+    // Group by source, first-party first, then each marketplace pack.
+    const bySource = new Map();
+    for (const s of _stgMcpServersCache) {
+      if (!bySource.has(s.source)) bySource.set(s.source, []);
+      bySource.get(s.source).push(s);
+    }
+    const sourceOrder = [...bySource.keys()].sort((a, b) => {
+      if (a === 'first-party') return -1;
+      if (b === 'first-party') return 1;
+      return a.localeCompare(b);
+    });
+
+    listEl.innerHTML = sourceOrder.map((source) => `
+      <div class="mcp-source-group">
+        <div class="mcp-source-title">${_stgMcpEscapeHtml(source === 'first-party' ? 'Built-in' : source)}</div>
+        <div class="mcp-server-rows">
+          ${bySource.get(source).map(_stgMcpServerRowHtml).join('')}
+        </div>
+      </div>
+    `).join('');
+  } catch (err) {
+    console.error('[Settings] Failed to load MCP servers:', err);
+    _stgShowToast('Failed to load MCP servers', 'error');
+  }
+}
+
+function _stgMcpStatusPill(server) {
+  if (!server.toggleable) return '<span class="status info">Built-in</span>';
+  if (!server.enabled) return '<span class="status">Disabled</span>';
+  if (!server.configured) return '<span class="status warning">Missing credentials</span>';
+  if (!server.scopeEnabled) return `<span class="status warning">Disabled for ${_stgMcpEscapeHtml(_stgMcpScopeLabel(server.scopeEnablementScope))}</span>`;
+  return '<span class="status success">Enabled</span>';
+}
+
+// Per-scope (client/project) enable/disable row — only meaningful for
+// toggleable (marketplace) servers; layered on top of the settings-level
+// enabled/configured gate above (src/agent/enablement.ts).
+function _stgMcpScopeRowHtml(server) {
+  if (!server.toggleable) return '';
+  const ctx = _stgMcpContext();
+  const nearestScope = _stgMcpNearestScope(ctx);
+  const hasLocalOverride = server.scopeEnablementScope === nearestScope && server.scopeEnablementScope !== 'default';
+  const scopeNote = server.scopeEnablementScope !== 'default'
+    ? `<span class="mcp-server-scope-note">(scope: ${_stgMcpEscapeHtml(_stgMcpScopeLabel(server.scopeEnablementScope))})</span>`
+    : '';
+  const toggleLabel = server.scopeEnabled
+    ? `Disable for ${_stgMcpEscapeHtml(_stgMcpScopeLabel(nearestScope))}`
+    : `Enable for ${_stgMcpEscapeHtml(_stgMcpScopeLabel(nearestScope))}`;
+  const clearBtn = hasLocalOverride
+    ? `<button class="skills-setup-btn btn-compact" onclick="playNormalClick(); _stgClearMcpServerScope('${_stgMcpEscapeAttr(server.id)}')">Clear</button>`
+    : '';
+  return `
+    <div class="mcp-server-scope-row">
+      ${scopeNote}
+      <button class="skills-setup-btn btn-compact" onclick="playNormalClick(); _stgToggleMcpServerScope('${_stgMcpEscapeAttr(server.id)}')">${toggleLabel}</button>
+      ${clearBtn}
+    </div>`;
+}
+
+function _stgMcpServerRowHtml(server) {
+  const riskBadge = server.riskNote
+    ? `<span class="risk-badge">Risk<span class="risk-tooltip">${_stgMcpEscapeHtml(server.riskNote)}</span></span>`
+    : '';
+  const kindBadge = `<span class="badge">${_stgMcpEscapeHtml(server.kind)}</span>`;
+  const toggle = server.toggleable
+    ? `<div class="toggle ${server.enabled ? 'active' : ''}" onclick="playNormalClick(); _stgToggleMcpServer('${_stgMcpEscapeAttr(server.id)}')"></div>`
+    : `<div class="toggle active disabled-toggle" title="Always on"></div>`;
+  const envForm = server.toggleable && server.requiredEnv.length
+    ? `
+      <div class="mcp-server-env">
+        ${server.requiredEnv.map((name) => `
+          <div class="key-input">
+            <input type="password" class="mcp-env-input" data-server-id="${_stgMcpEscapeAttr(server.id)}" data-env-name="${_stgMcpEscapeAttr(name)}" placeholder="${_stgMcpEscapeHtml(name)}">
+          </div>
+        `).join('')}
+        <button class="skills-setup-btn btn-compact" onclick="playNormalClick(); _stgSaveMcpServerEnv('${_stgMcpEscapeAttr(server.id)}')">Save credentials</button>
+      </div>`
+    : '';
+
+  return `
+    <div class="mcp-server-row" data-id="${_stgMcpEscapeAttr(server.id)}">
+      <div class="mcp-server-head">
+        <span class="mcp-server-name">${_stgMcpEscapeHtml(server.name)}</span>
+        ${kindBadge}
+        ${riskBadge}
+        ${_stgMcpStatusPill(server)}
+        ${toggle}
+      </div>
+      ${server.description ? `<div class="mcp-server-desc">${_stgMcpEscapeHtml(server.description)}</div>` : ''}
+      ${envForm}
+      ${_stgMcpScopeRowHtml(server)}
+    </div>`;
+}
+
+async function _stgToggleMcpServer(id) {
+  const server = _stgMcpFindServer(id);
+  if (!server) return;
+  const nextEnabled = !server.enabled;
+
+  let confirmed = false;
+  if (nextEnabled && server.riskNote) {
+    if (!confirm(`This server carries risk:\n\n${server.riskNote}\n\nEnable anyway?`)) return;
+    confirmed = true;
+  }
+  try {
+    const res = await window.pocketAgent.mcp.setServerEnabled(id, nextEnabled, confirmed);
+    if (!res || !res.success) {
+      _stgShowToast((res && res.error) || 'Failed to update server', 'error');
+      return;
+    }
+    _stgShowToast(nextEnabled ? 'Enabled' : 'Disabled', 'success');
+    _stgActivateReboot();
+    _stgLoadMcpServers();
+  } catch (err) {
+    console.error('[Settings] Failed to toggle MCP server:', err);
+    _stgShowToast('Failed to update server', 'error');
+  }
+}
+
+async function _stgSaveMcpServerEnv(id) {
+  const inputs = document.querySelectorAll(`.mcp-env-input[data-server-id="${CSS.escape(id)}"]`);
+  const env = {};
+  inputs.forEach((el) => {
+    if (el.value) env[el.dataset.envName] = el.value;
+  });
+  if (Object.keys(env).length === 0) {
+    _stgShowToast('Enter at least one credential', 'error');
+    return;
+  }
+  try {
+    const res = await window.pocketAgent.mcp.setServerEnv(id, env);
+    if (!res || !res.success) {
+      _stgShowToast((res && res.error) || 'Failed to save credentials', 'error');
+      return;
+    }
+    _stgShowToast('Credentials saved', 'success');
+    _stgActivateReboot();
+    _stgLoadMcpServers();
+  } catch (err) {
+    console.error('[Settings] Failed to save MCP server env:', err);
+    _stgShowToast('Failed to save credentials', 'error');
+  }
+}
+
+// ---- Per-scope (client/project) enable/disable ----
+// Layered on top of the settings-level enabled/configured gate above — a
+// client/project can disable a server the agency has enabled and configured.
+// Does not affect the settings-level `enabled` flag or stored credentials.
+
+async function _stgToggleMcpServerScope(id) {
+  const server = _stgMcpFindServer(id);
+  if (!server) return;
+  const nextEnabled = !server.scopeEnabled;
+  try {
+    const res = await window.pocketAgent.mcp.setServerScopeEnablement(id, nextEnabled, _stgMcpContext());
+    if (!res || !res.success) {
+      _stgShowToast((res && res.error) || 'Failed to update', 'error');
+      return;
+    }
+    _stgShowToast(nextEnabled ? 'Enabled' : 'Disabled', 'success');
+    _stgLoadMcpServers();
+  } catch (err) {
+    console.error('[Settings] Failed to toggle MCP server scope:', err);
+    _stgShowToast('Failed to update', 'error');
+  }
+}
+
+async function _stgClearMcpServerScope(id) {
+  try {
+    const res = await window.pocketAgent.mcp.clearServerScopeEnablement(id, _stgMcpContext());
+    if (!res || !res.success) {
+      _stgShowToast('Failed to clear', 'error');
+      return;
+    }
+    _stgShowToast('Now inheriting from a broader scope', 'success');
+    _stgLoadMcpServers();
+  } catch (err) {
+    console.error('[Settings] Failed to clear MCP server scope:', err);
+    _stgShowToast('Failed to clear', 'error');
+  }
 }
 
 // ---- Updates ----

@@ -226,7 +226,7 @@ describe('Preload ↔ UI API Contract', () => {
         'agent', 'attachments', 'sessions', 'facts', 'soul', 'dailyLogs',
         'app', 'customize', 'location', 'cron', 'settings', 'validate',
         'auth', 'themes', 'chat', 'commands', 'updater', 'browser',
-        'ios', 'shell', 'permissions', 'events',
+        'ios', 'shell', 'permissions', 'events', 'marketplace', 'mcp',
       ]);
 
       const flatCallRegex = /window\.pocketAgent\.([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\(/g;

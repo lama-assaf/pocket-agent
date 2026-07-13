@@ -33,6 +33,8 @@
   <link rel="stylesheet" href="chat/sidebar.css">
   <link rel="stylesheet" href="chat/settings-panel.css">
   <link rel="stylesheet" href="chat/brain-panel.css">
+  <link rel="stylesheet" href="chat/agents-panel.css">
+  <link rel="stylesheet" href="chat/clients-view.css">
   <link rel="stylesheet" href="chat/routines-panel.css">
   <link rel="stylesheet" href="chat/personalize-panel.css">
   <link rel="stylesheet" href="chat/onboarding.css">
@@ -53,6 +55,15 @@
       </button>
       <span class="sidebar-logo">Pocket Agent</span>
     </div>
+    <!-- Active workspace (client) — click to reopen the Client Picker. -->
+    <button class="active-client-header" id="active-client-header" title="Switch workspace">
+      <span class="active-client-avatar" id="active-client-avatar">P</span>
+      <span class="active-client-meta">
+        <span class="active-client-name" id="active-client-name">Personal</span>
+        <span class="active-client-sub" id="active-client-sub">Switch workspace</span>
+      </span>
+      <svg class="active-client-caret" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="m8 9l4-4l4 4m0 6l-4 4l-4-4"/></svg>
+    </button>
     <nav class="sidebar-nav">
       <button class="sidebar-btn" id="sidebar-new-chat" title="New chat">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12.001 5v14.002m7.001-7H5"/></svg>
@@ -76,6 +87,10 @@
       <button class="sidebar-btn" id="sidebar-brain-btn" title="The Brain">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5"><path stroke-linejoin="round" d="M16.998 7.127Q17.48 7 18 7a4 4 0 1 1-1.027 7.867m.025-7.74L17 7a4 4 0 0 0-7.91-.85m7.908.977A4 4 0 0 1 16.465 9m.508 5.867q.027-.18.027-.367a2.5 2.5 0 0 0-2-2.45m1.973 2.817A2.5 2.5 0 0 1 14.5 17H14a4 4 0 0 0-4 4M9.09 6.15a4 4 0 0 0-4.932 4.97M9.09 6.15A4 4 0 0 1 11.465 8m-7.306 3.12A3.001 3.001 0 0 0 5 17a3 3 0 0 0 2.83-2m-3.671-3.88q.136.467.376.88"/><path d="M11.836 11.744c-.51.491-1.383.576-2.129.157c-.746-.42-1.127-1.21-.972-1.901"/></g></svg>
         <span class="sidebar-btn-label">The Brain</span>
+      </button>
+      <button class="sidebar-btn" id="sidebar-agents-btn" title="Agents">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"><rect width="7" height="7" x="3" y="3" rx="1.5"/><rect width="7" height="7" x="14" y="3" rx="1.5"/><rect width="7" height="7" x="3" y="14" rx="1.5"/><rect width="7" height="7" x="14" y="14" rx="1.5"/></g></svg>
+        <span class="sidebar-btn-label">Agents</span>
       </button>
       <button class="sidebar-btn" id="sidebar-docs-btn" title="Docs">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 7h8m-8 4h4m1 10.5V21c0-2.828 0-4.243.879-5.121C14.757 15 16.172 15 19 15h.5m.5-1.657V10c0-3.771 0-5.657-1.172-6.828S15.771 2 12 2S6.343 2 5.172 3.172S4 6.229 4 10v4.544c0 3.245 0 4.868.886 5.967a4 4 0 0 0 .603.603C6.59 22 8.211 22 11.456 22c.705 0 1.058 0 1.381-.114q.1-.036.197-.082c.31-.148.559-.397 1.058-.896l4.736-4.736c.579-.578.867-.867 1.02-1.235c.152-.368.152-.776.152-1.594"/></svg>
@@ -512,6 +527,9 @@
           <option value="writer">Writer</option>
           <option value="therapist">Therapist</option>
         </select>
+        <select class="mode-select hidden" id="project-select" title="Project — a sub-space under the active client. Chats and memory scope to it.">
+          <option value="" selected>All of client</option>
+        </select>
         <select id="model-badge" class="model-badge"></select>
       </div>
       <button id="send-btn" title="Pounce! 🐾">
@@ -578,6 +596,8 @@
         <div class="settings-nav-item" data-section="telegram">Telegram
         </div>
         <div class="settings-nav-item" data-section="browser">Browser
+        </div>
+        <div class="settings-nav-item" data-section="mcp">MCP Servers
         </div>
         <div class="settings-nav-item" data-section="chat">Chat
         </div>
@@ -748,6 +768,14 @@
           </details>
         </section>
 
+        <!-- MCP Servers Section -->
+        <section id="mcp" class="settings-section">
+          <h2 class="section-title">MCP Servers</h2>
+          <p class="section-desc">First-party tools plus optional servers from the Atelier and Salon marketplace catalogs. Enable one and add its credentials to make it available to the agent.</p>
+          <div id="mcp-server-list" class="mcp-server-list"></div>
+          <div id="mcp-server-empty" class="info-box section-spacer hidden"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" stroke-width="1.5"/><path stroke-width="1.5" d="M12 16v-4.5"/><path stroke-width="1.8" d="M12 8.012v-.01"/></g></svg><span>No MCP servers found.</span></div>
+        </section>
+
         <!-- Pocket CLI Section -->
         <section id="pocket_cli" class="settings-section">
           <h2 class="section-title">Pocket CLI</h2>
@@ -800,13 +828,29 @@
     <div class="brain-header">
       <h1><span>The Brain</span> <span class="brain-count" id="brain-active-count"></span></h1>
       <div class="brain-header-actions">
+        <label class="brain-space-picker" title="Which memory space to view">
+          <span>Space</span>
+          <select class="mode-select" id="brain-space-select">
+            <option value="user" selected>Personal</option>
+            <option value="world">Agency (World)</option>
+          </select>
+        </label>
+        <span class="brain-sync" id="brain-sync-bar" hidden>
+          <span class="brain-sync-status" id="brain-sync-status">…</span>
+          <button id="brain-pull-btn">Pull</button>
+          <button id="brain-publish-btn">Publish</button>
+        </span>
         <button onclick="playNormalClick(); hideBrainPanel()">Back</button>
         <button onclick="playNormalClick(); brainRefresh()">Refresh</button>
       </div>
     </div>
     <div class="brain-container">
       <nav class="brain-sidebar">
-        <div class="brain-nav-item active" data-tab="facts">My Brain
+        <div class="brain-nav-item active" data-tab="facts">Facts
+        </div>
+        <div class="brain-nav-item" data-tab="lessons">Lessons
+        </div>
+        <div class="brain-nav-item" data-tab="howtoact">How to act
         </div>
         <div class="brain-nav-item" data-tab="soul">My Approach
         </div>
@@ -814,23 +858,63 @@
         </div>
       </nav>
       <div class="brain-content">
-      <!-- Facts Section -->
+      <!-- Facts Section (Memory Workbench: knowledge about the brand) -->
       <div id="brain-facts" class="brain-section active">
+        <div class="wb-toolbar"><span class="wb-scope" id="brain-facts-scope"></span></div>
         <div class="memory-capacity" id="brain-facts-capacity">
           <span class="memory-capacity-label">Capacity</span>
           <div class="memory-capacity-bar"><div class="memory-capacity-fill" id="brain-facts-capacity-fill"></div></div>
           <span class="memory-capacity-text" id="brain-facts-capacity-text">—</span>
         </div>
+        <div class="wb-create" id="brain-facts-create"></div>
         <table class="facts-table" id="brain-facts-table">
           <thead><tr><th>Category</th><th>Subject</th><th>Content</th><th></th></tr></thead>
           <tbody id="brain-facts-tbody"></tbody>
         </table>
         <div id="brain-facts-empty" class="brain-empty hidden">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 7h8m-8 4h4m1 10.5V21c0-2.828 0-4.243.879-5.121C14.757 15 16.172 15 19 15h.5m.5-1.657V10c0-3.771 0-5.657-1.172-6.828S15.771 2 12 2S6.343 2 5.172 3.172S4 6.229 4 10v4.544c0 3.245 0 4.868.886 5.967a4 4 0 0 0 .603.603C6.59 22 8.211 22 11.456 22c.705 0 1.058 0 1.381-.114q.1-.036.197-.082c.31-.148.559-.397 1.058-.896l4.736-4.736c.579-.578.867-.867 1.02-1.235c.152-.368.152-.776.152-1.594"/></svg>
-          <p>Your memory is empty</p>
-          <small>Tell me things about yourself and I'll remember them</small>
+          <p>No facts in this space yet</p>
+          <small>Add what the brand is about — audience, product, positioning</small>
         </div>
         <span id="brain-facts-count" class="hidden"></span>
+      </div>
+      <!-- Lessons Section (append-style learnings) -->
+      <div id="brain-lessons" class="brain-section">
+        <div class="wb-toolbar"><span class="wb-scope" id="brain-lessons-scope"></span></div>
+        <div class="memory-capacity" id="brain-lessons-capacity">
+          <span class="memory-capacity-label">Capacity</span>
+          <div class="memory-capacity-bar"><div class="memory-capacity-fill" id="brain-lessons-capacity-fill"></div></div>
+          <span class="memory-capacity-text" id="brain-lessons-capacity-text">—</span>
+        </div>
+        <div class="wb-create" id="brain-lessons-create"></div>
+        <table class="facts-table" id="brain-lessons-table">
+          <thead><tr><th>Category</th><th>Subject</th><th>Content</th><th></th></tr></thead>
+          <tbody id="brain-lessons-tbody"></tbody>
+        </table>
+        <div id="brain-lessons-empty" class="brain-empty hidden">
+          <p>No lessons in this space yet</p>
+          <small>Capture what worked and what to avoid for this brand</small>
+        </div>
+        <span id="brain-lessons-count" class="hidden"></span>
+      </div>
+      <!-- How-to-act Section (voice + guardrails + instincts) -->
+      <div id="brain-howtoact" class="brain-section">
+        <div class="wb-toolbar"><span class="wb-scope" id="brain-howtoact-scope"></span></div>
+        <div class="memory-capacity" id="brain-howtoact-capacity">
+          <span class="memory-capacity-label">Capacity</span>
+          <div class="memory-capacity-bar"><div class="memory-capacity-fill" id="brain-howtoact-capacity-fill"></div></div>
+          <span class="memory-capacity-text" id="brain-howtoact-capacity-text">—</span>
+        </div>
+        <div class="wb-create" id="brain-howtoact-create"></div>
+        <table class="facts-table" id="brain-howtoact-table">
+          <thead><tr><th>Category</th><th>Subject</th><th>Content</th><th></th></tr></thead>
+          <tbody id="brain-howtoact-tbody"></tbody>
+        </table>
+        <div id="brain-howtoact-empty" class="brain-empty hidden">
+          <p>No behavior notes in this space yet</p>
+          <small>Set voice, banned words, tone, and instincts — how the brand should act</small>
+        </div>
+        <span id="brain-howtoact-count" class="hidden"></span>
       </div>
       <!-- Soul Section -->
       <div id="brain-soul" class="brain-section">
@@ -868,6 +952,50 @@
     </div>
     </div>
   </div><!-- #brain-view -->
+
+  <!-- Agents View (marketplace pack agents — browse, view, call) -->
+  <div id="agents-view">
+    <div class="agt-header">
+      <h1><span>Agents</span> <span class="agt-count" id="agt-active-count"></span></h1>
+      <div class="agt-header-actions">
+        <button onclick="playNormalClick(); hideAgentsPanel()">Back</button>
+        <button onclick="playNormalClick(); agtRefresh()">Refresh</button>
+      </div>
+    </div>
+    <div class="agt-content" id="agt-list-view">
+      <div id="agt-groups"></div>
+      <div id="agt-empty" class="agt-empty hidden">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"><rect width="7" height="7" x="3" y="3" rx="1.5"/><rect width="7" height="7" x="14" y="3" rx="1.5"/><rect width="7" height="7" x="3" y="14" rx="1.5"/><rect width="7" height="7" x="14" y="14" rx="1.5"/></g></svg>
+        <p>No marketplace agents found</p>
+        <small>Atelier and Salon pack agents will appear here once synced</small>
+      </div>
+    </div>
+    <div class="agt-content hidden" id="agt-detail-view">
+      <div class="agt-detail-toolbar">
+        <button class="btn-shell" onclick="playNormalClick(); agtBackToList()">&larr; All agents</button>
+      </div>
+      <div class="agt-detail" id="agt-detail-body"></div>
+    </div>
+  </div><!-- #agents-view -->
+
+  <!-- Client Picker (front door) — pick a workspace; everything flows from it. -->
+  <div id="clients-view">
+    <div class="cv-inner">
+      <div class="cv-header">
+        <h1>Choose a workspace</h1>
+        <p class="cv-subtitle">Pick a client to load its memory and how it should act. Personal keeps your private brain.</p>
+      </div>
+      <div class="cv-grid" id="cv-grid">
+        <!-- Workspace cards rendered by clients-view.js -->
+      </div>
+      <div class="cv-actions">
+        <button class="cv-new-btn" id="cv-new-client-btn">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12.001 5v14.002m7.001-7H5"/></svg>
+          New Client
+        </button>
+      </div>
+    </div>
+  </div><!-- #clients-view -->
 
   <!-- Routines View -->
   <div id="routines-view">
@@ -1036,6 +1164,8 @@
   <script src="chat/messaging.js"></script>
   <script src="chat/global-chat.js"></script>
   <script src="chat/agent-mode.js"></script>
+  <script src="chat/memory-scope.js"></script>
+  <script src="chat/clients-view.js"></script>
   <script src="chat/search.js"></script>
   <script src="chat/input-handler.js"></script>
   <script src="chat/attachments.js"></script>
@@ -1043,6 +1173,7 @@
   <script src="chat/plan-approval.js"></script>
   <script src="chat/settings-panel.js"></script>
   <script src="chat/brain-panel.js"></script>
+  <script src="chat/agents-panel.js"></script>
   <script src="chat/routines-panel.js"></script>
   <script src="chat/personalize-panel.js"></script>
   <script src="chat/event-bindings.js"></script>

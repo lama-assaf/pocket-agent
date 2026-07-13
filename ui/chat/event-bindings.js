@@ -27,11 +27,17 @@ bindClick('about-link-skool', () => {
 bindClick('plan-reject-btn', rejectPlan);
 bindClick('plan-approve-btn', approvePlan);
 
+// --- Client Picker (front door) ---
+// Active-workspace header reopens the picker; New Client creates a brand.
+bindClick('active-client-header', () => { playNormalClick(); showClientsView(); });
+bindClick('cv-new-client-btn', () => { playNormalClick(); cvCreateClient(); });
+
 // --- Sidebar ---
 bindClick('sidebar-new-chat', () => { playNormalClick(); createNewSession(); });
 bindClick('sidebar-personalize-btn', () => { playNormalClick(); togglePersonalizePanel(); });
 bindClick('sidebar-routines-btn', () => { playNormalClick(); toggleRoutinesPanel(); });
 bindClick('sidebar-brain-btn', () => { playNormalClick(); toggleBrainPanel(); });
+bindClick('sidebar-agents-btn', () => { playNormalClick(); toggleAgentsPanel(); });
 bindClick('sidebar-docs-btn', () => { playNormalClick(); openDocs(); });
 bindClick('sidebar-settings-btn', () => { playNormalClick(); toggleSettingsPanel(); });
 bindClick('sidebar-about-btn', () => { playNormalClick(); openAbout(); });
@@ -73,5 +79,10 @@ document.getElementById('mode-select').addEventListener('change', function() {
   playNormalClick();
   setAgentMode(this.value);
 });
+// Project selector — refines the active client workspace to a project.
+(function() {
+  const projectSelect = document.getElementById('project-select');
+  if (projectSelect) projectSelect.addEventListener('change', () => { playNormalClick(); onProjectSelectChange(); });
+})();
 bindClick('send-btn', handleSendClick);
 document.getElementById('file-input').addEventListener('change', handleFileSelect);

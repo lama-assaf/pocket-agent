@@ -1,0 +1,315 @@
+/* Agents Panel — scoped under #agents-view */
+
+#agents-view {
+  display: none;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+#agents-view.active {
+  display: flex;
+}
+
+/* Header */
+#agents-view .agt-header {
+  background: var(--surface-panel);
+  padding: 10px 16px;
+  border-radius: var(--radius-control);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+#agents-view .agt-header h1 {
+  font-family: 'Cal Sans', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  margin: 0;
+}
+
+#agents-view .agt-header h1 span {
+  color: var(--text-primary);
+}
+
+#agents-view .agt-header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* Header buttons inherit the cinamon-pill look from shared/buttons.css. */
+
+#agents-view .agt-count {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+/* Content */
+#agents-view .agt-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 8px 0 32px;
+}
+
+#agents-view .agt-content.hidden {
+  display: none;
+}
+
+#agents-view .agt-content::-webkit-scrollbar { width: 8px; }
+#agents-view .agt-content::-webkit-scrollbar-track { background: transparent; }
+#agents-view .agt-content::-webkit-scrollbar-thumb { background: var(--border-subtle); border-radius: 4px; }
+
+/* Pack + lane grouping */
+#agents-view .agt-pack-group {
+  padding: 12px 16px 4px;
+}
+
+#agents-view .agt-pack-title {
+  font-family: 'Cal Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-heading);
+  margin-bottom: 8px;
+}
+
+#agents-view .agt-lane-group {
+  margin-bottom: 12px;
+}
+
+#agents-view .agt-lane-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+  padding: 0 4px;
+}
+
+/* Agent cards — flat list with hover-fill rows, matching soul-card treatment */
+#agents-view .agt-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+#agents-view .agt-card {
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-control);
+  padding: 12px 16px;
+  cursor: pointer;
+  transition: background-color 150ms ease;
+  text-align: left;
+  width: 100%;
+}
+
+#agents-view .agt-card:hover {
+  background: var(--surface-card);
+}
+
+#agents-view .agt-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+#agents-view .agt-card-name {
+  color: var(--accent-readable);
+  font-family: 'Cal Sans', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* .agt-model-badge, .agt-tool-badge visuals come from shared/badges.css. */
+
+/* "Modified" badge — warning-tinted, marks an agent with an active local override. */
+#agents-view .agt-modified-badge {
+  color: var(--warning-readable);
+  border-color: color-mix(in srgb, var(--warning) 45%, transparent);
+  background: color-mix(in srgb, var(--warning) 12%, var(--surface-control));
+}
+
+/* "Disabled" badge — error-tinted, marks an agent disabled for the current scope. */
+#agents-view .agt-disabled-badge {
+  color: var(--error-readable);
+  border-color: color-mix(in srgb, var(--error) 45%, transparent);
+  background: color-mix(in srgb, var(--error) 10%, var(--surface-control));
+}
+
+#agents-view .agt-card-disabled {
+  opacity: 0.6;
+}
+
+#agents-view .agt-card-desc {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+  margin-bottom: 6px;
+}
+
+#agents-view .agt-card-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+/* Detail view */
+#agents-view .agt-detail-toolbar {
+  padding: 0 16px 12px;
+}
+
+#agents-view .agt-detail {
+  padding: 0 16px;
+}
+
+#agents-view .agt-detail-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+
+#agents-view .agt-detail-name {
+  font-family: 'Cal Sans', sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-heading);
+}
+
+#agents-view .agt-detail-desc {
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.6;
+  margin-bottom: 12px;
+}
+
+#agents-view .agt-detail-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+#agents-view .agt-enablement-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+#agents-view .agt-enablement-note {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+#agents-view .agt-detail-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+#agents-view .agt-prompt-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+
+#agents-view .agt-prompt-body {
+  background: var(--surface-panel);
+  border-radius: var(--radius-panel);
+  padding: 14px 16px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  max-height: 60vh;
+  overflow-y: auto;
+  margin-bottom: 16px;
+}
+
+/* The base (marketplace default) prompt shown alongside an active override —
+   compact reference, not the main focus. */
+#agents-view .agt-prompt-base {
+  max-height: 200px;
+  opacity: 0.8;
+}
+
+/* ---- Edit form ---- */
+#agents-view .agt-edit-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+
+#agents-view .agt-edit-textarea,
+#agents-view .agt-edit-input {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--text-primary);
+  background: var(--surface-control);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control);
+  padding: 10px 12px;
+  margin-bottom: 14px;
+  resize: vertical;
+}
+
+#agents-view .agt-edit-textarea {
+  line-height: 1.6;
+}
+
+#agents-view .agt-edit-textarea:focus,
+#agents-view .agt-edit-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* Empty State */
+#agents-view .agt-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+#agents-view .agt-empty svg {
+  width: 48px;
+  height: 48px;
+  margin-bottom: 16px;
+  opacity: 0.3;
+}
+
+#agents-view .agt-empty p {
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+#agents-view .agt-empty small {
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+#agents-view .agt-empty.hidden {
+  display: none;
+}
