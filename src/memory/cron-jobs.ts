@@ -92,3 +92,23 @@ export function deleteCronJob(db: Database.Database, name: string): boolean {
   const result = stmt.run(name);
   return result.changes > 0;
 }
+
+/**
+ * Configure a just-created cron job as a one-time 'content_post' job
+ * (roadmap item 6 — scheduled draft posting). `saveCronJob` only writes the
+ * base columns (name/schedule/prompt/channel/session_id); this fills in the
+ * extended fields the scheduler's checkDueJobs reads for 'at'-type jobs, plus
+ * the job_type/content_draft_id link back to the draft it will post.
+ */
+export function setCronJobForContentPost(
+  db: Database.Database,
+  cronJobId: number,
+  runAtIso: string,
+  draftId: number
+): void {
+  db.prepare(
+    `UPDATE cron_jobs SET schedule_type = 'at', schedule = NULL, run_at = ?, next_run_at = ?,
+       delete_after_run = 1, job_type = 'content_post', content_draft_id = ?
+     WHERE id = ?`
+  ).run(runAtIso, runAtIso, draftId, cronJobId);
+}

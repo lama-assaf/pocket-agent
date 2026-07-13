@@ -310,6 +310,43 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     type: 'boolean',
   },
 
+  // Operator-pack tone guard (Atelier/Salon anti-AI-tone port — write-guards.ts)
+  {
+    key: 'features.operatorPacks',
+    defaultValue: 'true',
+    encrypted: false,
+    category: 'features',
+    label: 'Operator Pack Rules',
+    description:
+      'Enable marketplace lane rules and the anti-AI-tone/banned-words guard on writes',
+    type: 'boolean',
+  },
+  {
+    key: 'features.toneHardBlock',
+    defaultValue: '',
+    encrypted: false,
+    category: 'features',
+    label: 'Tone Guard Hard Block',
+    description:
+      "Block writes on a tone-guard hit instead of warning. Leave blank for the default " +
+      '(blocks in lane modes — design/product/brand/social — warns elsewhere); set to ' +
+      "'false' to opt OUT of blocking everywhere, or 'true' to opt IN to blocking everywhere.",
+    type: 'string',
+  },
+
+  // Content workflow (roadmap item 6) — per-brand draft/approve/post pipeline
+  {
+    key: 'content.dryRun',
+    defaultValue: 'true',
+    encrypted: false,
+    category: 'content',
+    label: 'Content Posting Dry Run',
+    description:
+      'When on (default), posting an approved draft logs what WOULD be sent instead of calling ' +
+      'a real MCP posting tool. Turn off only once posting credentials are verified working.',
+    type: 'boolean',
+  },
+
   // Pulse (proactive check-ins) settings
   {
     key: 'pulse.enabled',

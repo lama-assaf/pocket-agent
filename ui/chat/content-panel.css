@@ -1,0 +1,317 @@
+/* Content Queue Panel — scoped under #content-view */
+
+#content-view {
+  display: none;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+#content-view.active {
+  display: flex;
+}
+
+/* Header */
+#content-view .cnt-header {
+  background: var(--surface-panel);
+  padding: 10px 16px;
+  border-radius: var(--radius-control);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+#content-view .cnt-header h1 {
+  font-family: 'Cal Sans', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  margin: 0;
+}
+
+#content-view .cnt-header h1 span {
+  color: var(--text-primary);
+}
+
+#content-view .cnt-header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+#content-view .cnt-count {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+/* Status filter row */
+#content-view .cnt-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px 16px 0;
+  flex-shrink: 0;
+}
+
+#content-view .cnt-filter-btn {
+  background: var(--surface-control);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: background-color 150ms ease;
+}
+
+#content-view .cnt-filter-btn:hover {
+  background: var(--surface-card);
+}
+
+#content-view .cnt-filter-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--surface-panel);
+}
+
+/* Content */
+#content-view .cnt-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 8px 0 32px;
+}
+
+#content-view .cnt-content.hidden {
+  display: none;
+}
+
+#content-view .cnt-content::-webkit-scrollbar { width: 8px; }
+#content-view .cnt-content::-webkit-scrollbar-track { background: transparent; }
+#content-view .cnt-content::-webkit-scrollbar-thumb { background: var(--border-subtle); border-radius: 4px; }
+
+/* Draft cards — flat list with hover-fill rows, matching agent-card treatment */
+#content-view .cnt-drafts {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 16px 0;
+}
+
+#content-view .cnt-card {
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-control);
+  padding: 12px 16px;
+  cursor: pointer;
+  transition: background-color 150ms ease;
+  text-align: left;
+  width: 100%;
+}
+
+#content-view .cnt-card:hover {
+  background: var(--surface-card);
+}
+
+#content-view .cnt-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+  flex-wrap: wrap;
+}
+
+#content-view .cnt-card-title {
+  color: var(--accent-readable);
+  font-family: 'Cal Sans', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+#content-view .cnt-card-snippet {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+  margin-bottom: 4px;
+}
+
+#content-view .cnt-card-meta {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+/* Detail view */
+#content-view .cnt-detail-toolbar {
+  padding: 0 16px 12px;
+}
+
+#content-view .cnt-detail {
+  padding: 0 16px;
+}
+
+#content-view .cnt-detail-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+
+#content-view .cnt-detail-title {
+  font-family: 'Cal Sans', sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-heading);
+}
+
+#content-view .cnt-detail-meta {
+  color: var(--text-muted);
+  font-size: 12px;
+  margin-bottom: 12px;
+}
+
+#content-view .cnt-detail-note {
+  color: var(--text-secondary);
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+
+#content-view .cnt-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+#content-view .cnt-prompt-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+
+#content-view .cnt-prompt-body {
+  background: var(--surface-panel);
+  border-radius: var(--radius-panel);
+  padding: 14px 16px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  max-height: 50vh;
+  overflow-y: auto;
+  margin-bottom: 16px;
+}
+
+/* Schedule inline form */
+#content-view .cnt-schedule-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: -8px 0 16px;
+}
+
+/* ---- History ---- */
+#content-view .cnt-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 16px;
+}
+
+#content-view .cnt-history-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--surface-panel);
+  border-radius: var(--radius-control);
+  font-size: 12px;
+}
+
+#content-view .cnt-history-detail {
+  flex: 1;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#content-view .cnt-history-date {
+  color: var(--text-muted);
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+/* ---- Edit / New draft form ---- */
+#content-view .cnt-edit-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+
+#content-view .cnt-edit-textarea,
+#content-view .cnt-edit-input {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--text-primary);
+  background: var(--surface-control);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control);
+  padding: 10px 12px;
+  margin-bottom: 14px;
+  resize: vertical;
+}
+
+#content-view .cnt-edit-textarea {
+  line-height: 1.6;
+}
+
+#content-view .cnt-edit-textarea:focus,
+#content-view .cnt-edit-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* Empty State */
+#content-view .cnt-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+#content-view .cnt-empty svg {
+  width: 48px;
+  height: 48px;
+  margin-bottom: 16px;
+  opacity: 0.3;
+}
+
+#content-view .cnt-empty p {
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+#content-view .cnt-empty small {
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+#content-view .cnt-empty.hidden {
+  display: none;
+}

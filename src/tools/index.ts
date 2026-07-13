@@ -18,6 +18,7 @@ import { getNotifyToolDefinition, handleNotifyTool } from './macos';
 import { getProjectTools } from './project-tools';
 import { getSwitchAgentTool } from './agent-mode-tools';
 import { getAtelierMemoryTools } from './atelier-memory-tools';
+import { getContentTools } from './content-tools';
 import { logActiveToolsStatus } from './diagnostics';
 
 export { logActiveToolsStatus } from './diagnostics';
@@ -201,6 +202,19 @@ export function getCustomTools(config: ToolsConfig): Array<{
   // Atelier memory-init tool
   const atelierMemoryTools = getAtelierMemoryTools();
   for (const tool of atelierMemoryTools) {
+    tools.push({
+      name: tool.name,
+      description: tool.description,
+      input_schema: tool.input_schema as Record<string, unknown>,
+      handler: tool.handler,
+    });
+  }
+
+  // Content workflow tools (roadmap item 6) — save_draft, submit_for_approval,
+  // post_content_draft, schedule_content_draft. Approval itself is human-only
+  // and intentionally has no tool (see src/tools/content-tools.ts doc).
+  const contentTools = getContentTools();
+  for (const tool of contentTools) {
     tools.push({
       name: tool.name,
       description: tool.description,

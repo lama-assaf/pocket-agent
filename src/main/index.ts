@@ -38,6 +38,7 @@ import {
   registerMarketplaceIPC,
   registerMcpIPC,
   registerAuditLogIPC,
+  registerContentIPC,
 } from './ipc';
 import type { IPCDependencies } from './ipc';
 
@@ -447,6 +448,7 @@ function setupIPC(): void {
   registerFactsIPC(deps);
   registerCronIPC(deps);
   registerMiscIPC(deps);
+  registerContentIPC(deps);
   // No IPCDependencies needed — the marketplace module has no electron/memory
   // dependency of its own.
   registerMarketplaceIPC();

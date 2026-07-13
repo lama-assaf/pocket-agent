@@ -50,6 +50,7 @@ import {
   getCronJobs as _getCronJobs,
   setCronJobEnabled as _setCronJobEnabled,
   deleteCronJob as _deleteCronJob,
+  setCronJobForContentPost as _setCronJobForContentPost,
 } from './cron-jobs';
 import {
   type TelegramChatSession,
@@ -117,6 +118,25 @@ import {
 
 import { appendAuditLog, digestContent } from '../utils/audit-log';
 import { getCurrentSessionId } from '../tools/session-context';
+import {
+  type ContentDraft,
+  type ContentDraftStatus,
+  type ContentPost,
+  type TransitionActor,
+  type CreateContentDraftInput,
+  type UpdateContentDraftFields,
+  type SetStatusOptions,
+  type RecordContentPostInput,
+  createContentDraft as _createContentDraft,
+  getContentDraft as _getContentDraft,
+  getContentDraftsForScopes as _getContentDraftsForScopes,
+  updateContentDraft as _updateContentDraft,
+  setContentDraftStatus as _setContentDraftStatus,
+  deleteContentDraft as _deleteContentDraft,
+  recordContentPost as _recordContentPost,
+  getContentPostsForDraft as _getContentPostsForDraft,
+  getContentPostsForScopes as _getContentPostsForScopes,
+} from './content-drafts';
 
 // Types
 export type { Message, SmartContextOptions, SmartContext, SummarizerFn } from './messages';
@@ -127,6 +147,13 @@ export type { TelegramChatSession } from './telegram-sessions';
 export type { SoulAspect } from './soul';
 export type { ResurfaceCandidate } from './resurfacing';
 export type { PulseKind, PulseEntry } from './pulse-log';
+export type {
+  ContentDraft,
+  ContentDraftStatus,
+  ContentPost,
+  ContentPostStatus,
+  TransitionActor,
+} from './content-drafts';
 
 export class MemoryManager {
   private db: Database.Database;
@@ -480,7 +507,68 @@ export class MemoryManager {
         created_at TEXT DEFAULT ((strftime('%Y-%m-%dT%H:%M:%fZ')))
       );
       CREATE INDEX IF NOT EXISTS idx_pulse_log_session ON pulse_log(session_id, created_at);
+
+      -- Content workflow (roadmap item 6): per-brand drafts moving through a
+      -- human-gated approval pipeline. scope isolates drafts by selected
+      -- context, same convention as facts.scope. See src/memory/content-drafts.ts
+      -- for the status state machine and human-only approval enforcement.
+      CREATE TABLE IF NOT EXISTS content_drafts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        scope TEXT NOT NULL,
+        session_id TEXT REFERENCES sessions(id),
+        channel TEXT NOT NULL,
+        title TEXT NOT NULL DEFAULT '',
+        body TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'draft' CHECK(status IN
+          ('draft', 'pending_approval', 'approved', 'rejected', 'scheduled', 'posted', 'failed')),
+        scheduled_for TEXT,
+        posted_at TEXT,
+        external_ref TEXT,
+        cron_job_id INTEGER REFERENCES cron_jobs(id) ON DELETE SET NULL,
+        created_at TEXT DEFAULT ((strftime('%Y-%m-%dT%H:%M:%fZ'))),
+        updated_at TEXT DEFAULT ((strftime('%Y-%m-%dT%H:%M:%fZ')))
+      );
+      CREATE INDEX IF NOT EXISTS idx_content_drafts_scope ON content_drafts(scope, status);
+
+      -- Append-only post-attempt audit log (dry-run or real), independent of
+      -- the draft's current status so retries/dry-runs don't overwrite history.
+      CREATE TABLE IF NOT EXISTS content_posts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        draft_id INTEGER NOT NULL REFERENCES content_drafts(id),
+        scope TEXT NOT NULL,
+        channel TEXT NOT NULL,
+        status TEXT NOT NULL CHECK(status IN ('posted', 'failed', 'dry_run')),
+        detail TEXT,
+        external_ref TEXT,
+        created_at TEXT DEFAULT ((strftime('%Y-%m-%dT%H:%M:%fZ')))
+      );
+      CREATE INDEX IF NOT EXISTS idx_content_posts_draft ON content_posts(draft_id);
+      CREATE INDEX IF NOT EXISTS idx_content_posts_scope ON content_posts(scope, created_at);
     `);
+
+    // Migration: add content_draft_id to cron_jobs (links a scheduled cron job
+    // back to the draft it will post — see checkDueJobs's 'content_post' branch
+    // in src/scheduler/index.ts). Idempotent, same pragma-check pattern as the
+    // other cron_jobs migrations in this file.
+    const cronColumnsForContent = this.db.pragma('table_info(cron_jobs)') as Array<{
+      name: string;
+    }>;
+    if (!cronColumnsForContent.some((c) => c.name === 'content_draft_id')) {
+      this.db.exec(
+        'ALTER TABLE cron_jobs ADD COLUMN content_draft_id INTEGER REFERENCES content_drafts(id) ON DELETE SET NULL'
+      );
+      console.log('[Memory] Migrated cron_jobs table: added content_draft_id column');
+    }
+    // Migration: add job_type to cron_jobs. This column previously only
+    // existed once src/tools/scheduler-tools.ts's ensureCronJobColumns ran
+    // (lazily, on the first create_routine/create_reminder call) — content
+    // scheduling (schedule_content_draft) needs it unconditionally, so it's
+    // guaranteed here at MemoryManager init instead of depending on that
+    // other lazy path having already run.
+    if (!cronColumnsForContent.some((c) => c.name === 'job_type')) {
+      this.db.exec("ALTER TABLE cron_jobs ADD COLUMN job_type TEXT DEFAULT 'routine'");
+      console.log('[Memory] Migrated cron_jobs table: added job_type column');
+    }
 
     // Backfill embeddings for rows missing them, in the background (fire-and-forget).
     this.backfillEmbeddings();
@@ -1007,6 +1095,57 @@ export class MemoryManager {
 
   deleteCronJob(name: string): boolean {
     return _deleteCronJob(this.db, name);
+  }
+
+  /** Configure a just-created cron job as a one-time 'content_post' job (roadmap item 6). */
+  setCronJobForContentPost(cronJobId: number, runAtIso: string, draftId: number): void {
+    _setCronJobForContentPost(this.db, cronJobId, runAtIso, draftId);
+  }
+
+  // ============ CONTENT DRAFT METHODS (roadmap item 6) ============
+
+  createContentDraft(input: CreateContentDraftInput): number {
+    return _createContentDraft(this.db, input);
+  }
+
+  getContentDraft(id: number): ContentDraft | null {
+    return _getContentDraft(this.db, id);
+  }
+
+  getContentDraftsForScopes(visibleScopes: string[], status?: ContentDraftStatus): ContentDraft[] {
+    return _getContentDraftsForScopes(this.db, visibleScopes, status);
+  }
+
+  updateContentDraft(
+    id: number,
+    fields: UpdateContentDraftFields
+  ): { ok: boolean; error?: string } {
+    return _updateContentDraft(this.db, id, fields);
+  }
+
+  setContentDraftStatus(
+    id: number,
+    to: ContentDraftStatus,
+    actor: TransitionActor,
+    options?: SetStatusOptions
+  ): { ok: boolean; error?: string } {
+    return _setContentDraftStatus(this.db, id, to, actor, options);
+  }
+
+  deleteContentDraft(id: number): boolean {
+    return _deleteContentDraft(this.db, id);
+  }
+
+  recordContentPost(input: RecordContentPostInput): number {
+    return _recordContentPost(this.db, input);
+  }
+
+  getContentPostsForDraft(draftId: number): ContentPost[] {
+    return _getContentPostsForDraft(this.db, draftId);
+  }
+
+  getContentPostsForScopes(visibleScopes: string[], limit: number = 100): ContentPost[] {
+    return _getContentPostsForScopes(this.db, visibleScopes, limit);
   }
 
   // ============ UTILITY METHODS ============

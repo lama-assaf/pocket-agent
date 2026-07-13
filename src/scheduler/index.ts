@@ -24,6 +24,8 @@ import {
   type NotificationHandler,
   type ChatHandler,
 } from './notifications';
+import { postApprovedDraft } from '../tools/content-tools';
+import type { SessionContext } from '../memory/sessions';
 
 // Re-export for backward compatibility
 export { HEARTBEAT_OK } from '../utils/heartbeat';
@@ -54,6 +56,13 @@ export interface JobResult {
   timestamp: Date;
 }
 
+/** The subset of a due cron_jobs row executeContentPostJob needs (roadmap item 6). */
+interface DueContentPostJob {
+  id: number;
+  name: string;
+  session_id: string | null;
+  content_draft_id: number | null;
+}
 
 /**
  * CronScheduler - Manages scheduled jobs from SQLite
@@ -461,13 +470,14 @@ export class CronScheduler {
       context_messages: number;
       session_id: string | null;
       job_type: string | null;
+      content_draft_id: number | null;
     }
 
     const nowSqlite = formatForSqlite(now);
     const dueJobs = db
       .prepare(
         `
-      SELECT id, name, schedule_type, schedule, run_at, interval_ms, prompt, channel, delete_after_run, context_messages, session_id, job_type
+      SELECT id, name, schedule_type, schedule, run_at, interval_ms, prompt, channel, delete_after_run, context_messages, session_id, job_type, content_draft_id
       FROM cron_jobs
       WHERE enabled = 1 AND next_run_at IS NOT NULL AND datetime(replace(next_run_at, 'Z', '')) <= datetime(?)
       LIMIT 50
@@ -480,6 +490,13 @@ export class CronScheduler {
 
       const sessionId = job.session_id || 'default';
 
+      // Scheduled content post (roadmap item 6): distinct from reminder/routine
+      // jobs — no LLM call, no routeJobResponse chat message. Handled entirely
+      // by executeContentPostJob, which re-checks approval before posting.
+      if (job.job_type === 'content_post') {
+        await this.executeContentPostJob(db, job, now);
+        continue;
+      }
 
       try {
         console.log(`[Scheduler] Executing job: ${job.name}`);
@@ -607,6 +624,72 @@ export class CronScheduler {
     }
   }
 
+  /**
+   * Execute a scheduled content-post job (roadmap item 6): "job fires ->
+   * checks draft still approved -> posts -> updates status." The approval
+   * re-check happens inside postApprovedDraft (the single enforcement point
+   * shared with the post_content_draft tool) — if the draft was un-approved
+   * or edited back to draft/rejected since scheduling, this fails loudly
+   * instead of posting silently. The one-time job is always deleted after
+   * firing (delete_after_run=1, set at schedule time), success or failure.
+   */
+  private async executeContentPostJob(
+    db: Database.Database,
+    job: DueContentPostJob,
+    now: Date
+  ): Promise<void> {
+    const startTime = Date.now();
+    try {
+      if (!this.memory) throw new Error('Memory not initialized');
+      if (!job.content_draft_id) throw new Error('Job has no linked content_draft_id');
+
+      const draft = this.memory.getContentDraft(job.content_draft_id);
+      if (!draft) throw new Error(`Draft #${job.content_draft_id} not found`);
+
+      const sessionId = job.session_id || draft.session_id || 'default';
+      let sessionContext: SessionContext | undefined;
+      try {
+        sessionContext = this.memory.getSessionContext(sessionId);
+      } catch {
+        sessionContext = undefined;
+      }
+
+      const result = await postApprovedDraft(this.memory, draft, sessionContext, sessionId);
+      const duration = Date.now() - startTime;
+
+      db.prepare('DELETE FROM cron_jobs WHERE id = ?').run(job.id);
+      console.log(
+        `[Scheduler] Content-post job "${job.name}" ${result.ok ? 'succeeded' : 'failed'} (draft #${draft.id}, ${duration}ms)${result.dryRun ? ' [dry run]' : ''}`
+      );
+
+      this.addToHistory({
+        jobName: job.name,
+        response: result.detail,
+        channel: draft.channel,
+        success: result.ok,
+        error: result.error,
+        timestamp: now,
+      });
+
+      if (!result.ok) {
+        await this.routeJobResponse(
+          job.name,
+          '',
+          `⚠️ Scheduled post for draft #${draft.id} failed: ${result.error || result.detail}`,
+          'desktop',
+          sessionId
+        ).catch((e) => console.error('[Scheduler] Failed to route content-post failure:', e));
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      console.error(`[Scheduler] Content-post job "${job.name}" failed:`, errorMsg);
+      db.prepare('DELETE FROM cron_jobs WHERE id = ?').run(job.id);
+      this.addToHistory({
+        jobName: job.name,
+        response: '',
+        channel: 'desktop',
+        success: false,
+        error: errorMsg,
         timestamp: now,
       });
     }

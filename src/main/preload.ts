@@ -301,6 +301,50 @@ contextBridge.exposeInMainWorld('pocketAgent', {
     ) => ipcRenderer.invoke('mcp:clearServerScopeEnablement', id, context),
   },
 
+  // ─── Content Workflow (roadmap item 6) ────────────────────────
+  content: {
+    list: (
+      context: {
+        contextType: 'personal' | 'world' | 'client' | 'project';
+        clientId?: string | null;
+        projectKey?: string | null;
+      },
+      status?: string
+    ) => ipcRenderer.invoke('content:list', context, status),
+    get: (id: number) => ipcRenderer.invoke('content:get', id),
+    history: (
+      context: {
+        contextType: 'personal' | 'world' | 'client' | 'project';
+        clientId?: string | null;
+        projectKey?: string | null;
+      },
+      draftId?: number
+    ) => ipcRenderer.invoke('content:history', context, draftId),
+    create: (
+      input: { channel: string; title?: string; body: string },
+      context: {
+        contextType: 'personal' | 'world' | 'client' | 'project';
+        clientId?: string | null;
+        projectKey?: string | null;
+      }
+    ) => ipcRenderer.invoke('content:create', input, context),
+    approve: (id: number) => ipcRenderer.invoke('content:approve', id),
+    reject: (id: number) => ipcRenderer.invoke('content:reject', id),
+    postNow: (
+      id: number,
+      context?: {
+        contextType: 'personal' | 'world' | 'client' | 'project';
+        clientId?: string | null;
+        projectKey?: string | null;
+      }
+    ) => ipcRenderer.invoke('content:postNow', id, context),
+    schedule: (id: number, scheduledFor: string) =>
+      ipcRenderer.invoke('content:schedule', id, scheduledFor),
+    delete: (id: number) => ipcRenderer.invoke('content:delete', id),
+    update: (id: number, fields: { channel?: string; title?: string; body?: string }) =>
+      ipcRenderer.invoke('content:update', id, fields),
+  },
+
   // ─── Location & Timezone ─────────────────────────────────────────────
   location: {
     lookup: (query: string) => ipcRenderer.invoke('location:lookup', query),
@@ -942,6 +986,101 @@ declare global {
           }
         ) => Promise<{ success: boolean; scope: string }>;
       };
+
+      content: {
+        list: (
+          context: {
+            contextType: 'personal' | 'world' | 'client' | 'project';
+            clientId?: string | null;
+            projectKey?: string | null;
+          },
+          status?: string
+        ) => Promise<
+          Array<{
+            id: number;
+            scope: string;
+            session_id: string | null;
+            channel: string;
+            title: string;
+            body: string;
+            status: string;
+            scheduled_for: string | null;
+            posted_at: string | null;
+            external_ref: string | null;
+            cron_job_id: number | null;
+            created_at: string;
+            updated_at: string;
+          }>
+        >;
+        get: (id: number) => Promise<{
+          id: number;
+          scope: string;
+          session_id: string | null;
+          channel: string;
+          title: string;
+          body: string;
+          status: string;
+          scheduled_for: string | null;
+          posted_at: string | null;
+          external_ref: string | null;
+          cron_job_id: number | null;
+          created_at: string;
+          updated_at: string;
+        } | null>;
+        history: (
+          context: {
+            contextType: 'personal' | 'world' | 'client' | 'project';
+            clientId?: string | null;
+            projectKey?: string | null;
+          },
+          draftId?: number
+        ) => Promise<
+          Array<{
+            id: number;
+            draft_id: number;
+            scope: string;
+            channel: string;
+            status: string;
+            detail: string | null;
+            external_ref: string | null;
+            created_at: string;
+          }>
+        >;
+        create: (
+          input: { channel: string; title?: string; body: string },
+          context: {
+            contextType: 'personal' | 'world' | 'client' | 'project';
+            clientId?: string | null;
+            projectKey?: string | null;
+          }
+        ) => Promise<{ success: boolean; id?: number; error?: string }>;
+        approve: (id: number) => Promise<{ success: boolean; error?: string }>;
+        reject: (id: number) => Promise<{ success: boolean; error?: string }>;
+        postNow: (
+          id: number,
+          context?: {
+            contextType: 'personal' | 'world' | 'client' | 'project';
+            clientId?: string | null;
+            projectKey?: string | null;
+          }
+        ) => Promise<{
+          success: boolean;
+          status?: string;
+          dryRun?: boolean;
+          detail?: string;
+          error?: string;
+        }>;
+        schedule: (
+          id: number,
+          scheduledFor: string
+        ) => Promise<{ success: boolean; scheduledFor?: string; error?: string }>;
+        delete: (id: number) => Promise<{ success: boolean }>;
+        update: (
+          id: number,
+          fields: { channel?: string; title?: string; body?: string }
+        ) => Promise<{ success: boolean; error?: string }>;
+      };
+
 
       location: {
         lookup: (query: string) => Promise<
