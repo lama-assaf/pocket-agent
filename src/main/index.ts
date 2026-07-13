@@ -21,6 +21,7 @@ import { PackSyncManager } from '../marketplace/sync';
 import { PACK_SOURCES } from '../marketplace/registry';
 import { setClientsRoot, setWorldRoot } from '../clients/paths';
 import { ensureWorldScaffold, ensureClientScaffold } from '../clients/registry';
+import { setAuditLogRoot } from '../utils/audit-log';
 import { initializeUpdater, setupUpdaterIPC, setSettingsWindow, setChatWindow } from './updater';
 import { createWindow, getWindow } from './windows';
 import { fixPathForPackagedApp } from './node-paths';
@@ -35,6 +36,7 @@ import {
   registerMiscIPC,
   registerMarketplaceIPC,
   registerMcpIPC,
+  registerAuditLogIPC,
 } from './ipc';
 import type { IPCDependencies } from './ipc';
 
@@ -448,6 +450,7 @@ function setupIPC(): void {
   // dependency of its own.
   registerMarketplaceIPC();
   registerMcpIPC();
+  registerAuditLogIPC();
 }
 
 // ============ Agent Lifecycle ============
@@ -661,6 +664,11 @@ app.whenReady().then(async () => {
     // the app bundle in a packaged build). The browser module itself never
     // imports Electron — we inject the path here.
     getBrowserManager({ downloadPath: app.getPath('downloads') });
+
+    // Write-audit log (roadmap item 8): the module itself never imports
+    // Electron and stays a no-op until configured (see utils/audit-log.ts) —
+    // inject userData here, before any agent write/fact path can run.
+    setAuditLogRoot(path.join(app.getPath('userData'), 'audit-logs'));
 
     // === Operator packs (Atelier + Salon) ===
     // Seed bundled packs on first run, then update from the og repos in the

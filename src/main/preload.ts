@@ -152,6 +152,11 @@ contextBridge.exposeInMainWorld('pocketAgent', {
     memoryUsage: () => ipcRenderer.invoke('dailyLogs:memoryUsage'),
   },
 
+  // ─── Write-Audit Log (roadmap item 8) ──────────────────────────────────
+  auditLog: {
+    list: (limit?: number) => ipcRenderer.invoke('auditLog:list', limit),
+  },
+
   // ─── App (Windows, Navigation, Info) ─────────────────────────────────
   app: {
     openFacts: () => ipcRenderer.invoke('app:openFacts'),
@@ -733,6 +738,19 @@ declare global {
         >;
         delete: (id: number) => Promise<{ success: boolean }>;
         memoryUsage: () => Promise<{ usedChars: number; budgetChars: number; pct: number }>;
+      };
+
+      auditLog: {
+        list: (limit?: number) => Promise<
+          Array<{
+            ts: string;
+            sessionId: string;
+            scope: string | null;
+            tool: 'write' | 'edit' | 'saveFact' | 'updateFact';
+            target: string;
+            digest: string;
+          }>
+        >;
       };
 
       app: {

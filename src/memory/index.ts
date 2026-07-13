@@ -115,6 +115,8 @@ import {
   setSessionPulseEnabled as _setSessionPulseEnabled,
 } from './sessions';
 
+import { appendAuditLog, digestContent } from '../utils/audit-log';
+import { getCurrentSessionId } from '../tools/session-context';
 
 // Types
 export type { Message, SmartContextOptions, SmartContext, SummarizerFn } from './messages';
@@ -871,6 +873,19 @@ export class MemoryManager {
 
   // ============ FACT METHODS ============
 
+    // Write-audit log (roadmap item 8): every fact write, no bypass — this is
+    // the single MemoryManager entry point every caller (agent remember tool,
+    // facts:create IPC, atelier-bridge mirror sync, consolidation) goes through.
+    appendAuditLog({
+      sessionId: getCurrentSessionId(),
+      scope,
+      tool: 'saveFact',
+      target: `${scope}:${category}/${subject || '(no subject)'}`,
+      digest: digestContent(content),
+    });
+    return id;
+  }
+
   getFact(id: number): Fact | null {
     return _getFact(this.db, id);
   }
@@ -927,7 +942,23 @@ export class MemoryManager {
     return _deleteFact(this.db, id, this.factsCache);
   }
 
-  updateFact
+  updateFact    if (ok) {
+      // Write-audit log (roadmap item 8). Read the post-update row so the
+      // logged category/subject/scope reflect what actually landed, not just
+      // whichever fields this call happened to touch.
+      const fact = _getFact(this.db, id);
+      appendAuditLog({
+        sessionId: getCurrentSessionId(),
+        scope: fact?.scope ?? fields.scope ?? null,
+        tool: 'updateFact',
+        target: fact
+          ? `${fact.scope}:${fact.category}/${fact.subject || '(no subject)'}`
+          : `fact#${id}`,
+        digest: digestContent(fields.content ?? JSON.stringify(fields)),
+      });
+    }
+    return ok;
+  }
 
   setFactSensitive(id: number, sensitive: boolean): boolean {
     return _setFactSensitive(this.db, id, sensitive, this.factsCache);

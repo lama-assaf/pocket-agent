@@ -7,3 +7,4 @@ export { registerCronIPC } from './cron-ipc';
 export { registerMiscIPC } from './misc-ipc';
 export { registerMarketplaceIPC } from './marketplace-ipc';
 export { registerMcpIPC } from './mcp-ipc';
+export { registerAuditLogIPC } from './audit-log-ipc';

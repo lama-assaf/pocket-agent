@@ -15,14 +15,17 @@ import { getCustomTools, ToolsConfig } from '../tools';
 import { wrapToolHandler } from '../tools/diagnostics';
 import { createSubAgentTool } from '../tools/subagent';
 import { getMemoryManager } from '../tools/memory-tools';
+import { getCurrentSessionId } from '../tools/session-context';
 import { AtelierMemoryBridge } from '../memory/atelier-bridge';
 import { skillsForLane } from '../marketplace/registry';
 import type { LaneId } from '../marketplace/types';
 import { resolveNearestScope } from '../memory/scope';
+import type { SessionContext } from '../memory/sessions';
 import { getStreamConfig } from './chat-providers';
 import { validateBashCommand, validateWritePath } from './safety';
 import { scanForBannedTone } from './write-guards';
 import { SettingsManager } from '../settings';
+import { appendAuditLog, digestContent } from '../utils/audit-log';
 
 const execAsync = promisify(exec);
 const IS_WINDOWS = process.platform === 'win32';
@@ -47,6 +50,105 @@ function shouldHardBlockTone(lane: LaneId | undefined): boolean {
   if (setting === 'false') return false;
   if (setting === 'true') return true;
   return Boolean(lane);
+}
+
+/**
+ * Best-effort content digest for an audit-log entry: the `content` field when
+ * the tool's input carries one (write), else the whole args payload (edit,
+ * whose input is a list of old_text/new_text pairs, not one `content`
+ * string). Either way this only ever produces a short hash — see
+ * digestContent() in utils/audit-log.ts.
+ */
+function auditDigestForArgs(args: unknown): string {
+  const content = (args as { content?: unknown })?.content;
+  if (typeof content === 'string') return digestContent(content);
+  try {
+    return digestContent(JSON.stringify(args));
+  } catch {
+    return digestContent('');
+  }
+}
+
+/**
+ * Record one write-audit-log entry (roadmap item 8) for a successful write.
+ * Resolves the active session's scope via the same memory-manager lookup the
+ * tone guard uses. Runs for every write/edit tool, lane or not, coder or not
+ * — the audit log is unconditional (unlike the tone guard, which coder mode
+ * is exempt from). appendAuditLog() never throws, so this can't break a write.
+ */
+function logAuditWrite(toolName: string, filePath: unknown, args: unknown): void {
+  if (typeof filePath !== 'string' || filePath.length === 0) return;
+  const memory = getMemoryManager();
+  const context = memory ? memory.getSessionContext(getCurrentSessionId()) : undefined;
+  appendAuditLog({
+    sessionId: getCurrentSessionId(),
+    scope: context ? resolveNearestScope(context) : null,
+    tool: toolName.toLowerCase() === 'edit' ? 'edit' : 'write',
+    target: filePath,
+    digest: auditDigestForArgs(args),
+  });
+}
+
+/**
+ * Wrap a write/edit AgentTool so its execute() runs validateWritePath before
+ * delegating to the underlying tool. Blocks writes to dangerous paths (e.g.
+ * /etc, ~/.ssh, /System) and returns a string explaining the block.
+ *
+ * When `scanTone` is true (every mode reachable via getChatAgentTools — i.e.
+ * every prose-producing mode: general/design/product/brand/social/researcher/
+ * writer/therapist), it also runs the packs' anti-AI-tone / banned-words guard
+ * (ported from Atelier/Salon, see write-guards.ts) against the content being
+ * written. Coder mode is exempt (never passes `scanTone`) since scanning code
+ * for prose-tone patterns would false-positive. Blocking policy is decided by
+ * `shouldHardBlockTone` above; disable scanning entirely with
+ * `features.operatorPacks='false'`.
+ *
+ * Every successful write (any mode) also gets a write-audit-log entry via
+ * logAuditWrite() — this is the single centralized choke point every
+ * write/edit AgentTool passes through, so no tool can bypass the audit log.
+ */
+function wrapWithWritePathSafety(
+  tool: AgentTool,
+  lane?: LaneId,
+  scanTone: boolean = false
+): AgentTool {
+  const originalExecute = tool.execute.bind(tool);
+  return {
+    ...tool,
+    execute: async (args: unknown, context: ToolContext) => {
+      const filePath = (args as { file_path?: unknown })?.file_path;
+      if (typeof filePath === 'string' && filePath.length > 0) {
+        const safety = validateWritePath(filePath);
+        if (!safety.allowed) {
+          return `Write blocked by safety filter: ${safety.reason}`;
+        }
+      }
+
+      const content = (args as { content?: unknown })?.content;
+      let toneWarning: string | null = null;
+      if (
+        scanTone &&
+        typeof content === 'string' &&
+        SettingsManager.get('features.operatorPacks') !== 'false'
+      ) {
+        // Merge the active brand's guardrails (world + client) into the tone scan.
+        const memory = getMemoryManager();
+        const scanContext = memory ? memory.getSessionContext(getCurrentSessionId()) : undefined;
+        const { warning } = scanForBannedTone(content, scanContext);
+        if (warning) {
+          if (shouldHardBlockTone(lane)) {
+            return `Write blocked by tone guard: ${warning}`;
+          }
+          toneWarning = warning; // non-blocking: warn + still write
+        }
+      }
+
+      const result = await originalExecute(args as never, context);
+      notifyAtelierMemoryWrite(filePath);
+      logAuditWrite(tool.name, filePath, args);
+      return toneWarning ? `${toneWarning}\n\n${result}` : result;
+    },
+  } as AgentTool;
 }
 
 /**
