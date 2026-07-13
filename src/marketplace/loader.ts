@@ -1,7 +1,15 @@
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
-import type { PackSource, LoadedPack, PackAgent, RuleFile, MemoryTemplate, Skill } from './types';
+import type {
+  PackSource,
+  LoadedPack,
+  PackAgent,
+  RuleFile,
+  MemoryTemplate,
+  Skill,
+  McpCatalogEntry,
+} from './types';
 import { getPluginsRoot } from './paths';
 
 const FM_RE = /^---\n([\s\S]*?)\n---\n([\s\S]*)$/;
@@ -138,6 +146,55 @@ function loadMemoryTemplates(dir: string): MemoryTemplate[] {
   return out;
 }
 
+// Flags a catalog entry's `_comment` as a risk/cost note worth surfacing separately
+// (e.g. ToS violations, paid tiers) vs a plain informational description.
+const RISK_RE = /\b(RISK|TOS|COST|violat|pay-per|paid plan|unofficial)/i;
+
+/**
+ * Parse a pack's mcp-configs/mcp-servers.json catalog. These are opt-in server
+ * *templates* the pack authors curated (see mcp-configs/README.md in each repo) —
+ * never auto-loaded or connected by us. Missing/malformed files degrade to [].
+ */
+export function loadMcpCatalog(dir: string): McpCatalogEntry[] {
+  const file = path.join(dir, 'mcp-servers.json');
+  const raw = readMd(file);
+  if (!raw) return [];
+  let parsed: { mcpServers?: Record<string, Record<string, unknown>> };
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return [];
+  }
+  const servers = parsed.mcpServers;
+  if (!servers || typeof servers !== 'object') return [];
+  const out: McpCatalogEntry[] = [];
+  for (const [id, entry] of Object.entries(servers)) {
+    if (!entry || typeof entry !== 'object') continue;
+    const comment = typeof entry._comment === 'string' ? entry._comment : undefined;
+    const isUrl = typeof entry.type === 'string' && entry.type === 'url';
+    const base: McpCatalogEntry = {
+      id,
+      kind: isUrl ? 'url' : 'stdio',
+      description: comment,
+      riskNote: comment && RISK_RE.test(comment) ? comment : undefined,
+    };
+    if (isUrl) {
+      if (typeof entry.url === 'string') base.url = entry.url;
+      if (entry.headers && typeof entry.headers === 'object') {
+        base.headers = entry.headers as Record<string, string>;
+      }
+    } else {
+      if (typeof entry.command === 'string') base.command = entry.command;
+      if (Array.isArray(entry.args)) base.args = entry.args as string[];
+      if (entry.env && typeof entry.env === 'object') {
+        base.env = entry.env as Record<string, string>;
+      }
+    }
+    out.push(base);
+  }
+  return out;
+}
+
 export function readPack(source: PackSource): LoadedPack {
   const dir = path.join(getPluginsRoot(), source.id); // <userData>/plugins/<id> (or seed in tests)
   return {
@@ -147,6 +204,7 @@ export function readPack(source: PackSource): LoadedPack {
     commands: loadCommands(path.join(dir, 'commands')),
     rules: loadRules(path.join(dir, 'rules')),
     memoryTemplates: loadMemoryTemplates(path.join(dir, 'memory')),
+    mcpCatalog: loadMcpCatalog(path.join(dir, 'mcp-configs')),
   };
 }
 

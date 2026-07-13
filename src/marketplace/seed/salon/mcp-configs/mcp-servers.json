@@ -1,0 +1,138 @@
+{
+  "mcpServers": {
+    "x-api": {
+      "_comment": "OFFICIAL X hosted MCP (announced 2026-06) via the xurl OAuth bridge. 200+ endpoints: post, search, trends, bookmarks. Requires an X developer app enrolled in the Pay-per-use Production plan (developer.x.com); xurl opens a one-time browser OAuth login.",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@xdevplatform/xurl",
+        "mcp",
+        "https://api.x.com/mcp"
+      ],
+      "env": {
+        "CLIENT_ID": "${X_CLIENT_ID}",
+        "CLIENT_SECRET": "${X_CLIENT_SECRET}"
+      }
+    },
+    "twitter-community": {
+      "_comment": "community alternative if you hold classic API v2 keys. github.com/EnesCinr/twitter-mcp (stale ~1yr, works for basic post+search). X reads are pay-per-use; posting cheap. Keys from developer.x.com.",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@enescinar/twitter-mcp"
+      ],
+      "env": {
+        "API_KEY": "${TWITTER_API_KEY}",
+        "API_SECRET_KEY": "${TWITTER_API_SECRET_KEY}",
+        "ACCESS_TOKEN": "${TWITTER_ACCESS_TOKEN}",
+        "ACCESS_TOKEN_SECRET": "${TWITTER_ACCESS_TOKEN_SECRET}"
+      }
+    },
+    "discord": {
+      "_comment": "bot-token Discord server. github.com/barryyip0625/mcp-discord. read/send/search messages, members, reactions, forums, webhooks. Create a bot at discord.com/developers and invite it to your guild. NOTE: the env var is DISCORD_TOKEN (verified against README) \u2014 not DISCORD_BOT_TOKEN.",
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-discord"
+      ],
+      "env": {
+        "DISCORD_TOKEN": "${DISCORD_TOKEN}"
+      }
+    },
+    "telegram": {
+      "_comment": "MTProto user-session server (github.com/chaindead/telegram-mcp). Reads full channel/group history + dialogs, sends drafts. Get TG_APP_ID/TG_API_HASH at my.telegram.org, then run once: npx -y @chaindead/telegram-mcp auth --app-id <ID> --api-hash <HASH> --phone <NUM>. Logs in as YOUR account \u2014 see repo's ToS note.",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@chaindead/telegram-mcp"
+      ],
+      "env": {
+        "TG_APP_ID": "${TG_APP_ID}",
+        "TG_API_HASH": "${TG_API_HASH}"
+      }
+    },
+    "reddit": {
+      "_comment": "community-insight source. github.com/jordanburke/reddit-mcp-server. Browse/search subreddits, comments, trending. ALL read tools work with zero config (omit env entirely for anonymous mode). App creds (reddit.com/prefs/apps) raise rate limits; write ops additionally require REDDIT_USERNAME + REDDIT_PASSWORD (verified against README).",
+      "command": "npx",
+      "args": [
+        "-y",
+        "reddit-mcp-server"
+      ],
+      "env": {
+        "REDDIT_CLIENT_ID": "${REDDIT_CLIENT_ID}",
+        "REDDIT_CLIENT_SECRET": "${REDDIT_CLIENT_SECRET}",
+        "REDDIT_USERNAME": "${REDDIT_USERNAME}",
+        "REDDIT_PASSWORD": "${REDDIT_PASSWORD}",
+        "REDDIT_USER_AGENT": "salon-mcp/1.0"
+      }
+    },
+    "hacker-news": {
+      "_comment": "zero-config tech-community insight source via official HN Firebase API. github.com/paabloLC/mcp-hacker-news. No auth.",
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-hacker-news"
+      ]
+    },
+    "brave-search": {
+      "_comment": "trend/social-listening fallback when no platform MCP is connected. Official Brave server (@brave scope \u2014 the @modelcontextprotocol one is archived). Free BRAVE_API_KEY ~2k queries/mo from brave.com/search/api.",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@brave/brave-search-mcp-server"
+      ],
+      "env": {
+        "BRAVE_API_KEY": "${BRAVE_API_KEY}"
+      }
+    },
+    "postiz": {
+      "_comment": "official Postiz MCP (docs.postiz.com/mcp/setup). Cross-platform scheduling/publishing to X, LinkedIn, Mastodon, etc. API key from Settings > Developers. Self-hosters: swap host for your backend URL.",
+      "type": "url",
+      "url": "https://api.postiz.com/mcp/${POSTIZ_API_KEY}"
+    },
+    "typefully": {
+      "_comment": "official Typefully MCP. Draft/schedule across X, LinkedIn, Threads, Bluesky, Mastodon; view queue. Requires a Typefully plan; key from typefully.com settings. Auth is the API key only \u2014 NOT OAuth; clients that try to auto-negotiate OAuth against this endpoint will fail.",
+      "type": "url",
+      "url": "https://mcp.typefully.com/mcp?TYPEFULLY_API_KEY=${TYPEFULLY_API_KEY}"
+    },
+    "buffer": {
+      "_comment": "official Buffer MCP (GraphQL-backed, public beta). Scheduling across connected channels. Bearer auth with API key from publish.buffer.com/settings/api; capabilities follow your Buffer plan's limits.",
+      "type": "url",
+      "url": "https://mcp.buffer.com/mcp",
+      "headers": {
+        "Authorization": "Bearer ${BUFFER_API_KEY}"
+      }
+    },
+    "linkedin-unofficial": {
+      "_comment": "RISK-FLAGGED: browser-session scraper (github.com/stickerdaniel/linkedin-mcp-server, 2.7k stars, very active). Reads feed/profiles \u2014 impossible via LinkedIn's partnership-gated official API. Violates LinkedIn ToS; use a low-stakes account. Auth is an INTERACTIVE browser login on first use (or auto-imports cookies from a logged-in local browser); session persists in ~/.linkedin-mcp \u2014 no headless env-var mode. Keep @latest unpinned: LinkedIn page-structure fixes ship continuously.",
+      "command": "uvx",
+      "args": [
+        "mcp-server-linkedin@latest"
+      ],
+      "env": {
+        "UV_HTTP_TIMEOUT": "300"
+      }
+    },
+    "apify-social-listening": {
+      "_comment": "hosted Apify MCP pinned to cookieless X/Twitter + LinkedIn listening actors (no platform login or cookies involved; scraping runs on Apify's proxy infra). Pay-per-result billed to your Apify account: X ~$0.18-0.40/1k tweets, LinkedIn ~$1.50-2/1k posts. Token from console.apify.com > Settings > Integrations. COST + ToS: reduces operational/account risk, does NOT remove platform-ToS exposure - see mcp-configs/README.md.",
+      "type": "url",
+      "url": "https://mcp.apify.com?tools=kaitoeasyapi/twitter-x-data-tweet-scraper-pay-per-result-cheapest,apidojo/tweet-scraper,harvestapi/linkedin-post-search,harvestapi/linkedin-company-posts,harvestapi/linkedin-profile-posts",
+      "headers": {
+        "Authorization": "Bearer ${APIFY_TOKEN}"
+      }
+    },
+    "apify-social-listening-local": {
+      "_comment": "local stdio variant of the Apify MCP with the same pinned actors. --tools REPLACES the default actor-discovery toolset, so the model only sees these five. Same cost/ToS notes as the hosted entry.",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@apify/actors-mcp-server",
+        "--tools",
+        "kaitoeasyapi/twitter-x-data-tweet-scraper-pay-per-result-cheapest,apidojo/tweet-scraper,harvestapi/linkedin-post-search,harvestapi/linkedin-company-posts,harvestapi/linkedin-profile-posts"
+      ],
+      "env": {
+        "APIFY_TOKEN": "${APIFY_TOKEN}"
+      }
+    }
+  }
+}

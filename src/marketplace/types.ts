@@ -37,6 +37,20 @@ export interface Skill {
   source: string;
 }
 
+// One entry from a pack's mcp-configs/mcp-servers.json catalog. These are templates —
+// opt-in server definitions the pack authors curated, never auto-loaded by us.
+export interface McpCatalogEntry {
+  id: string;                 // object key, e.g. 'figma-remote'
+  kind: 'stdio' | 'url';
+  description?: string;       // from the entry's `_comment`, if present
+  riskNote?: string;          // same `_comment`, surfaced separately when it reads as a risk/cost flag
+  command?: string;           // stdio only
+  args?: string[];            // stdio only
+  env?: Record<string, string>; // stdio only — values are ${VAR} placeholders, never real secrets
+  url?: string;                // url only
+  headers?: Record<string, string>; // url only
+}
+
 export interface LoadedPack {
   id: string;
   agents: PackAgent[];
@@ -44,4 +58,5 @@ export interface LoadedPack {
   commands: { name: string; description: string; filename: string; content: string }[];
   rules: RuleFile[];
   memoryTemplates: MemoryTemplate[];
+  mcpCatalog: McpCatalogEntry[];
 }

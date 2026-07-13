@@ -54,7 +54,7 @@ export async function updatePack(source: PackSource, destDir: string): Promise<v
       cwd: tmp,
       strip: 1,
       filter: (p) =>
-        /\/(agents|skills|commands|rules|memory)\/|\/(VERSION|\.claude-plugin\/plugin\.json)$/.test(
+        /\/(agents|skills|commands|rules|memory|mcp-configs)\/|\/(VERSION|\.claude-plugin\/plugin\.json)$/.test(
           `/${p}`,
         ),
     }),
