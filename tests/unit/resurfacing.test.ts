@@ -13,6 +13,7 @@ vi.mock('../../src/memory/semantic', () => ({
 }));
 
 import { MemoryManager } from '../../src/memory/index';
+import { clientScope, resolveVisibleScopes, USER_SCOPE, WORLD_SCOPE } from '../../src/memory/scope';
 
 describe('selectResurfaceCandidate', () => {
   let memory: MemoryManager;
@@ -76,3 +77,102 @@ describe('resurface rate gate (memory_meta)', () => {
     expect(memory.getMeta('last_resurface_date')).toBe(todayKey);
   });
 });
+
+// ── F2: resurfacing must never leak another brand's (or personal) facts ──────
+describe('selectResurfaceCandidate scope filtering (F2)', () => {
+  let memory: MemoryManager;
+  const old = new Date(Date.now() - 60 * 86_400_000).toISOString();
+
+  const makeStaleFact = (
+    subject: string,
+    content: string,
+    scope: string,
+    importance = 90
+  ): number => {
+    const id = memory.saveFact('user_info', subject, content, false, scope);
+    memory['db']
+      .prepare('UPDATE facts SET importance = ?, last_accessed_at = ? WHERE id = ?')
+      .run(importance, old, id);
+    return id;
+  };
+
+  beforeEach(() => {
+    memory = new MemoryManager(':memory:');
+  });
+
+  it("a client fact is never selected for another client's session", () => {
+    makeStaleFact('secret', 'Brand A confidential pricing', clientScope('brandA'));
+
+    const candidate = memory.selectResurfaceCandidate(
+      new Date(),
+      resolveVisibleScopesFor('client', 'brandB')
+    );
+    expect(candidate).toBeNull();
+  });
+
+  it("a client fact is never selected for a personal session", () => {
+    makeStaleFact('secret', 'Brand A confidential pricing', clientScope('brandA'));
+
+    const candidate = memory.selectResurfaceCandidate(
+      new Date(),
+      resolveVisibleScopesFor('personal')
+    );
+    expect(candidate).toBeNull();
+  });
+
+  it('a personal (user) fact is never selected for a client session', () => {
+    makeStaleFact('secret', 'operator personal detail', USER_SCOPE);
+
+    const candidate = memory.selectResurfaceCandidate(
+      new Date(),
+      resolveVisibleScopesFor('client', 'brandA')
+    );
+    expect(candidate).toBeNull();
+  });
+
+  it("a client's own fact IS selected for that client's session", () => {
+    const id = makeStaleFact('brand_note', 'Brand A launch retro', clientScope('brandA'));
+
+    const candidate = memory.selectResurfaceCandidate(
+      new Date(),
+      resolveVisibleScopesFor('client', 'brandA')
+    );
+    expect(candidate).not.toBeNull();
+    expect(candidate!.kind).toBe('fact');
+    if (candidate!.kind === 'fact') expect(candidate!.factId).toBe(id);
+  });
+
+  it('world facts are visible from any shared (client/project/world) session', () => {
+    const id = makeStaleFact('agency_note', 'Agency-wide style note', WORLD_SCOPE);
+
+    const candidate = memory.selectResurfaceCandidate(
+      new Date(),
+      resolveVisibleScopesFor('client', 'brandA')
+    );
+    expect(candidate).not.toBeNull();
+    if (candidate!.kind === 'fact') expect(candidate!.factId).toBe(id);
+  });
+
+  it('an empty visible-scope list yields no candidate at all (never falls through unfiltered)', () => {
+    makeStaleFact('secret', 'anything', USER_SCOPE);
+    expect(memory.selectResurfaceCandidate(new Date(), [])).toBeNull();
+  });
+
+  it('when scope resolution fails, restricting to user/world excludes client/project facts', () => {
+    makeStaleFact('secret', 'Brand A confidential pricing', clientScope('brandA'));
+    const userFactId = makeStaleFact('goal', 'operator personal goal', USER_SCOPE);
+
+    // Simulates the scheduler's safe-fallback scope list (F2).
+    const candidate = memory.selectResurfaceCandidate(new Date(), [USER_SCOPE, WORLD_SCOPE]);
+    expect(candidate).not.toBeNull();
+    if (candidate!.kind === 'fact') expect(candidate!.factId).toBe(userFactId);
+  });
+});
+
+function resolveVisibleScopesFor(
+  contextType: 'personal' | 'world' | 'client' | 'project',
+  clientId: string | null = null,
+  projectKey: string | null = null
+): string[] {
+  return resolveVisibleScopes({ contextType, clientId, projectKey }, 'test-session');
+}

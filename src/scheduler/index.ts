@@ -2,6 +2,7 @@ import cron, { ScheduledTask } from 'node-cron';
 import Database from 'better-sqlite3';
 import { AgentManager } from '../agent';
 import { MemoryManager, CronJob } from '../memory';
+import { resolveVisibleScopes, USER_SCOPE, WORLD_SCOPE } from '../memory/scope';
 import type { TelegramBot } from '../channels/telegram';
 import { matchesCronField } from '../utils/cron';
 import { HEARTBEAT_SUFFIX, isHeartbeatOk } from '../utils/heartbeat';
@@ -52,6 +53,7 @@ export interface JobResult {
   error?: string;
   timestamp: Date;
 }
+
 
 /**
  * CronScheduler - Manages scheduled jobs from SQLite
@@ -334,13 +336,31 @@ export class CronScheduler {
     // Don't double-ping: skip resurfacing on days a pulse check-in already fired
     if (this.memory.countPulsesSince('checkin', localDayStartIso(now)) > 0) return;
 
-    const candidate = this.memory.selectResurfaceCandidate(now);
-    if (!candidate) return;
-
-    // Resolve the primary session (prefer a real session over 'default')
+    // Resolve the primary session (prefer a real session over 'default') BEFORE
+    // selecting a candidate: the candidate must be scoped to whichever session
+    // will actually receive it, never picked unscoped then delivered blind (F2).
     const sessions = this.memory.getSessions();
     const primary = sessions.find((s) => s.id !== 'default') ?? sessions[0];
     if (!primary) return;
+
+    // Resolve the target session's visible scopes so a resurfaced memory can
+    // never leak another brand's (or personal) facts into this session. If the
+    // context can't be resolved for any reason, fall back to the safest
+    // superset — user/world only, never an arbitrary client/project scope.
+    let visibleScopes: string[];
+    try {
+      const context = this.memory.getSessionContext(primary.id);
+      visibleScopes = resolveVisibleScopes(context, primary.id);
+    } catch (err) {
+      console.error(
+        '[Scheduler] Failed to resolve session context for resurfacing; restricting to user/world:',
+        err
+      );
+      visibleScopes = [USER_SCOPE, WORLD_SCOPE];
+    }
+
+    const candidate = this.memory.selectResurfaceCandidate(now, visibleScopes);
+    if (!candidate) return;
 
     const { summarizeText } = await import('../memory/summarizer');
     const prompt =
@@ -459,6 +479,7 @@ export class CronScheduler {
       const startTime = Date.now();
 
       const sessionId = job.session_id || 'default';
+
 
       try {
         console.log(`[Scheduler] Executing job: ${job.name}`);
@@ -583,6 +604,11 @@ export class CronScheduler {
           console.error(`[Scheduler] Failed to route job error:`, routeErr);
         }
       }
+    }
+  }
+
+        timestamp: now,
+      });
     }
   }
 

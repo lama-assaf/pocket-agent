@@ -1,14 +1,53 @@
 import { ipcMain } from 'electron';
 import { AgentManager } from '../../agent';
+import { USER_SCOPE, WORLD_SCOPE } from '../../memory/scope';
 import type { IPCDependencies } from './types';
+
+// Server-side-enforced safe default when a caller omits `scope` (F4): personal
+// (user+world) rather than every memory space unfiltered. Closes the leak where
+// an IPC call with no scope argument (e.g. the legacy "My Brain" window) could
+// read every client's shared facts. Existing scoped callers (Brain panel) are
+// unaffected — they always pass an explicit scope.
+const SAFE_DEFAULT_SCOPES = [USER_SCOPE, WORLD_SCOPE];
 
 export function registerFactsIPC(deps: IPCDependencies): void {
   const { getMemory } = deps;
 
-  // Facts
-  ipcMain.handle('facts:list', async () => {
-    return AgentManager.getAllFacts();
+  // Facts. `scope` filters to a single memory space (Brain space view): 'user'
+  // (personal), 'world', 'client:<id>', or 'project:<key>'. Missing scope never
+  // falls through to an unfiltered dump of every space — it defaults to the
+  // safe personal bundle instead (see SAFE_DEFAULT_SCOPES above).
+  ipcMain.handle('facts:list', async (_, scope?: string) => {
+    const all = AgentManager.getAllFacts();
+    if (!scope) return all.filter((f) => SAFE_DEFAULT_SCOPES.includes(f.scope ?? 'user'));
+    return all.filter((f) => (f.scope ?? 'user') === scope);
   });
+
+  // In-app fact authoring. The caller passes the target `scope` (the Memory
+  // Workbench is always scoped to the active client/project), defaulting to the
+  // personal `user` scope so a create can never silently leak across brands.
+  ipcMain.handle(
+    'facts:create',
+    async (
+      _,
+      input: {
+        category: string;
+        subject: string;
+        content: string;
+        sensitive?: boolean;
+        scope?: string;
+      }
+    ) => {
+      const memory = getMemory();
+      if (!memory) return { success: false, error: 'Memory not initialized' };
+      const { category, subject, content, sensitive, scope } = input;
+      if (!category || !content) {
+        return { success: false, error: 'Missing required fields: category, content' };
+      }
+      const id = memory.saveFact(category, subject ?? '', content, sensitive, scope ?? 'user');
+      return { success: true, fact: memory.getFact(id) };
+    }
+  );
 
   ipcMain.handle('facts:search', async (_, query: string) => {
     const memory = getMemory();
@@ -93,10 +132,10 @@ export function registerFactsIPC(deps: IPCDependencies): void {
   });
 
   // Memory usage stats
-  ipcMain.handle('facts:memoryUsage', async () => {
+  ipcMain.handle('facts:memoryUsage', async (_, scope?: string) => {
     const memory = getMemory();
     if (!memory) return { usedChars: 0, budgetChars: 3000, pct: 0 };
-    return memory.getFactsMemoryUsage();
+    return memory.getFactsMemoryUsage(scope);
   });
 
   ipcMain.handle('soul:memoryUsage', async () => {

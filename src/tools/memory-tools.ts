@@ -6,6 +6,8 @@
  */
 
 import { MemoryManager } from '../memory';
+import { resolveNearestScope, resolveVisibleScopes, nextBroaderScope } from '../memory/scope';
+import { getCurrentSessionId } from './session-context';
 
 let memoryManager: MemoryManager | null = null;
 
@@ -15,6 +17,38 @@ export function setMemoryManager(memory: MemoryManager): void {
 
 export function getMemoryManager(): MemoryManager | null {
   return memoryManager;
+}
+
+/**
+ * Scope a new fact to the session's selected memory space (personal vs a shared
+ * brand). Selection drives the scope — the model never picks it — so a fact
+ * saved while a Client is active lives at that brand, and personal facts stay
+ * private. Falls back to the personal `user` scope.
+ *
+ * Exported so other tool modules with the same "scope writes to the active
+ * session's nearest scope" contract (e.g. src/tools/content-tools.ts's
+ * save_draft) reuse this exact logic rather than re-deriving it.
+ */
+export function nearestScopeForCurrentSession(memory: MemoryManager): string {
+  try {
+    return resolveNearestScope(memory.getSessionContext(getCurrentSessionId()));
+  } catch {
+    return 'user';
+  }
+}
+
+/**
+ * Scopes visible for recall in the session's selected context (personal never
+ * mixes with shared). Exported for the same reason as
+ * nearestScopeForCurrentSession above.
+ */
+export function visibleScopesForCurrentSession(memory: MemoryManager): string[] {
+  const sessionId = getCurrentSessionId();
+  try {
+    return resolveVisibleScopes(memory.getSessionContext(sessionId), sessionId);
+  } catch {
+    return [`chat:${sessionId}`, 'user'];
+  }
 }
 
 /**
@@ -71,8 +105,11 @@ export async function handleRememberTool(input: unknown): Promise<string> {
     return JSON.stringify({ error: 'Missing required fields: category, subject, content' });
   }
 
-  const id = memoryManager.saveFact(category, subject, content, sensitive);
-  console.log(`[Remember] Saved: [${category}] ${subject}${sensitive ? ' (sensitive)' : ''}`);
+  const scope = nearestScopeForCurrentSession(memoryManager);
+  const id = memoryManager.saveFact(category, subject, content, sensitive, scope);
+  console.log(
+    `[Remember] Saved: [${category}] ${subject}${sensitive ? ' (sensitive)' : ''} @ ${scope}`
+  );
 
   return JSON.stringify({
     success: true,
@@ -181,6 +218,11 @@ export async function handleListFactsTool(input: unknown): Promise<string> {
   } else {
     facts = memoryManager.getAllFacts();
   }
+
+  // Only show facts in the session's selected memory space (personal vs a shared
+  // brand). Isolation by construction: shared contexts never list personal facts.
+  const visibleScopes = new Set(visibleScopesForCurrentSession(memoryManager));
+  facts = facts.filter((f) => visibleScopes.has(f.scope ?? 'user'));
 
   if (facts.length === 0) {
     return JSON.stringify({
@@ -378,6 +420,74 @@ export async function handleUpdateFactTool(input: unknown): Promise<string> {
 }
 
 /**
+ * Promote memory tool definition
+ */
+export function getPromoteMemoryToolDefinition() {
+  return {
+    name: 'promote_memory',
+    description:
+      'Promote a remembered fact to a broader shared scope so it survives team-wide (chat \u2192 project \u2192 client \u2192 world). Use when a lesson learned in this conversation or brand should apply more widely. Get the fact id from list_facts or recall_memory. Only works in a shared context (World/Client/Project), not personal.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        id: {
+          type: 'number',
+          description: 'The fact ID to promote (from list_facts/recall_memory)',
+        },
+      },
+      required: ['id'],
+    },
+  };
+}
+
+/**
+ * Promote memory tool handler — moves a fact one step up the scope ladder,
+ * derived from the session's selected context.
+ */
+export async function handlePromoteMemoryTool(input: unknown): Promise<string> {
+  if (!memoryManager) {
+    return JSON.stringify({ error: 'Memory not initialized' });
+  }
+  const { id } = input as { id?: number };
+  if (id === undefined) {
+    return JSON.stringify({ error: 'id is required' });
+  }
+
+  const sessionId = getCurrentSessionId();
+  const context = memoryManager.getSessionContext(sessionId);
+  const visibleScopes = resolveVisibleScopes(context, sessionId);
+
+  const fact = memoryManager.getAllFacts().find((f) => f.id === id);
+  if (!fact) {
+    return JSON.stringify({ success: false, message: 'Fact not found' });
+  }
+  // Only promote facts visible in this context (no reaching into other spaces).
+  if (!visibleScopes.includes(fact.scope ?? 'user')) {
+    return JSON.stringify({
+      success: false,
+      message: 'That fact is not in the current memory space.',
+    });
+  }
+
+  const target = nextBroaderScope(visibleScopes, fact.scope ?? 'user');
+  if (!target) {
+    return JSON.stringify({
+      success: false,
+      message:
+        'Nothing broader to promote to \u2014 already at the widest shared scope (or personal memory, which stays private).',
+    });
+  }
+
+  const result = memoryManager.promoteFact(id, target);
+  console.log(`[PromoteMemory] Fact ${id}: ${fact.scope} \u2192 ${target}`);
+  return JSON.stringify(
+    result.ok
+      ? { success: true, message: `Promoted to ${target}`, id: result.id, scope: target }
+      : { success: false, message: 'Promotion failed' }
+  );
+}
+
+/**
  * Recall memory tool definition
  */
 export function getRecallMemoryToolDefinition() {
@@ -416,10 +526,14 @@ export async function handleRecallMemoryTool(input: unknown): Promise<string> {
     return JSON.stringify({ error: 'query is required' });
   }
 
+  const visibleScopes = visibleScopesForCurrentSession(memoryManager);
+  const visibleSet = new Set(visibleScopes);
+
   const embedding = await memoryManager.embedQuery(query);
   if (!embedding) {
-    // Graceful degradation: fall back to LIKE search when embeddings unavailable
-    const facts = memoryManager.searchFacts(query);
+    // Graceful degradation: fall back to LIKE search when embeddings unavailable,
+    // then filter to the session's visible scopes so recall never crosses spaces.
+    const facts = memoryManager.searchFacts(query).filter((f) => visibleSet.has(f.scope ?? 'user'));
     return JSON.stringify({
       success: true,
       mode: 'keyword',
@@ -433,7 +547,7 @@ export async function handleRecallMemoryTool(input: unknown): Promise<string> {
     });
   }
 
-  const matches = memoryManager.semanticSearchFacts(embedding, 6);
+  const matches = memoryManager.semanticSearchFacts(embedding, 6, visibleScopes);
   return JSON.stringify({
     success: true,
     mode: 'semantic',
@@ -476,6 +590,10 @@ export function getMemoryTools() {
     {
       ...getUpdateFactToolDefinition(),
       handler: handleUpdateFactTool,
+    },
+    {
+      ...getPromoteMemoryToolDefinition(),
+      handler: handlePromoteMemoryTool,
     },
   ];
 }

@@ -62,6 +62,7 @@ import {
 import {
   createFactsCache,
   saveFact as _saveFact,
+  getFact as _getFact,
   getAllFacts as _getAllFacts,
   getFactsForContext as _getFactsForContext,
   getFactsMemoryUsage as _getFactsMemoryUsage,
@@ -73,6 +74,7 @@ import {
   decayFactImportance as _decayFactImportance,
   updateFact as _updateFact,
   setFactSensitive as _setFactSensitive,
+  promoteFact as _promoteFact,
 } from './facts';
 import type { FactsCache, Fact } from './facts';
 import { embedText } from './embeddings';
@@ -113,8 +115,8 @@ import {
   setSessionPulseEnabled as _setSessionPulseEnabled,
 } from './sessions';
 
+
 // Types
-export type { Session } from './sessions';
 export type { Message, SmartContextOptions, SmartContext, SummarizerFn } from './messages';
 export type { Fact } from './facts';
 export type { CronJob } from './cron-jobs';
@@ -731,7 +733,6 @@ export class MemoryManager {
   setSessionMode(sessionId: string, mode: AgentModeId): boolean {
     return _setSessionMode(this.db, sessionId, mode);
   }
-
   // ============ TELEGRAM CHAT SESSION METHODS ============
 
   /**
@@ -807,8 +808,11 @@ export class MemoryManager {
     return _getAllRollups(this.db);
   }
 
-  selectResurfaceCandidate(now: Date = new Date()): ResurfaceCandidate | null {
-    return _selectResurfaceCandidate(this.db, now);
+  selectResurfaceCandidate(
+    now: Date = new Date(),
+    visibleScopes?: string[]
+  ): ResurfaceCandidate | null {
+    return _selectResurfaceCandidate(this.db, now, visibleScopes);
   }
 
   // ============ PULSE (PROACTIVE CHECK-IN) METHODS ============
@@ -867,16 +871,15 @@ export class MemoryManager {
 
   // ============ FACT METHODS ============
 
-  saveFact(category: string, subject: string, content: string, sensitive?: boolean): number {
-    return _saveFact(this.db, category, subject, content, this.factsCache, sensitive);
+  getFact(id: number): Fact | null {
+    return _getFact(this.db, id);
   }
 
   getAllFacts(): Fact[] {
     return _getAllFacts(this.db);
   }
 
-  getFactsForContext(): string {
-    return _getFactsForContext(this.db, this.factsCache);
+  getFactsForContext
   }
 
   // ============ SEMANTIC RECALL ============
@@ -895,8 +898,10 @@ export class MemoryManager {
     }
   }
 
-  retrieveRelevantFacts(queryEmbedding: Float32Array, k: number, budgetChars: number): string {
-    return _retrieveRelevantFacts(this.db, queryEmbedding, k, budgetChars);
+  retrieveRelevantFacts(
+    queryEmbedding: Float32Array,
+    k: number,
+    budgetChars: number
   }
 
   retrieveRelevantSoul(
@@ -912,33 +917,25 @@ export class MemoryManager {
     return _retrieveRelevantRollups(this.db, queryEmbedding, k, budgetChars);
   }
 
-  semanticSearchFacts(queryEmbedding: Float32Array, k = 6): Array<Fact & { score: number }> {
-    return _semanticSearchFacts(this.db, queryEmbedding, k) as Array<Fact & { score: number }>;
-  }
+  semanticSearchFacts
 
-  findNearDuplicateFacts(
-    threshold = 0.82
-  ): Array<Array<{ id: number; subject: string; content: string }>> {
-    return _findNearDuplicateFacts(this.db, threshold);
-  }
+  findNearDuplicateFacts
 
-  getFactsMemoryUsage(): { usedChars: number; budgetChars: number; pct: number } {
-    return _getFactsMemoryUsage(this.db);
-  }
+  getFactsMemoryUsage
 
   deleteFact(id: number): boolean {
     return _deleteFact(this.db, id, this.factsCache);
   }
 
-  updateFact(
-    id: number,
-    fields: { category?: string; subject?: string; content?: string; sensitive?: boolean }
-  ): boolean {
-    return _updateFact(this.db, id, fields, this.factsCache);
-  }
+  updateFact
 
   setFactSensitive(id: number, sensitive: boolean): boolean {
     return _setFactSensitive(this.db, id, sensitive, this.factsCache);
+  }
+
+  /** Promote a fact to a broader scope (chat → project → client → world). */
+  promoteFact(id: number, targetScope: string): { ok: boolean; id: number | null } {
+    return _promoteFact(this.db, id, targetScope, this.factsCache);
   }
 
   deleteFactBySubject(category: string, subject: string): boolean {
