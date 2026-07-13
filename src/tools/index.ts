@@ -33,11 +33,25 @@ export { getSchedulerTools } from './scheduler-tools';
 export { showNotification } from './macos';
 export { setCurrentSessionId, getCurrentSessionId, runWithSessionId } from './session-context';
 
-export interface MCPServerConfig {
+export interface StdioMCPServerConfig {
   command: string;
   args: string[];
   env?: Record<string, string>;
 }
+
+export interface UrlMCPServerConfig {
+  url: string;
+  headers?: Record<string, string>;
+}
+
+/**
+ * Note: nothing in this app's agent loop currently spawns a stdio process or
+ * connects to a url server from this config — @kenkaiiii/gg-agent's
+ * AgentOptions has no MCP client transport, only in-process `tools:
+ * AgentTool[]`. This shape is the seam a future real MCP client would
+ * consume (see src/marketplace/mcp-status.ts for the full explanation).
+ */
+export type MCPServerConfig = StdioMCPServerConfig | UrlMCPServerConfig;
 
 export interface ToolsConfig {
   mcpServers: Record<string, MCPServerConfig>;

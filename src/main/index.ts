@@ -8,6 +8,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 import { AgentManager } from '../agent';
 import { resolveAndPersistModel } from '../agent/resolve-model';
+import { buildMarketplaceMcpServers } from '../agent/mcp-marketplace';
 import { MemoryManager } from '../memory';
 import { setTransformersCacheDir } from '../utils/transformers-env';
 import { createScheduler, CronScheduler } from '../scheduler';
@@ -18,6 +19,8 @@ import { getBrowserManager } from '../browser';
 import { setPluginsRoot } from '../marketplace/paths';
 import { PackSyncManager } from '../marketplace/sync';
 import { PACK_SOURCES } from '../marketplace/registry';
+import { setClientsRoot, setWorldRoot } from '../clients/paths';
+import { ensureWorldScaffold, ensureClientScaffold } from '../clients/registry';
 import { initializeUpdater, setupUpdaterIPC, setSettingsWindow, setChatWindow } from './updater';
 import { createWindow, getWindow } from './windows';
 import { fixPathForPackagedApp } from './node-paths';
@@ -30,6 +33,8 @@ import {
   registerFactsIPC,
   registerCronIPC,
   registerMiscIPC,
+  registerMarketplaceIPC,
+  registerMcpIPC,
 } from './ipc';
 import type { IPCDependencies } from './ipc';
 
@@ -439,6 +444,10 @@ function setupIPC(): void {
   registerFactsIPC(deps);
   registerCronIPC(deps);
   registerMiscIPC(deps);
+  // No IPCDependencies needed — the marketplace module has no electron/memory
+  // dependency of its own.
+  registerMarketplaceIPC();
+  registerMcpIPC();
 }
 
 // ============ Agent Lifecycle ============
@@ -466,9 +475,12 @@ async function initializeAgent(): Promise<void> {
     memory = new MemoryManager(dbPath);
   }
 
-  // Build tools config from settings
+  // Build tools config from settings. mcpServers merges in every marketplace
+  // MCP server (Atelier/Salon) the user has enabled AND fully configured with
+  // credentials — an enabled-but-under-configured server is excluded here,
+  // never reaching the agent (see src/agent/mcp-marketplace.ts).
   const toolsConfig = {
-    mcpServers: {},
+    mcpServers: buildMarketplaceMcpServers(),
     computerUse: {
       enabled: false,
       dockerized: true,
@@ -659,9 +671,27 @@ app.whenReady().then(async () => {
       setPluginsRoot(path.join(app.getPath('userData'), 'plugins'));
       const packSync = new PackSyncManager(PACK_SOURCES);
       await packSync.ensureInstalled();
-      void packSync.checkAndUpdate().catch((e) => console.error('[marketplace] pack update failed', e));
+      void packSync
+        .checkAndUpdate()
+        .catch((e) => console.error('[marketplace] pack update failed', e));
     } catch (e) {
       console.error('[marketplace] pack seeding failed; continuing without operator packs', e);
+    }
+
+    // === Scoped-memory brains (world + client checkouts) ===
+    // Inject the userData-derived roots (the clients module never imports
+    // Electron), ensure the world scaffold, and materialize a scaffold for each
+    // known client so its .atelier/memory tree has a home before selection.
+    // Isolated try/catch: a scaffold FS failure must never abort agent init.
+    try {
+      setWorldRoot(path.join(app.getPath('userData'), 'world'));
+      setClientsRoot(path.join(app.getPath('userData'), 'clients'));
+      ensureWorldScaffold();
+      for (const client of memory?.getClients() ?? []) {
+        ensureClientScaffold(client.id);
+      }
+    } catch (e) {
+      console.error('[clients] world/client scaffold failed; continuing', e);
     }
 
     // === Power Management ===

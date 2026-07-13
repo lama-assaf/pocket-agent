@@ -218,6 +218,49 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     type: 'password',
   },
 
+  // MCP servers (marketplace-sourced, Atelier/Salon catalogs)
+  {
+    key: 'mcp.marketplace.config',
+    defaultValue: '{}',
+    encrypted: true,
+    category: 'mcp',
+    label: 'Marketplace MCP Servers',
+    description:
+      'Enabled state and credentials for marketplace-sourced MCP servers (Atelier/Salon catalogs). One JSON blob, stored encrypted; never written to synced pack files.',
+    type: 'string',
+  },
+
+  // Scoped-memory sync (world + client brains over git)
+  {
+    key: 'github.token',
+    defaultValue: '',
+    encrypted: true,
+    category: 'sync',
+    label: 'GitHub Token',
+    description:
+      'Personal access token used to pull/push world + client memory repos (private, read-write). Stored encrypted, never synced to any repo.',
+    type: 'password',
+  },
+  {
+    key: 'sync.world.repoUrl',
+    defaultValue: '',
+    encrypted: false,
+    category: 'sync',
+    label: 'World Repo URL',
+    description: 'Git URL for the shared agency (World) memory repo.',
+    type: 'string',
+  },
+  {
+    key: 'sync.world.mode',
+    defaultValue: 'manual',
+    encrypted: false,
+    category: 'sync',
+    label: 'World Sync Mode',
+    description:
+      'World is change-controlled canon: pull on startup, but publish only via a manual Publish (manual), or allow background push (live).',
+    type: 'string',
+  },
+
   // Agent settings
   {
     key: 'agent.model',
