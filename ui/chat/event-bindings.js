@@ -31,6 +31,8 @@ bindClick('plan-approve-btn', approvePlan);
 // Active-workspace header reopens the picker; New Client creates a brand.
 bindClick('active-client-header', () => { playNormalClick(); showClientsView(); });
 bindClick('cv-new-client-btn', () => { playNormalClick(); cvCreateClient(); });
+bindClick('cv-join-client-btn', () => { playNormalClick(); cvJoinClient(); });
+bindClick('cv-pull-all-btn', () => { playNormalClick(); cvPullAll(); });
 
 // --- Sidebar ---
 bindClick('sidebar-new-chat', () => { playNormalClick(); createNewSession(); });

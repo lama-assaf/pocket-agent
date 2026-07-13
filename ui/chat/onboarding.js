@@ -425,7 +425,7 @@ const OB_STEP_ORDER = [
   'ob-step-name', 'ob-step-location', 'ob-step-occupation',
   'ob-step-birthday', 'ob-step-agent-name',
   'ob-step-goals', 'ob-step-struggles', 'ob-step-funfacts',
-  'ob-step-cli', 'ob-step-success',
+  'ob-step-cli', 'ob-step-team', 'ob-step-success',
 ];
 
 // Nav config: stepId → { back: stepId|fn|null, skip: stepId|fn|null }
@@ -444,7 +444,8 @@ const OB_NAV_CONFIG = {
   'ob-step-goals': { back: 'ob-step-personality', skip: 'ob-step-struggles' },
   'ob-step-struggles': { back: 'ob-step-goals', skip: 'ob-step-funfacts' },
   'ob-step-funfacts': { back: 'ob-step-struggles', skip: 'ob-step-cli' },
-  'ob-step-cli': { back: 'ob-step-funfacts', skip: 'ob-step-success' },
+  'ob-step-cli': { back: 'ob-step-funfacts', skip: 'ob-step-team' },
+  'ob-step-team': { back: 'ob-step-cli', skip: 'ob-step-success' },
   'ob-step-success': { back: null, skip: null },
 };
 
@@ -566,7 +567,56 @@ async function obSaveFunFacts() {
 }
 
 function obSkipToSuccess() {
-  obShowStep('ob-step-success');
+  obShowStep('ob-step-team');
+}
+
+// ---- Join your team's shared brains (roadmap item 9) ----
+//
+// Entirely optional: a personal-only user can skip straight through (both
+// fields blank is a valid, common case — Continue always advances). Saving
+// the token alone (no setup link) is useful on its own: it's the same
+// `github.token` setting the Clients picker's "Join a Client" / "Copy setup
+// link" actions read later.
+async function obJoinTeam() {
+  const btn = document.getElementById('ob-team-join-btn');
+  const tokenEl = document.getElementById('ob-github-token');
+  const setupEl = document.getElementById('ob-team-setup-string');
+  const token = tokenEl ? tokenEl.value.trim() : '';
+  const setupString = setupEl ? setupEl.value.trim() : '';
+
+  if (!token && !setupString) {
+    obShowStep('ob-step-success');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="ob-spinner"></span> Joining...';
+
+  try {
+    if (token) {
+      await window.pocketAgent.settings.set('github.token', token);
+    }
+    if (setupString) {
+      const res = await window.pocketAgent.clients.join(setupString);
+      if (!res || !res.success) {
+        _obToast((res && res.error) || 'Could not join that client — check the link and try again', 'error');
+        btn.disabled = false;
+        btn.textContent = 'Continue';
+        return;
+      }
+      _obToast(
+        res.pulled ? `Joined ${res.client.name} and pulled its brain` : `Joined ${res.client.name}`,
+        'success'
+      );
+    } else {
+      _obToast('GitHub token saved', 'success');
+    }
+    obShowStep('ob-step-success');
+  } catch (err) {
+    _obToast(err.message || 'Failed to join team brain', 'error');
+    btn.disabled = false;
+    btn.textContent = 'Continue';
+  }
 }
 
 // ---- Location autocomplete ----
@@ -656,7 +706,7 @@ async function obInstallCli() {
     await window.pocketAgent.shell.runCommand(_obCliCommands.install);
     _obToast('Pocket CLI installed', 'success');
     btn.innerHTML = OB_ICONS.check + ' Installed';
-    setTimeout(() => obShowStep('ob-step-success'), 1500);
+    setTimeout(() => obShowStep('ob-step-team'), 1500);
   } catch (err) {
     _obToast(err.message || 'Installation failed. You can install later from Settings.', 'error');
     btn.disabled = false;

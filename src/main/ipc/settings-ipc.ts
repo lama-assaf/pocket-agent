@@ -69,7 +69,7 @@ const PROVIDER_CREDENTIAL_KEYS = new Set([
 ]);
 
 export function registerSettingsIPC(deps: IPCDependencies): void {
-  const { getScheduler, setTelegramBot, getTelegramBot, WIN } = deps;
+  const { getScheduler, setTelegramBot, getTelegramBot, getMemory, WIN } = deps;
 
   // Keys that are encrypted but must be accessible from the renderer
   const RENDERER_ALLOWED_ENCRYPTED_KEYS = new Set(['chat.adminKey']);
@@ -78,6 +78,202 @@ export function registerSettingsIPC(deps: IPCDependencies): void {
     const { PackSyncManager } = await import('../../marketplace/sync');
     const { PACK_SOURCES } = await import('../../marketplace/registry');
     return new PackSyncManager(PACK_SOURCES).checkAndUpdate();
+  });
+
+  // ============ Scoped-memory sync (world + client brains) ============
+
+  // Resolve the on-disk repo + remote for a scope ('world' or a client id).
+  const resolveBrainRepo = async (
+    scope: string
+  ): Promise<{ dir: string; url: string; token: string } | null> => {
+    const token = SettingsManager.get('github.token') || '';
+    const { getWorldRoot, clientPaths } = await import('../../clients/paths');
+    if (scope === 'world') {
+      return { dir: getWorldRoot(), url: SettingsManager.get('sync.world.repoUrl') || '', token };
+    }
+    const client = getMemory()?.getClient(scope);
+    if (!client) return null;
+    return { dir: clientPaths(scope).rootDir, url: client.repo_url || '', token };
+  };
+
+  // Re-mirror a freshly synced scope's files into SQLite so recall sees them.
+  const remirrorScope = async (scope: string): Promise<void> => {
+    const memory = getMemory();
+    if (!memory) return;
+    const { AtelierMemoryBridge } = await import('../../memory/atelier-bridge');
+    const { worldScopeRoot, clientScopeRoot } = await import('../../clients/paths');
+    const root = scope === 'world' ? worldScopeRoot() : clientScopeRoot(scope);
+    await new AtelierMemoryBridge(memory).syncScopeRoot(root);
+  };
+
+  // Pull a scope's brain (clone on first use, else append-mostly reconcile).
+  ipcMain.handle('sync:pull', async (_, scope: string) => {
+    const repo = await resolveBrainRepo(scope);
+    if (!repo) return { ok: false, error: 'Unknown scope' };
+    const { pullBrainRepo } = await import('../../clients/sync-manager');
+    const result = await pullBrainRepo(repo);
+    if (result.ok) {
+      await remirrorScope(scope);
+      // World has no client row to stamp — only real clients track sync status.
+      if (scope !== 'world') getMemory()?.touchClientPulled(scope);
+    }
+    return result;
+  });
+
+  // Pull every 'live'-mode client in one shot (roadmap item 9's manual "Pull
+  // all" fallback for when the on-launch auto-pull is off/unavailable).
+  // Never partially fails the batch — each client's result is independent.
+  ipcMain.handle('sync:pullAll', async () => {
+    const memory = getMemory();
+    if (!memory) return [];
+    const { pullBrainRepo } = await import('../../clients/sync-manager');
+    const clients = memory.getClients().filter((c) => c.sync_mode === 'live' && c.repo_url);
+    const results: Array<{ id: string; name: string; ok: boolean; cloned?: boolean; merged?: boolean; error?: string }> = [];
+    for (const client of clients) {
+      const repo = await resolveBrainRepo(client.id);
+      if (!repo) {
+        results.push({ id: client.id, name: client.name, ok: false, error: 'Unknown scope' });
+        continue;
+      }
+      const result = await pullBrainRepo(repo);
+      if (result.ok) {
+        await remirrorScope(client.id);
+        memory.touchClientPulled(client.id);
+      }
+      results.push({ id: client.id, name: client.name, ...result });
+    }
+    return results;
+  });
+
+  // Publish a scope's local changes (commit + push). World = manual Publish.
+  // First materialize the scope's in-app edits (facts → .atelier/memory/*.md +
+  // guardrails) so authored facts are what gets committed and pushed.
+  ipcMain.handle('sync:publish', async (_, scope: string, message?: string) => {
+    const repo = await resolveBrainRepo(scope);
+    if (!repo) return { ok: false, error: 'Unknown scope' };
+    const memory = getMemory();
+    if (memory) {
+      // Sync scope keys are bare ('world' | client id); map to the memory scope.
+      const memoryScope = scope === 'world' ? 'world' : `client:${scope}`;
+      const { exportScopeToDisk } = await import('../../clients/export');
+      exportScopeToDisk(memory, memoryScope);
+    }
+    const { publishBrainRepo } = await import('../../clients/sync-manager');
+    const result = await publishBrainRepo(repo, message || `Update ${scope} memory`);
+    if (result.ok && result.pushed && scope !== 'world') {
+      getMemory()?.touchClientPushed(scope);
+    }
+    return result;
+  });
+
+  // Lightweight status for the sync UI: configured + cloned per scope, plus
+  // last-pulled/pushed timestamps + a stale flag (roadmap item 9) for real
+  // clients — world has no client row, so its freshness fields stay null.
+  ipcMain.handle('sync:status', async (_, scope: string) => {
+    const repo = await resolveBrainRepo(scope);
+    if (!repo) return { configured: false, cloned: false };
+    const { isRepo } = await import('../../clients/sync');
+    const configured = !!repo.url && !!repo.token;
+    const cloned = await isRepo(repo.dir);
+
+    if (scope === 'world') {
+      return { configured, cloned, lastPulledAt: null, lastPushedAt: null, freshness: 'unconfigured' as const };
+    }
+    const client = getMemory()?.getClient(scope);
+    const { computeSyncStatus } = await import('../../clients/sync-status');
+    const status = computeSyncStatus({
+      configured,
+      lastPulledAt: client?.last_pulled_at ?? null,
+      lastPushedAt: client?.last_pushed_at ?? null,
+    });
+    return { configured, cloned, ...status };
+  });
+
+  // Update a client's sync mode (live | manual) — per-brand blast-radius control.
+  ipcMain.handle('sync:setClientMode', async (_, id: string, mode: 'live' | 'manual') => {
+    const ok = getMemory()?.updateClient(id, { syncMode: mode }) ?? false;
+    return { success: ok };
+  });
+
+  // ============ Shareable client setup strings (roadmap item 9) ============
+
+  // Encode a client into a copy-pasteable setup string so a teammate can join it.
+  ipcMain.handle('clients:getSetupString', async (_, id: string) => {
+    const client = getMemory()?.getClient(id);
+    if (!client) return { success: false, error: 'Unknown client' };
+    if (!client.repo_url) {
+      return {
+        success: false,
+        error: 'This client has no repo URL configured — set one up in sync settings first.',
+      };
+    }
+    const { encodeClientSetupString } = await import('../../clients/setup-string');
+    try {
+      const setupString = encodeClientSetupString({
+        id: client.id,
+        name: client.name,
+        repoUrl: client.repo_url,
+        syncMode: client.sync_mode,
+      });
+      return { success: true, setupString };
+    } catch (err) {
+      return { success: false, error: (err as Error).message };
+    }
+  });
+
+  // Decode + preview a setup string without applying it (lets the UI confirm
+  // before creating anything).
+  ipcMain.handle('clients:previewSetupString', async (_, raw: string) => {
+    const { decodeClientSetupString } = await import('../../clients/setup-string');
+    return decodeClientSetupString(raw);
+  });
+
+  // Join flow: decode a setup string, create the client row (id must not
+  // already exist locally — joining never overwrites an existing brand), then
+  // pull its brain immediately so the teammate has the shared memory right away.
+  ipcMain.handle('clients:join', async (_, raw: string) => {
+    const memory = getMemory();
+    if (!memory) return { success: false, error: 'Memory not initialized' };
+
+    const { decodeClientSetupString } = await import('../../clients/setup-string');
+    const decoded = decodeClientSetupString(raw);
+    if (!decoded.ok || !decoded.payload) {
+      return { success: false, error: decoded.error || 'Invalid setup string' };
+    }
+    const { id, name, repoUrl, syncMode } = decoded.payload;
+
+    if (memory.getClient(id)) {
+      return { success: false, error: `You already have a client "${id}" — nothing to join.` };
+    }
+
+    let client;
+    try {
+      client = memory.createClient({ id, name, syncMode, repoUrl });
+      const { ensureClientScaffold } = await import('../../clients/registry');
+      ensureClientScaffold(client.id);
+    } catch (err) {
+      return { success: false, error: (err as Error).message };
+    }
+
+    // Pull immediately — the whole point of joining is to get the shared
+    // brain right away, not on the next manual/auto pull.
+    const repo = await resolveBrainRepo(id);
+    if (!repo || !repo.token) {
+      // Client row is created either way; the caller can pull once a token is set.
+      return {
+        success: true,
+        client,
+        pulled: false,
+        pullError: 'No GitHub token configured — add one in Settings, then Pull.',
+      };
+    }
+    const { pullBrainRepo } = await import('../../clients/sync-manager');
+    const pullResult = await pullBrainRepo(repo);
+    if (pullResult.ok) {
+      await remirrorScope(id);
+      memory.touchClientPulled(id);
+    }
+    return { success: true, client, pulled: pullResult.ok, pullError: pullResult.error };
   });
 
   ipcMain.handle('settings:getAll', async () => {

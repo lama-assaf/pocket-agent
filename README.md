@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <strong>Your AI that actually knows you.</strong>
+  <strong>Your AI that knows you — and every brand you work for.</strong>
 </p>
 
 <p align="center">
@@ -15,23 +15,32 @@
   <a href="https://skool.com/kenkai"><img src="https://img.shields.io/badge/Skool-Community-7C3AED?style=for-the-badge" alt="Skool"></a>
 </p>
 
-**Pocket Agent** is a personal AI that lives in your menu bar 24/7. It remembers everything, learns who you are, and actually gets better at helping you over time.
+**Pocket Agent** is an AI that lives in your menu bar 24/7. It remembers everything, learns how you work, and gets better over time.
 
-It's not just a chatbot. It extracts facts about you, runs automations while you sleep, manages your calendar and tasks, and evolves to work with *you specifically*. Talk to it from your desktop or Telegram. Set up routines that do stuff on your behalf. It's an assistant that's always there.
+Start in **Personal** — your private brain. Then, when you work with clients, give each brand its own **workspace**: an isolated brain with its own memory, voice, and guardrails that the agent reads and writes as you work — and that syncs to a git repo so your team shares one brain per client. One operator, every client's context in one place.
+
+It's not just a chatbot. It extracts facts, runs automations while you sleep, drafts in each brand's voice, and evolves to work with *you specifically*. Talk to it from your desktop or Telegram.
 
 ---
 
 ## 🧠 Why this exists
 
-Every AI assistant starts from zero. Every. Single. Time.
+Every AI assistant starts from zero. Every. Single. Time. And if you juggle multiple clients, they smear together into one generic blur.
 
-Pocket Agent keeps everything. Not just chat logs, but facts about your life, your projects, your preferences. It uses semantic search to pull up stuff from months ago. And it has a "soul" system that learns *how* to work with you better over time.
+Pocket Agent keeps everything — and keeps it *separate*. Personal facts stay private. Each client gets its own brain — voice, positioning, do's and don'ts, lessons learned — that never leaks into another. Pick a client and the agent instantly knows how that brand talks and what it stands for. It uses semantic search to pull up stuff from months ago, and a "soul" system that learns *how* to work with you over time.
 
-The more you use it, the more useful it becomes.
+The more you use it, the more useful it becomes — for you, and for every brand you run.
 
 ---
 
 ## ✨ What it actually does
+
+### Client workspaces (brand brains)
+Pick a client and everything scopes to it — memory, voice, and how it should act. Each brand is an isolated brain with its own facts, lessons, and voice guide, organized into projects underneath. Edit any of it in **The Brain** workbench: what the brand is about (Facts), what you've learned (Lessons), and how it should sound (How to act — voice, tone, banned words). Personal stays first-class and private; Agency is the shared base beneath every client.
+
+**Shareable brains.** Each brand's memory lives in a git repo. Publish your edits, pull a teammate's — your whole team works from one brain per client, reconciled automatically so nothing gets clobbered.
+
+**Joining a teammate's client.** From the Clients picker, click **Copy setup link** on any client with a repo configured — it copies a compact `pocketagent://join?...` string (repo + client id/name only, never a credential) that's safe to paste in Slack, email, or a notes app. A teammate pastes it via **Join a Client** and Pocket Agent creates the client and pulls its brain immediately (their own GitHub token, set in Settings, is what actually authenticates — the setup link never carries one). Each client's card shows when it was last pulled and flags itself **stale** after 24h with no pull; hit **Pull All** to sweep every live-sync client at once, or set a client's sync mode to `live` (the default) and Pocket Agent auto-pulls it on launch whenever a token is configured.
 
 ### Persistent memory that actually works
 Not just storing messages. It actively extracts and organizes knowledge about you. Projects you're working on. People you mention. Decisions you've made. Preferences you've expressed. All searchable. When you mention something from three months ago, it knows what you're talking about.
@@ -54,8 +63,8 @@ Two modes:
 
 Automate workflows that require being logged in. Scrape data from sites you have access to. Fill out forms across multiple sites.
 
-### Multi-session isolation
-Up to 5 separate conversation threads, each with completely isolated memory. Work stuff doesn't bleed into personal stuff. Each session has its own facts, tasks, calendar, and conversation history.
+### Chats organized by workspace
+Run multiple conversation threads, grouped under the workspace they belong to. Switch to a client and the sidebar shows only that brand's chats; memory is isolated by workspace, so personal stuff never bleeds into client work and one brand never sees another. Each chat keeps its own tasks, calendar, and history.
 
 ### Telegram integration
 Same brain, different interface. Talk to it from your phone with full access to memory and tools. Add the bot to group chats and link each group to a different session. Your work group stays separate from your personal one.

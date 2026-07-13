@@ -64,6 +64,9 @@ contextBridge.exposeInMainWorld('pocketAgent', {
       syncMode?: 'live' | 'manual';
       repoUrl?: string | null;
     }) => ipcRenderer.invoke('clients:create', input),
+    getSetupString: (id: string) => ipcRenderer.invoke('clients:getSetupString', id),
+    previewSetupString: (raw: string) => ipcRenderer.invoke('clients:previewSetupString', raw),
+    join: (raw: string) => ipcRenderer.invoke('clients:join', raw),
   },
   projects: {
     list: (clientId: string) => ipcRenderer.invoke('projects:list', clientId),
@@ -79,6 +82,7 @@ contextBridge.exposeInMainWorld('pocketAgent', {
   },
   sync: {
     pull: (scope: string) => ipcRenderer.invoke('sync:pull', scope),
+    pullAll: () => ipcRenderer.invoke('sync:pullAll'),
     publish: (scope: string, message?: string) =>
       ipcRenderer.invoke('sync:publish', scope, message),
     status: (scope: string) => ipcRenderer.invoke('sync:status', scope),
@@ -578,6 +582,8 @@ interface Client {
   name: string;
   sync_mode: 'live' | 'manual';
   repo_url: string | null;
+  last_pulled_at: string | null;
+  last_pushed_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -683,6 +689,21 @@ declare global {
           syncMode?: 'live' | 'manual';
           repoUrl?: string | null;
         }) => Promise<{ success: boolean; client?: Client; error?: string }>;
+        getSetupString: (
+          id: string
+        ) => Promise<{ success: boolean; setupString?: string; error?: string }>;
+        previewSetupString: (raw: string) => Promise<{
+          ok: boolean;
+          payload?: { id: string; name: string; repoUrl: string; syncMode?: 'live' | 'manual' };
+          error?: string;
+        }>;
+        join: (raw: string) => Promise<{
+          success: boolean;
+          client?: Client;
+          pulled?: boolean;
+          pullError?: string;
+          error?: string;
+        }>;
       };
 
       projects: {
@@ -704,11 +725,21 @@ declare global {
         pull: (
           scope: string
         ) => Promise<{ ok: boolean; cloned?: boolean; merged?: boolean; error?: string }>;
+        pullAll: () => Promise<
+          Array<{ id: string; name: string; ok: boolean; cloned?: boolean; merged?: boolean; error?: string }>
+        >;
         publish: (
           scope: string,
           message?: string
         ) => Promise<{ ok: boolean; committed?: boolean; pushed?: boolean; error?: string }>;
-        status: (scope: string) => Promise<{ configured: boolean; cloned: boolean }>;
+        status: (scope: string) => Promise<{
+          configured: boolean;
+          cloned: boolean;
+          lastPulledAt?: string | null;
+          lastPushedAt?: string | null;
+          freshness?: 'unconfigured' | 'never_pulled' | 'fresh' | 'stale';
+          msSincePull?: number | null;
+        }>;
         setClientMode: (id: string, mode: 'live' | 'manual') => Promise<{ success: boolean }>;
       };
 

@@ -115,6 +115,8 @@ import {
   getPulseEnabledSessions as _getPulseEnabledSessions,
   setSessionPulseEnabled as _setSessionPulseEnabled,
 } from './sessions';
+  touchClientPulled as _touchClientPulled,
+  touchClientPushed as _touchClientPushed,
 
 import { appendAuditLog, digestContent } from '../utils/audit-log';
 import { getCurrentSessionId } from '../tools/session-context';
@@ -442,6 +444,20 @@ export class MemoryManager {
     if (!sessColumnsForMode.some((c) => c.name === 'mode')) {
       this.db.exec("ALTER TABLE sessions ADD COLUMN mode TEXT DEFAULT 'coder'");
       console.log('[Memory] Migrated sessions table: added mode column');
+    }
+
+    // Migration: add last_pulled_at/last_pushed_at to clients (roadmap item 9 —
+    // discoverable/shareable git-brain sync). Both null until the first
+    // successful pull/push; the UI uses them to render "last synced" and a
+    // stale indicator.
+    const clientColumns = this.db.pragma('table_info(clients)') as Array<{ name: string }>;
+    if (!clientColumns.some((c) => c.name === 'last_pulled_at')) {
+      this.db.exec('ALTER TABLE clients ADD COLUMN last_pulled_at TEXT');
+      console.log('[Memory] Migrated clients table: added last_pulled_at column');
+    }
+    if (!clientColumns.some((c) => c.name === 'last_pushed_at')) {
+      this.db.exec('ALTER TABLE clients ADD COLUMN last_pushed_at TEXT');
+      console.log('[Memory] Migrated clients table: added last_pushed_at column');
     }
 
     // Migration: add working_directory column to sessions for per-session workspace
@@ -823,6 +839,16 @@ export class MemoryManager {
   setSessionMode(sessionId: string, mode: AgentModeId): boolean {
     return _setSessionMode(this.db, sessionId, mode);
   }
+  /** Stamp a client's last-pulled timestamp (roadmap item 9 — sync status). */
+  touchClientPulled(id: string, isoTimestamp?: string): boolean {
+    return _touchClientPulled(this.db, id, isoTimestamp);
+  }
+
+  /** Stamp a client's last-pushed timestamp. */
+  touchClientPushed(id: string, isoTimestamp?: string): boolean {
+    return _touchClientPushed(this.db, id, isoTimestamp);
+  }
+
   // ============ TELEGRAM CHAT SESSION METHODS ============
 
   /**

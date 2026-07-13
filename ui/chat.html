@@ -384,6 +384,26 @@
       </div>
     </div>
 
+    <!-- Step: Join your team's shared brains (roadmap item 9) — optional, skippable, personal-only users unaffected -->
+    <div class="ob-step" id="ob-step-team">
+      <div class="ob-step-label">Join your team's shared brains?</div>
+      <div class="ob-step-desc">If your agency shares client brains over git, add your GitHub token and paste a setup link a teammate sent you. This is entirely optional — skip it if you're working solo, and add it later from the Clients picker.</div>
+      <div class="ob-form-group">
+        <label>GitHub Token</label>
+        <input type="password" id="ob-github-token" placeholder="ghp_...">
+        <p class="ob-hint">Used to pull/push shared client brains over git. Get one from <a href="#" onclick="window.pocketAgent.app.openExternal('https://github.com/settings/tokens'); return false;">github.com/settings/tokens</a></p>
+      </div>
+      <div class="ob-form-group">
+        <label>Client Setup Link (optional)</label>
+        <textarea id="ob-team-setup-string" rows="3" placeholder="pocketagent://join?..."></textarea>
+        <p class="ob-hint">Paste the link a teammate shared with you to join their client's brain right away.</p>
+      </div>
+      <div class="ob-button-row">
+        <button class="ob-btn primary" id="ob-team-join-btn" onclick="obJoinTeam()">
+          Continue
+        </button>
+      </div>
+    </div>
     <!-- Step: Success -->
     <div class="ob-step" id="ob-step-success">
       <div class="ob-step-desc">You're all set! Everything's configured — let's start chatting</div>
@@ -1033,6 +1053,14 @@
         <button class="cv-new-btn" id="cv-new-client-btn">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12.001 5v14.002m7.001-7H5"/></svg>
           New Client
+        </button>
+        <button class="cv-new-btn cv-join-btn" id="cv-join-client-btn">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"><path d="M8 8c0-.575 0-.822.045-1.075A2.98 2.98 0 0 1 9.833 4.7c.24-.1.523-.165 1.09-.294l2.728-.623c3.39-.774 5.084-1.161 6.217-.27C21 4.405 21 6.126 21 9.568v4.864c0 3.442 0 5.164-1.132 6.055c-1.133.891-2.827.504-6.217-.27l-2.728-.623c-.567-.13-.85-.194-1.09-.294a2.98 2.98 0 0 1-1.788-2.225C8 16.822 8 16.575 8 16"/><path d="M13 9s3 2.21 3 3s-3 3-3 3m2.5-3H3"/></g></svg>
+          Join a Client
+        </button>
+        <button class="cv-new-btn cv-pull-all-btn" id="cv-pull-all-btn" title="Pull the latest brain for every live-sync client">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="m15.167 1l.598 1.118c.404.755.606 1.133.472 1.295c-.133.162-.573.031-1.454-.23A9.8 9.8 0 0 0 12 2.78c-5.247 0-9.5 4.128-9.5 9.22a8.97 8.97 0 0 0 1.27 4.61M8.834 23l-.598-1.118c-.404-.756-.606-1.134-.472-1.295c.133-.162.573-.032 1.454.23c.88.261 1.815.402 2.783.402c5.247 0 9.5-4.128 9.5-9.22a8.97 8.97 0 0 0-1.27-4.609"/></svg>
+          Pull All
         </button>
       </div>
     </div>

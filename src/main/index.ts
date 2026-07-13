@@ -705,6 +705,40 @@ app.whenReady().then(async () => {
       console.error('[clients] world/client scaffold failed; continuing', e);
     }
 
+    // On-launch auto-pull for 'live'-mode clients (roadmap item 9). Fire-and-
+    // forget: never blocks startup, and a failed/unconfigured pull is a
+    // silent no-op per client (autoPullLiveClients degrades gracefully) —
+    // the Clients picker's stale badge and "Pull All" button are the
+    // fallback when this can't run (no token yet, offline, etc.).
+    if (memory) {
+      const capturedMemory = memory;
+      void (async () => {
+        try {
+          const token = SettingsManager.get('github.token') || '';
+          if (!token) return;
+          const { autoPullLiveClients } = await import('../clients/sync-manager');
+          const results = await autoPullLiveClients(capturedMemory, token);
+          const pulled = results.filter((r) => r.ok);
+          if (pulled.length === 0) return;
+          console.log(
+            `[clients] Auto-pulled ${pulled.length}/${results.length} live client brain(s) on launch`
+          );
+          // Re-mirror each successfully pulled client's files into SQLite so
+          // recall reflects the freshly pulled memory without a manual Pull.
+          const { AtelierMemoryBridge } = await import('../memory/atelier-bridge');
+          const { clientScopeRoot } = await import('../clients/paths');
+          const bridge = new AtelierMemoryBridge(capturedMemory);
+          for (const r of pulled) {
+            await bridge
+              .syncScopeRoot(clientScopeRoot(r.id))
+              .catch((e) => console.error(`[clients] Re-mirror failed for ${r.id}:`, e));
+          }
+        } catch (e) {
+          console.error('[clients] Auto-pull on launch failed; continuing', e);
+        }
+      })();
+    }
+
     // === Power Management ===
     // Let macOS manage power naturally — App Nap may coalesce timers by a few
     // seconds when the app is in the background, which is fine for minute-level
