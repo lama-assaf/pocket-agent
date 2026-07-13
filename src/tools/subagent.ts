@@ -18,8 +18,11 @@ import type { Message } from '@kenkaiiii/gg-ai';
 import type { StreamConfig } from '../agent/chat-providers';
 import { registerSubAgent, updateSubAgent, removeSubAgent } from './subagent-registry';
 import { SettingsManager } from '../settings';
-import { agentsForLane } from '../marketplace/registry';
-import type { LaneId } from '../marketplace/types';
+import { allAgentsGrouped } from '../marketplace/registry';
+import type { LaneId, PackAgent } from '../marketplace/types';
+import { SUPPORTED_MODELS, isKnownModel, getProviderForModel } from '../agent/model-catalog';
+import { resolvePackAgentForCurrentSession } from '../agent/agent-overrides';
+import { isAgentEnabledForCurrentSession } from '../agent/enablement';
 
 // ── Constants ──
 
@@ -50,9 +53,37 @@ const CC_TO_POCKET_TOOL: Record<string, string> = {
   WebSearch: 'web_fetch',
 };
 
-/** Look up a named specialist within a lane's pack agents. Returns null if not found. */
-export function resolveSpecialist(lane: LaneId, name: string) {
-  return agentsForLane(lane).find((a) => a.name === name) ?? null;
+/**
+ * Look up a named specialist within a lane's pack agents, with any local
+ * override (src/agent/agent-overrides.ts) for the current session merged over
+ * the synced base. Returns null if the pack never defined this specialist for
+ * this lane — an override alone can't invent one — or if the agent is
+ * disabled for the current session's scope (src/agent/enablement.ts):
+ * dispatch-time enforcement, not just a UI listing filter.
+ */
+export function resolveSpecialist(lane: LaneId, name: string): PackAgent | null {
+  const found = allAgentsGrouped().find((g) => g.lane === lane && g.agent.name === name);
+  if (!found) return null;
+  if (!isAgentEnabledForCurrentSession(found.packId, found.agent.name)) return null;
+  return resolvePackAgentForCurrentSession(found.packId, found.agent);
+}
+
+/**
+ * Resolve a pack agent's declared `model` (e.g. "opus", a short Claude-Code-style
+ * alias) to an actual app model id, falling back to the caller's configured model
+ * when the agent declares none, when it's unresolvable, or when the best match's
+ * provider differs from the configured model's (we never switch provider/credentials
+ * on the user's behalf). Already-known full ids (e.g. "claude-opus-4-8") pass through.
+ */
+export function resolveSpecialistModel(alias: string | undefined, configuredModel: string): string {
+  if (!alias) return configuredModel;
+  if (isKnownModel(alias)) return alias;
+  const needle = alias.toLowerCase();
+  const provider = getProviderForModel(configuredModel);
+  const match = SUPPORTED_MODELS.find(
+    (m) => m.provider === provider && m.id.toLowerCase().includes(needle)
+  );
+  return match ? match.id : configuredModel;
 }
 
 /** Map Claude Code tool names to Pocket Agent tool names, dropping unknown ones. */
@@ -87,7 +118,11 @@ export function createSubAgentTool(
   getStreamConfig: (model: string) => Promise<StreamConfig>,
   lane?: LaneId
 ): AgentTool<typeof SubAgentParams> {
-  const specialistNames = lane ? agentsForLane(lane).map((a) => a.name) : [];
+  const specialistNames = lane
+    ? allAgentsGrouped()
+        .filter((g) => g.lane === lane && isAgentEnabledForCurrentSession(g.packId, g.agent.name))
+        .map((g) => g.agent.name)
+    : [];
   const description = specialistNames.length
     ? `Spawn a clean, isolated sub-agent to handle a focused task. The sub-agent has no memory, no personality, no conversation context — just tools (web_fetch, shell, browser) and a task. Use for work that benefits from isolation or parallelism. Blocks until complete. Optionally set "agent" to dispatch to a named specialist for this lane: ${specialistNames.join(', ')}.`
     : 'Spawn a clean, isolated sub-agent to handle a focused task. The sub-agent has no memory, no personality, no conversation context — just tools (web_fetch, shell, browser) and a task. Use for work that benefits from isolation or parallelism. Blocks until complete.';
@@ -126,8 +161,11 @@ export function createSubAgentTool(
         // Build sub-agent tool set — only explicitly allowed tools
         const subTools = parentTools.filter((t) => allowedToolNames.has(t.name));
 
-        // Get provider config (same model as parent)
-        const model = SettingsManager.get('agent.model') || 'claude-sonnet-4-6';
+        // Get provider config — a named specialist's declared model (e.g. "opus")
+        // wins when it resolves to a same-provider app model; otherwise falls back
+        // to the user's configured model, same as the generic worker path.
+        const configuredModel = SettingsManager.get('agent.model') || 'claude-sonnet-4-6';
+        const model = spec ? resolveSpecialistModel(spec.model, configuredModel) : configuredModel;
         const streamConfig = await getStreamConfig(model);
 
         // Clean agent options — no context, no facts, no memory, no soul

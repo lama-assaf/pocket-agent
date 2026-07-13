@@ -1,4 +1,4 @@
-import type { LaneId, PackSource, LoadedPack, Skill, PackAgent, RuleFile } from './types';
+import type { LaneId, PackSource, LoadedPack, Skill, PackAgent, RuleFile, McpCatalogEntry } from './types';
 import { readPack } from './loader';
 
 export const PACK_SOURCES: PackSource[] = [
@@ -85,6 +85,32 @@ export function agentsForLane(lane: LaneId): PackAgent[] {
   return out;
 }
 
+export interface GroupedAgent {
+  packId: string;
+  packName: string;
+  lane: LaneId;
+  agent: PackAgent;
+}
+
+/**
+ * Every pack agent tagged with its source pack and resolved lane — the join
+ * `agentsForLane` doesn't give you, since `PackAgent` itself carries neither.
+ * Powers UI/IPC surfaces that need to group agents by pack then lane (browse,
+ * detail lookup) without leaking `LANE_MAPS` internals.
+ */
+export function allAgentsGrouped(): GroupedAgent[] {
+  ensureLoaded();
+  const out: GroupedAgent[] = [];
+  for (const p of PACK_SOURCES) {
+    const lp = loaded.get(p.id)!;
+    const lm = laneMapFor(p.id);
+    for (const a of lp.agents) {
+      out.push({ packId: p.id, packName: p.name, lane: lm.agents[a.name] ?? lm.defaultLane, agent: a });
+    }
+  }
+  return out;
+}
+
 export function rulesForLane(lane: LaneId): RuleFile[] {
   ensureLoaded();
   const wanted = new Set(LANE_RULE_DIRS[lane]);
@@ -108,6 +134,22 @@ export function commandsForPacks(): { ns: string; name: string; description: str
     for (const c of loaded.get(p.id)!.commands) {
       out.push({ ns: `${p.id}:${c.name}`, name: c.name, description: c.description, content: c.content });
     }
+  }
+  return out;
+}
+
+/** MCP server catalog templates bundled by one pack (empty array if none/not found). */
+export function mcpCatalogForPack(id: string): McpCatalogEntry[] {
+  ensureLoaded();
+  return loaded.get(id)?.mcpCatalog ?? [];
+}
+
+/** MCP server catalog templates from all packs, tagged with their source pack id. */
+export function allMcpCatalogs(): { packId: string; entry: McpCatalogEntry }[] {
+  ensureLoaded();
+  const out: { packId: string; entry: McpCatalogEntry }[] = [];
+  for (const p of PACK_SOURCES) {
+    for (const entry of loaded.get(p.id)!.mcpCatalog) out.push({ packId: p.id, entry });
   }
   return out;
 }

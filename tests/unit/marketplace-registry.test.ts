@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { PACK_SOURCES, skillsForLane, agentsForLane, rulesForLane, commandsForPacks } from '../../src/marketplace/registry';
+import { PACK_SOURCES, skillsForLane, agentsForLane, rulesForLane, commandsForPacks, allAgentsGrouped } from '../../src/marketplace/registry';
 
 describe('registry lane maps', () => {
   it('has two pack sources', () => {
@@ -22,5 +22,16 @@ describe('registry lane maps', () => {
     const cmds = commandsForPacks();
     expect(cmds.some((c) => c.ns === 'atelier:design-review')).toBe(true);
     expect(cmds.some((c) => c.ns === 'salon:campaign')).toBe(true);
+  });
+  it('allAgentsGrouped tags every agent with its pack, pack name, and lane', () => {
+    const grouped = allAgentsGrouped();
+    expect(grouped.length).toBeGreaterThanOrEqual(17); // 14 atelier + 3 salon
+    const dr = grouped.find((g) => g.agent.name === 'design-reviewer');
+    expect(dr?.packId).toBe('atelier');
+    expect(dr?.packName).toBe('Atelier');
+    expect(dr?.lane).toBe('design');
+    const cm = grouped.find((g) => g.agent.name === 'community-manager');
+    expect(cm?.packId).toBe('salon');
+    expect(cm?.lane).toBe('social');
   });
 });
