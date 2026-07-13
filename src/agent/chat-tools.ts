@@ -18,6 +18,7 @@ import { getMemoryManager } from '../tools/memory-tools';
 import { AtelierMemoryBridge } from '../memory/atelier-bridge';
 import { skillsForLane } from '../marketplace/registry';
 import type { LaneId } from '../marketplace/types';
+import { resolveNearestScope } from '../memory/scope';
 import { getStreamConfig } from './chat-providers';
 import { validateBashCommand, validateWritePath } from './safety';
 import { scanForBannedTone } from './write-guards';
@@ -28,102 +29,24 @@ const IS_WINDOWS = process.platform === 'win32';
 const HOME_DIR = process.env.HOME || process.env.USERPROFILE || '';
 
 /**
- * Convert a JSON Schema properties map to a Zod object schema.
- * Handles string, number, boolean, and array types; falls back to z.any().
- */
-function jsonSchemaToZod(
-  properties: Record<string, unknown>,
-  required: string[] = []
-): z.ZodObject<Record<string, z.ZodTypeAny>> {
-  const shape: Record<string, z.ZodTypeAny> = {};
-
-  for (const [key, value] of Object.entries(properties)) {
-    const prop = value as { type?: string; items?: { type?: string }; description?: string };
-    let schema: z.ZodTypeAny;
-
-    switch (prop.type) {
-      case 'string':
-        schema = z.string();
-        break;
-      case 'number':
-      case 'integer':
-        schema = z.number();
-        break;
-      case 'boolean':
-        schema = z.boolean();
-        break;
-      case 'array':
-        if (prop.items?.type === 'string') {
-          schema = z.array(z.string());
-        } else if (prop.items?.type === 'number') {
-          schema = z.array(z.number());
-        } else {
-          schema = z.array(z.any());
-        }
-        break;
-      default:
-        schema = z.any();
-    }
-
-    if (prop.description) {
-      schema = schema.describe(prop.description);
-    }
-
-    if (!required.includes(key)) {
-      schema = schema.optional();
-    }
-
-    shape[key] = schema;
-  }
-
-  return z.object(shape);
-}
-
-/**
- * Wrap a write/edit AgentTool so its execute() runs validateWritePath before
- * delegating to the underlying tool. Blocks writes to dangerous paths (e.g.
- * /etc, ~/.ssh, /System) and returns a string explaining the block.
+ * Decide whether a tone-guard hit should block the write, given the current
+ * `features.toneHardBlock` setting and whether a marketplace lane is active.
  *
- * When a `lane` is active (operator-pack modes: design/product/brand/social),
- * it also runs the packs' anti-AI-tone / banned-words guard (ported from
- * Atelier/Salon) against the content being written. This guard is scoped to
- * lane modes so the existing non-lane modes (general/coder/researcher/writer/
- * therapist) are behavior-unchanged. It is non-blocking by default: on a hit it
- * still performs the write and prepends a warning, unless `features.toneHardBlock`
- * is 'true' (block instead). Disable entirely with `features.operatorPacks='false'`.
+ * Tri-state setting (roadmap item 7):
+ *   - 'false' — never block (global opt-out), any mode.
+ *   - 'true'  — always block (global opt-in), any mode.
+ *   - unset   — mode-dependent default: lane modes (design/product/brand/
+ *               social) block by default; other prose modes (general/writer/
+ *               researcher/therapist) stay warn-only, matching prior behavior.
+ * This makes the existing flag able to opt OUT of blocking in lanes (instead
+ * of the old opt-IN-only semantics) while keeping non-lane modes unchanged
+ * unless the operator explicitly opts in globally.
  */
-function wrapWithWritePathSafety(tool: AgentTool, lane?: LaneId): AgentTool {
-  const originalExecute = tool.execute.bind(tool);
-  return {
-    ...tool,
-    execute: async (args: unknown, context: ToolContext) => {
-      const filePath = (args as { file_path?: unknown })?.file_path;
-      if (typeof filePath === 'string' && filePath.length > 0) {
-        const safety = validateWritePath(filePath);
-        if (!safety.allowed) {
-          return `Write blocked by safety filter: ${safety.reason}`;
-        }
-      }
-
-      const content = (args as { content?: unknown })?.content;
-      if (lane && typeof content === 'string' && SettingsManager.get('features.operatorPacks') !== 'false') {
-        const { warning } = scanForBannedTone(content);
-        if (warning) {
-          const hardBlock = SettingsManager.get('features.toneHardBlock') === 'true';
-          if (hardBlock) {
-            return `Write blocked by tone guard: ${warning}`;
-          }
-          const result = await originalExecute(args as never, context);
-          notifyAtelierMemoryWrite(filePath);
-          return `${warning}\n\n${result}`; // non-blocking: warn + still write
-        }
-      }
-
-      const result = await originalExecute(args as never, context);
-      notifyAtelierMemoryWrite(filePath);
-      return result;
-    },
-  } as AgentTool;
+function shouldHardBlockTone(lane: LaneId | undefined): boolean {
+  const setting = SettingsManager.get('features.toneHardBlock');
+  if (setting === 'false') return false;
+  if (setting === 'true') return true;
+  return Boolean(lane);
 }
 
 /**
@@ -169,97 +92,6 @@ function buildLaneSkillTool(lane: LaneId): AgentTool {
       return found ? found.content : `Unknown skill "${skill}". Available: ${names.join(', ')}`;
     },
   };
-}
-
-/**
- * Build the AgentTool array for Chat mode.
- * Wraps each handler with diagnostics and returns AgentTool[] compatible with @kenkaiiii/gg-agent.
- */
-export function getChatAgentTools(config: ToolsConfig, cwd: string, lane?: LaneId): AgentTool[] {
-  const customTools = getCustomTools(config);
-  const tools: AgentTool[] = [];
-
-  for (const tool of customTools) {
-    const wrapped = wrapToolHandler(tool.name, tool.handler);
-    const inputSchema = tool.input_schema as {
-      properties?: Record<string, unknown>;
-      required?: string[];
-    };
-
-    const parameters = jsonSchemaToZod(inputSchema.properties || {}, inputSchema.required || []);
-
-    tools.push({
-      name: tool.name,
-      description: tool.description,
-      parameters,
-      execute: async (args: unknown, _context: ToolContext) => {
-        return await wrapped(args as Record<string, unknown>);
-      },
-    });
-  }
-
-  // Add file tools (read, write, edit) from gg-coder
-  const { tools: coderNativeTools } = createCoderTools(cwd);
-  const fileToolNames = new Set(['read', 'write', 'edit']);
-  for (const t of coderNativeTools) {
-    if (fileToolNames.has(t.name)) {
-      tools.push(WRITE_TOOL_NAMES.has(t.name) ? wrapWithWritePathSafety(t, lane) : t);
-    }
-  }
-
-  // Add web_fetch tool
-  tools.push(buildWebFetchTool());
-
-  // Add shell_command tool
-  tools.push(buildShellCommandTool());
-
-  // Add per-lane skill tool (loads full skill content on demand)
-  if (lane && skillsForLane(lane).length) {
-    tools.push(buildLaneSkillTool(lane));
-  }
-
-  // Add sub-agent tool (receives parent tools so it can select a subset)
-  tools.push(createSubAgentTool(tools, getStreamConfig, lane));
-
-  return tools;
-}
-
-/**
- * Build the AgentTool array for Coder mode.
- * Uses gg-coder native tools (read, write, edit, bash, etc.) merged with MCP tools.
- */
-export function getCoderAgentTools(config: ToolsConfig, cwd: string): AgentTool[] {
-  // Create gg-coder native tools
-  const { tools: coderNativeTools } = createCoderTools(cwd);
-
-  // Get MCP-wrapped tools (browser, notify, project, grep-github, switch_agent)
-  const customTools = getCustomTools(config);
-  const mcpTools: AgentTool[] = [];
-
-  for (const tool of customTools) {
-    const wrapped = wrapToolHandler(tool.name, tool.handler);
-    const inputSchema = tool.input_schema as {
-      properties?: Record<string, unknown>;
-      required?: string[];
-    };
-
-    const parameters = jsonSchemaToZod(inputSchema.properties || {}, inputSchema.required || []);
-
-    mcpTools.push({
-      name: tool.name,
-      description: tool.description,
-      parameters,
-      execute: async (args: unknown, _context: ToolContext) => {
-        return await wrapped(args as Record<string, unknown>);
-      },
-    });
-  }
-
-  // Merge: coder native tools (with write-path safety) + MCP tools
-  const safeCoderTools = coderNativeTools.map((t) =>
-    WRITE_TOOL_NAMES.has(t.name) ? wrapWithWritePathSafety(t) : t
-  );
-  return [...safeCoderTools, ...mcpTools];
 }
 
 /**
