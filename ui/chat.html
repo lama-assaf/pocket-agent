@@ -35,6 +35,7 @@
   <link rel="stylesheet" href="chat/brain-panel.css">
   <link rel="stylesheet" href="chat/agents-panel.css">
   <link rel="stylesheet" href="chat/content-panel.css">
+  <link rel="stylesheet" href="chat/campaign-panel.css">
   <link rel="stylesheet" href="chat/clients-view.css">
   <link rel="stylesheet" href="chat/routines-panel.css">
   <link rel="stylesheet" href="chat/personalize-panel.css">
@@ -96,6 +97,10 @@
       <button class="sidebar-btn" id="sidebar-content-btn" title="Content Queue">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"><path d="M9 2h6l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Z"/><path d="M9 13h6M9 17h6M9 9h1"/></g></svg>
         <span class="sidebar-btn-label">Content</span>
+      </button>
+      <button class="sidebar-btn" id="sidebar-campaigns-btn" title="Campaigns">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"><path d="M3 4h13l-2 5l2 5H3z"/><path d="M3 4v16"/></g></svg>
+        <span class="sidebar-btn-label">Campaigns</span>
       </button>
       <button class="sidebar-btn" id="sidebar-docs-btn" title="Docs">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 7h8m-8 4h4m1 10.5V21c0-2.828 0-4.243.879-5.121C14.757 15 16.172 15 19 15h.5m.5-1.657V10c0-3.771 0-5.657-1.172-6.828S15.771 2 12 2S6.343 2 5.172 3.172S4 6.229 4 10v4.544c0 3.245 0 4.868.886 5.967a4 4 0 0 0 .603.603C6.59 22 8.211 22 11.456 22c.705 0 1.058 0 1.381-.114q.1-.036.197-.082c.31-.148.559-.397 1.058-.896l4.736-4.736c.579-.578.867-.867 1.02-1.235c.152-.368.152-.776.152-1.594"/></svg>
@@ -1039,6 +1044,39 @@
     </div>
   </div><!-- #content-view -->
 
+  <!-- Campaign Board View (roadmap item 10 — multi-deliverable plan tracking) -->
+  <div id="campaigns-view">
+    <div class="cpn-header">
+      <h1><span>Campaigns</span> <span class="cpn-count" id="cpn-active-count"></span></h1>
+      <div class="cpn-header-actions">
+        <button onclick="playNormalClick(); hideCampaignsPanel()">Back</button>
+        <button onclick="playNormalClick(); cpnShowNewCampaignForm()">New campaign</button>
+        <button onclick="playNormalClick(); cpnRefresh()">Refresh</button>
+      </div>
+    </div>
+    <div class="cpn-content" id="cpn-list-view">
+      <div class="cpn-filters">
+        <button class="cpn-filter-btn active" data-status="" onclick="playNormalClick(); cpnSetStatusFilter(null)">All</button>
+        <button class="cpn-filter-btn" data-status="active" onclick="playNormalClick(); cpnSetStatusFilter('active')">Active</button>
+        <button class="cpn-filter-btn" data-status="paused" onclick="playNormalClick(); cpnSetStatusFilter('paused')">Paused</button>
+        <button class="cpn-filter-btn" data-status="completed" onclick="playNormalClick(); cpnSetStatusFilter('completed')">Completed</button>
+        <button class="cpn-filter-btn" data-status="archived" onclick="playNormalClick(); cpnSetStatusFilter('archived')">Archived</button>
+      </div>
+      <div id="cpn-campaigns" class="cpn-campaigns"></div>
+      <div id="cpn-empty" class="cpn-empty hidden">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"><path d="M3 4h13l-2 5l2 5H3z"/><path d="M3 4v16"/></g></svg>
+        <p>No campaigns yet</p>
+        <small>Multi-deliverable plans created by the agent, or started here, will appear on this board</small>
+      </div>
+    </div>
+    <div class="cpn-content hidden" id="cpn-detail-view">
+      <div class="cpn-detail-toolbar">
+        <button class="btn-shell" onclick="playNormalClick(); cpnBackToList()">&larr; All campaigns</button>
+      </div>
+      <div class="cpn-detail" id="cpn-detail-body"></div>
+    </div>
+  </div><!-- #campaigns-view -->
+
   <!-- Client Picker (front door) — pick a workspace; everything flows from it. -->
   <div id="clients-view">
     <div class="cv-inner">
@@ -1244,6 +1282,7 @@
   <script src="chat/brain-panel.js"></script>
   <script src="chat/agents-panel.js"></script>
   <script src="chat/content-panel.js"></script>
+  <script src="chat/campaign-panel.js"></script>
   <script src="chat/routines-panel.js"></script>
   <script src="chat/personalize-panel.js"></script>
   <script src="chat/event-bindings.js"></script>

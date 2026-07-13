@@ -19,6 +19,7 @@ import { getProjectTools } from './project-tools';
 import { getSwitchAgentTool } from './agent-mode-tools';
 import { getAtelierMemoryTools } from './atelier-memory-tools';
 import { getContentTools } from './content-tools';
+import { getCampaignTools } from './campaign-tools';
 import { logActiveToolsStatus } from './diagnostics';
 
 export { logActiveToolsStatus } from './diagnostics';
@@ -215,6 +216,19 @@ export function getCustomTools(config: ToolsConfig): Array<{
   // and intentionally has no tool (see src/tools/content-tools.ts doc).
   const contentTools = getContentTools();
   for (const tool of contentTools) {
+    tools.push({
+      name: tool.name,
+      description: tool.description,
+      input_schema: tool.input_schema as Record<string, unknown>,
+      handler: tool.handler,
+    });
+  }
+
+  // Campaign / plan tools (roadmap item 10) — create_campaign, add_deliverable,
+  // update_deliverable_status, get_campaign. Durable cross-turn plan state;
+  // actual execution of a deliverable still goes through the subagent tool.
+  const campaignTools = getCampaignTools();
+  for (const tool of campaignTools) {
     tools.push({
       name: tool.name,
       description: tool.description,

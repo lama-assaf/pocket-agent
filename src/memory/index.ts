@@ -114,10 +114,29 @@ import {
   clearSdkSessionId as _clearSdkSessionId,
   getPulseEnabledSessions as _getPulseEnabledSessions,
   setSessionPulseEnabled as _setSessionPulseEnabled,
+  getSessionContext as _getSessionContext,
+  setSessionContext as _setSessionContext,
 } from './sessions';
+import type { SessionContext } from './sessions';
+import {
+  type Client,
+  type ClientSyncMode,
+  getClients as _getClients,
+  getClient as _getClient,
+  createClient as _createClient,
+  updateClient as _updateClient,
+  deleteClient as _deleteClient,
   touchClientPulled as _touchClientPulled,
   touchClientPushed as _touchClientPushed,
-
+} from './clients';
+import {
+  type Project,
+  getProjects as _getProjects,
+  getProject as _getProject,
+  createProject as _createProject,
+  updateProject as _updateProject,
+  deleteProject as _deleteProject,
+} from './projects';
 import { appendAuditLog, digestContent } from '../utils/audit-log';
 import { getCurrentSessionId } from '../tools/session-context';
 import {
@@ -139,8 +158,34 @@ import {
   getContentPostsForDraft as _getContentPostsForDraft,
   getContentPostsForScopes as _getContentPostsForScopes,
 } from './content-drafts';
+import {
+  type Campaign,
+  type CampaignStatus,
+  type CampaignDeliverable,
+  type DeliverableStatus,
+  type CreateCampaignInput,
+  type UpdateCampaignFields,
+  type AddDeliverableInput,
+  type AddDeliverableResult,
+  type SetDeliverableStatusResult,
+  createCampaign as _createCampaign,
+  getCampaign as _getCampaign,
+  getCampaignsForScopes as _getCampaignsForScopes,
+  updateCampaign as _updateCampaign,
+  deleteCampaign as _deleteCampaign,
+  addDeliverable as _addDeliverable,
+  getDeliverable as _getDeliverable,
+  getDeliverablesForCampaign as _getDeliverablesForCampaign,
+  setDeliverableStatus as _setDeliverableStatus,
+  linkDeliverableToContentDraft as _linkDeliverableToContentDraft,
+  deleteDeliverable as _deleteDeliverable,
+  getNextUnblockedDeliverable as _getNextUnblockedDeliverable,
+} from './campaigns';
 
 // Types
+export type { Session, SessionContext, ContextType } from './sessions';
+export type { Client, ClientSyncMode } from './clients';
+export type { Project } from './projects';
 export type { Message, SmartContextOptions, SmartContext, SummarizerFn } from './messages';
 export type { Fact } from './facts';
 export type { CronJob } from './cron-jobs';
@@ -156,6 +201,7 @@ export type {
   ContentPostStatus,
   TransitionActor,
 } from './content-drafts';
+export type { Campaign, CampaignStatus, CampaignDeliverable, DeliverableStatus } from './campaigns';
 
 export class MemoryManager {
   private db: Database.Database;
@@ -203,6 +249,31 @@ export class MemoryManager {
       CREATE TABLE IF NOT EXISTS sessions (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
+        context_type TEXT NOT NULL DEFAULT 'personal',
+        client_id TEXT,
+        project_key TEXT,
+        created_at TEXT DEFAULT ((strftime('%Y-%m-%dT%H:%M:%fZ'))),
+        updated_at TEXT DEFAULT ((strftime('%Y-%m-%dT%H:%M:%fZ')))
+      );
+
+      -- Clients (brands): each is a shared memory scope with an on-disk brain.
+      -- One agency, many brands — selecting a client in the UI scopes memory to it.
+      CREATE TABLE IF NOT EXISTS clients (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        sync_mode TEXT NOT NULL DEFAULT 'live' CHECK(sync_mode IN ('live', 'manual')),
+        repo_url TEXT,
+        created_at TEXT DEFAULT ((strftime('%Y-%m-%dT%H:%M:%fZ'))),
+        updated_at TEXT DEFAULT ((strftime('%Y-%m-%dT%H:%M:%fZ')))
+      );
+
+      -- Projects: a lightweight sub-scope under a client. id == the stable
+      -- project_key used on sessions and the 'project:<id>' scope key.
+      CREATE TABLE IF NOT EXISTS projects (
+        id TEXT PRIMARY KEY,
+        client_id TEXT NOT NULL REFERENCES clients(id),
+        name TEXT NOT NULL,
+        working_directory TEXT,
         created_at TEXT DEFAULT ((strftime('%Y-%m-%dT%H:%M:%fZ'))),
         updated_at TEXT DEFAULT ((strftime('%Y-%m-%dT%H:%M:%fZ')))
       );
@@ -217,12 +288,15 @@ export class MemoryManager {
         session_id TEXT REFERENCES sessions(id)
       );
 
-      -- Facts extracted from conversations (long-term memory)
+      -- Facts extracted from conversations (long-term memory).
+      -- scope isolates facts by selected context: 'user' (personal), 'world',
+      -- 'client:<id>', 'project:<key>', or 'chat:<sessionId>'.
       CREATE TABLE IF NOT EXISTS facts (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         category TEXT NOT NULL,
         subject TEXT NOT NULL DEFAULT '',
         content TEXT NOT NULL,
+        scope TEXT NOT NULL DEFAULT 'user',
         created_at TEXT DEFAULT ((strftime('%Y-%m-%dT%H:%M:%fZ'))),
         updated_at TEXT DEFAULT ((strftime('%Y-%m-%dT%H:%M:%fZ')))
       );
@@ -399,6 +473,18 @@ export class MemoryManager {
       console.log('[Memory] Migrated facts table: added last_accessed_at column');
     }
 
+    // Migration: add scope column to facts (isolates memory by selected context).
+    // Default 'user' preserves all existing behavior (personal memory) — no backfill.
+    if (!factsColumns.some((c) => c.name === 'scope')) {
+      this.db.exec(`ALTER TABLE facts ADD COLUMN scope TEXT NOT NULL DEFAULT 'user'`);
+      console.log('[Memory] Migrated facts table: added scope column');
+    }
+    // Create the scope index AFTER the column is guaranteed to exist — on a fresh
+    // install the column ships in CREATE TABLE (so the ALTER above is skipped),
+    // while on an existing DB it was just added. Either way the index is safe here
+    // but would fail if placed in the initial schema block (runs before migration).
+    this.db.exec(`CREATE INDEX IF NOT EXISTS idx_facts_scope ON facts(scope)`);
+
     // Rebuild FTS index from existing facts (after all schema migrations)
     this.rebuildFtsIndex();
 
@@ -446,6 +532,36 @@ export class MemoryManager {
       console.log('[Memory] Migrated sessions table: added mode column');
     }
 
+    // Migration: add selected-context columns to sessions (scoped memory).
+    // context_type defaults to 'personal' — existing sessions keep today's behavior.
+    const sessColumnsForContext = this.db.pragma('table_info(sessions)') as Array<{
+      name: string;
+    }>;
+    if (!sessColumnsForContext.some((c) => c.name === 'context_type')) {
+      this.db.exec("ALTER TABLE sessions ADD COLUMN context_type TEXT NOT NULL DEFAULT 'personal'");
+      console.log('[Memory] Migrated sessions table: added context_type column');
+    }
+    if (!sessColumnsForContext.some((c) => c.name === 'client_id')) {
+      this.db.exec('ALTER TABLE sessions ADD COLUMN client_id TEXT');
+      console.log('[Memory] Migrated sessions table: added client_id column');
+    }
+    if (!sessColumnsForContext.some((c) => c.name === 'project_key')) {
+      this.db.exec('ALTER TABLE sessions ADD COLUMN project_key TEXT');
+      console.log('[Memory] Migrated sessions table: added project_key column');
+    }
+
+    // Migration: ensure the clients table exists on databases created before scoping.
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS clients (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        sync_mode TEXT NOT NULL DEFAULT 'live' CHECK(sync_mode IN ('live', 'manual')),
+        repo_url TEXT,
+        created_at TEXT DEFAULT ((strftime('%Y-%m-%dT%H:%M:%fZ'))),
+        updated_at TEXT DEFAULT ((strftime('%Y-%m-%dT%H:%M:%fZ')))
+      );
+    `);
+
     // Migration: add last_pulled_at/last_pushed_at to clients (roadmap item 9 —
     // discoverable/shareable git-brain sync). Both null until the first
     // successful pull/push; the UI uses them to render "last synced" and a
@@ -459,6 +575,20 @@ export class MemoryManager {
       this.db.exec('ALTER TABLE clients ADD COLUMN last_pushed_at TEXT');
       console.log('[Memory] Migrated clients table: added last_pushed_at column');
     }
+
+    // Migration: ensure the projects table exists on databases created before
+    // client-first workspaces. Idempotent — safe to run on every startup.
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS projects (
+        id TEXT PRIMARY KEY,
+        client_id TEXT NOT NULL REFERENCES clients(id),
+        name TEXT NOT NULL,
+        working_directory TEXT,
+        created_at TEXT DEFAULT ((strftime('%Y-%m-%dT%H:%M:%fZ'))),
+        updated_at TEXT DEFAULT ((strftime('%Y-%m-%dT%H:%M:%fZ')))
+      );
+      CREATE INDEX IF NOT EXISTS idx_projects_client ON projects(client_id);
+    `);
 
     // Migration: add working_directory column to sessions for per-session workspace
     const sessColumnsForWd = this.db.pragma('table_info(sessions)') as Array<{ name: string }>;
@@ -560,6 +690,46 @@ export class MemoryManager {
       );
       CREATE INDEX IF NOT EXISTS idx_content_posts_draft ON content_posts(draft_id);
       CREATE INDEX IF NOT EXISTS idx_content_posts_scope ON content_posts(scope, created_at);
+
+      -- Campaigns / plans (roadmap item 10): a lightweight persisted object so
+      -- the orchestrating model can manage multi-deliverable work across turns
+      -- and days. scope isolates campaigns by selected context, same
+      -- convention as facts.scope / content_drafts.scope. See
+      -- src/memory/campaigns.ts for the deliverable status state machine and
+      -- depends_on dependency enforcement.
+      CREATE TABLE IF NOT EXISTS campaigns (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        scope TEXT NOT NULL,
+        name TEXT NOT NULL,
+        brief TEXT NOT NULL DEFAULT '',
+        status TEXT NOT NULL DEFAULT 'active' CHECK(status IN
+          ('active', 'paused', 'completed', 'archived')),
+        created_at TEXT DEFAULT ((strftime('%Y-%m-%dT%H:%M:%fZ'))),
+        updated_at TEXT DEFAULT ((strftime('%Y-%m-%dT%H:%M:%fZ')))
+      );
+      CREATE INDEX IF NOT EXISTS idx_campaigns_scope ON campaigns(scope, status);
+
+      -- One unit of work inside a campaign. depends_on is a same-campaign
+      -- self-reference (enforced at the application layer in campaigns.ts's
+      -- addDeliverable, not via a DB-level campaign_id match, since SQLite
+      -- foreign keys can't express "same parent as me"). result_ref is free
+      -- text — 'content_draft:<id>' by convention when the output is a
+      -- content-workflow draft (roadmap item 6), otherwise a summary string.
+      CREATE TABLE IF NOT EXISTS campaign_deliverables (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        campaign_id INTEGER NOT NULL REFERENCES campaigns(id),
+        lane TEXT,
+        title TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN
+          ('pending', 'in_progress', 'review', 'done', 'blocked')),
+        assigned_specialist TEXT,
+        depends_on INTEGER REFERENCES campaign_deliverables(id) ON DELETE SET NULL,
+        result_ref TEXT,
+        created_at TEXT DEFAULT ((strftime('%Y-%m-%dT%H:%M:%fZ'))),
+        updated_at TEXT DEFAULT ((strftime('%Y-%m-%dT%H:%M:%fZ')))
+      );
+      CREATE INDEX IF NOT EXISTS idx_campaign_deliverables_campaign ON campaign_deliverables(campaign_id, status);
     `);
 
     // Migration: add content_draft_id to cron_jobs (links a scheduled cron job
@@ -839,6 +1009,47 @@ export class MemoryManager {
   setSessionMode(sessionId: string, mode: AgentModeId): boolean {
     return _setSessionMode(this.db, sessionId, mode);
   }
+
+  // ============ SELECTED MEMORY CONTEXT (scoped memory) ============
+
+  getSessionContext(sessionId: string): SessionContext {
+    return _getSessionContext(this.db, sessionId);
+  }
+
+  setSessionContext(sessionId: string, context: SessionContext): boolean {
+    return _setSessionContext(this.db, sessionId, context);
+  }
+
+  // ============ CLIENT (BRAND) METHODS ============
+
+  getClients(): Client[] {
+    return _getClients(this.db);
+  }
+
+  getClient(id: string): Client | null {
+    return _getClient(this.db, id);
+  }
+
+  createClient(input: {
+    id: string;
+    name: string;
+    syncMode?: ClientSyncMode;
+    repoUrl?: string | null;
+  }): Client {
+    return _createClient(this.db, input);
+  }
+
+  updateClient(
+    id: string,
+    fields: { name?: string; syncMode?: ClientSyncMode; repoUrl?: string | null }
+  ): boolean {
+    return _updateClient(this.db, id, fields);
+  }
+
+  deleteClient(id: string): boolean {
+    return _deleteClient(this.db, id);
+  }
+
   /** Stamp a client's last-pulled timestamp (roadmap item 9 — sync status). */
   touchClientPulled(id: string, isoTimestamp?: string): boolean {
     return _touchClientPulled(this.db, id, isoTimestamp);
@@ -847,6 +1058,33 @@ export class MemoryManager {
   /** Stamp a client's last-pushed timestamp. */
   touchClientPushed(id: string, isoTimestamp?: string): boolean {
     return _touchClientPushed(this.db, id, isoTimestamp);
+  }
+
+  // ============ PROJECT METHODS ============
+
+  getProjects(clientId: string): Project[] {
+    return _getProjects(this.db, clientId);
+  }
+
+  getProject(id: string): Project | null {
+    return _getProject(this.db, id);
+  }
+
+  createProject(input: {
+    id: string;
+    clientId: string;
+    name: string;
+    workingDirectory?: string | null;
+  }): Project {
+    return _createProject(this.db, input);
+  }
+
+  updateProject(id: string, fields: { name?: string; workingDirectory?: string | null }): boolean {
+    return _updateProject(this.db, id, fields);
+  }
+
+  deleteProject(id: string): boolean {
+    return _deleteProject(this.db, id);
   }
 
   // ============ TELEGRAM CHAT SESSION METHODS ============
@@ -987,6 +1225,14 @@ export class MemoryManager {
 
   // ============ FACT METHODS ============
 
+  saveFact(
+    category: string,
+    subject: string,
+    content: string,
+    sensitive?: boolean,
+    scope: string = 'user'
+  ): number {
+    const id = _saveFact(this.db, category, subject, content, this.factsCache, sensitive, scope);
     // Write-audit log (roadmap item 8): every fact write, no bypass — this is
     // the single MemoryManager entry point every caller (agent remember tool,
     // facts:create IPC, atelier-bridge mirror sync, consolidation) goes through.
@@ -1008,7 +1254,8 @@ export class MemoryManager {
     return _getAllFacts(this.db);
   }
 
-  getFactsForContext
+  getFactsForContext(visibleScopes?: string[]): string {
+    return _getFactsForContext(this.db, this.factsCache, visibleScopes);
   }
 
   // ============ SEMANTIC RECALL ============
@@ -1030,7 +1277,10 @@ export class MemoryManager {
   retrieveRelevantFacts(
     queryEmbedding: Float32Array,
     k: number,
-    budgetChars: number
+    budgetChars: number,
+    visibleScopes?: string[]
+  ): string {
+    return _retrieveRelevantFacts(this.db, queryEmbedding, k, budgetChars, visibleScopes);
   }
 
   retrieveRelevantSoul(
@@ -1046,17 +1296,43 @@ export class MemoryManager {
     return _retrieveRelevantRollups(this.db, queryEmbedding, k, budgetChars);
   }
 
-  semanticSearchFacts
+  semanticSearchFacts(
+    queryEmbedding: Float32Array,
+    k = 6,
+    visibleScopes?: string[]
+  ): Array<Fact & { score: number }> {
+    return _semanticSearchFacts(this.db, queryEmbedding, k, visibleScopes) as Array<
+      Fact & { score: number }
+    >;
+  }
 
-  findNearDuplicateFacts
+  findNearDuplicateFacts(
+    threshold = 0.82,
+    scope?: string
+  ): Array<Array<{ id: number; subject: string; content: string }>> {
+    return _findNearDuplicateFacts(this.db, threshold, scope);
+  }
 
-  getFactsMemoryUsage
+  getFactsMemoryUsage(scope?: string): { usedChars: number; budgetChars: number; pct: number } {
+    return _getFactsMemoryUsage(this.db, scope);
+  }
 
   deleteFact(id: number): boolean {
     return _deleteFact(this.db, id, this.factsCache);
   }
 
-  updateFact    if (ok) {
+  updateFact(
+    id: number,
+    fields: {
+      category?: string;
+      subject?: string;
+      content?: string;
+      sensitive?: boolean;
+      scope?: string;
+    }
+  ): boolean {
+    const ok = _updateFact(this.db, id, fields, this.factsCache);
+    if (ok) {
       // Write-audit log (roadmap item 8). Read the post-update row so the
       // logged category/subject/scope reflect what actually landed, not just
       // whichever fields this call happened to touch.
@@ -1172,6 +1448,65 @@ export class MemoryManager {
 
   getContentPostsForScopes(visibleScopes: string[], limit: number = 100): ContentPost[] {
     return _getContentPostsForScopes(this.db, visibleScopes, limit);
+  }
+
+  // ============ CAMPAIGN METHODS (roadmap item 10) ============
+
+  createCampaign(input: CreateCampaignInput): number {
+    return _createCampaign(this.db, input);
+  }
+
+  getCampaign(id: number): Campaign | null {
+    return _getCampaign(this.db, id);
+  }
+
+  getCampaignsForScopes(visibleScopes: string[], status?: CampaignStatus): Campaign[] {
+    return _getCampaignsForScopes(this.db, visibleScopes, status);
+  }
+
+  updateCampaign(id: number, fields: UpdateCampaignFields): boolean {
+    return _updateCampaign(this.db, id, fields);
+  }
+
+  deleteCampaign(id: number): boolean {
+    return _deleteCampaign(this.db, id);
+  }
+
+  addDeliverable(input: AddDeliverableInput): AddDeliverableResult {
+    return _addDeliverable(this.db, input);
+  }
+
+  getDeliverable(id: number): CampaignDeliverable | null {
+    return _getDeliverable(this.db, id);
+  }
+
+  getDeliverablesForCampaign(campaignId: number): CampaignDeliverable[] {
+    return _getDeliverablesForCampaign(this.db, campaignId);
+  }
+
+  setDeliverableStatus(
+    id: number,
+    to: DeliverableStatus,
+    resultRef?: string | null
+  ): SetDeliverableStatusResult {
+    return _setDeliverableStatus(this.db, id, to, resultRef);
+  }
+
+  /** Link a deliverable's result to a content-workflow draft (roadmap item 10, requirement 3). */
+  linkDeliverableToContentDraft(
+    deliverableId: number,
+    contentDraftId: number
+  ): SetDeliverableStatusResult {
+    return _linkDeliverableToContentDraft(this.db, deliverableId, contentDraftId);
+  }
+
+  deleteDeliverable(id: number): boolean {
+    return _deleteDeliverable(this.db, id);
+  }
+
+  /** The next unblocked, not-yet-started deliverable in a campaign, or null if none. */
+  getNextUnblockedDeliverable(campaignId: number): CampaignDeliverable | null {
+    return _getNextUnblockedDeliverable(this.db, campaignId);
   }
 
   // ============ UTILITY METHODS ============

@@ -349,6 +349,42 @@ contextBridge.exposeInMainWorld('pocketAgent', {
       ipcRenderer.invoke('content:update', id, fields),
   },
 
+  // ─── Campaigns / Plans (roadmap item 10) ──────────────────
+  campaigns: {
+    list: (
+      context: {
+        contextType: 'personal' | 'world' | 'client' | 'project';
+        clientId?: string | null;
+        projectKey?: string | null;
+      },
+      status?: string
+    ) => ipcRenderer.invoke('campaigns:list', context, status),
+    get: (id: number) => ipcRenderer.invoke('campaigns:get', id),
+    create: (
+      input: { name: string; brief?: string },
+      context: {
+        contextType: 'personal' | 'world' | 'client' | 'project';
+        clientId?: string | null;
+        projectKey?: string | null;
+      }
+    ) => ipcRenderer.invoke('campaigns:create', input, context),
+    update: (id: number, fields: { name?: string; brief?: string; status?: string }) =>
+      ipcRenderer.invoke('campaigns:update', id, fields),
+    delete: (id: number) => ipcRenderer.invoke('campaigns:delete', id),
+    addDeliverable: (input: {
+      campaignId: number;
+      title: string;
+      description?: string;
+      lane?: string | null;
+      assignedSpecialist?: string | null;
+      dependsOn?: number | null;
+    }) => ipcRenderer.invoke('campaigns:addDeliverable', input),
+    setDeliverableStatus: (id: number, status: string, resultRef?: string) =>
+      ipcRenderer.invoke('campaigns:setDeliverableStatus', id, status, resultRef),
+    deleteDeliverable: (id: number) => ipcRenderer.invoke('campaigns:deleteDeliverable', id),
+    nudgePrompt: (campaignId: number) => ipcRenderer.invoke('campaigns:nudgePrompt', campaignId),
+  },
+
   // ─── Location & Timezone ─────────────────────────────────────────────
   location: {
     lookup: (query: string) => ipcRenderer.invoke('location:lookup', query),
@@ -1112,6 +1148,80 @@ declare global {
         ) => Promise<{ success: boolean; error?: string }>;
       };
 
+      campaigns: {
+        list: (
+          context: {
+            contextType: 'personal' | 'world' | 'client' | 'project';
+            clientId?: string | null;
+            projectKey?: string | null;
+          },
+          status?: string
+        ) => Promise<
+          Array<{
+            id: number;
+            scope: string;
+            name: string;
+            brief: string;
+            status: string;
+            created_at: string;
+            updated_at: string;
+          }>
+        >;
+        get: (id: number) => Promise<{
+          campaign: {
+            id: number;
+            scope: string;
+            name: string;
+            brief: string;
+            status: string;
+            created_at: string;
+            updated_at: string;
+          };
+          deliverables: Array<{
+            id: number;
+            campaign_id: number;
+            lane: string | null;
+            title: string;
+            description: string;
+            status: string;
+            assigned_specialist: string | null;
+            depends_on: number | null;
+            result_ref: string | null;
+            created_at: string;
+            updated_at: string;
+          }>;
+        } | null>;
+        create: (
+          input: { name: string; brief?: string },
+          context: {
+            contextType: 'personal' | 'world' | 'client' | 'project';
+            clientId?: string | null;
+            projectKey?: string | null;
+          }
+        ) => Promise<{ success: boolean; id?: number; error?: string }>;
+        update: (
+          id: number,
+          fields: { name?: string; brief?: string; status?: string }
+        ) => Promise<{ success: boolean }>;
+        delete: (id: number) => Promise<{ success: boolean }>;
+        addDeliverable: (input: {
+          campaignId: number;
+          title: string;
+          description?: string;
+          lane?: string | null;
+          assignedSpecialist?: string | null;
+          dependsOn?: number | null;
+        }) => Promise<{ success: boolean; id?: number; error?: string }>;
+        setDeliverableStatus: (
+          id: number,
+          status: string,
+          resultRef?: string
+        ) => Promise<{ success: boolean; error?: string }>;
+        deleteDeliverable: (id: number) => Promise<{ success: boolean }>;
+        nudgePrompt: (
+          campaignId: number
+        ) => Promise<{ success: boolean; prompt?: string; error?: string }>;
+      };
 
       location: {
         lookup: (query: string) => Promise<
