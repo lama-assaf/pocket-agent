@@ -18,6 +18,8 @@ import type {
 } from '@kenkaiiii/gg-ai';
 import { MemoryManager, type Message as MemoryMessage } from '../memory';
 import { FACTS_CHAR_BUDGET } from '../memory/facts';
+import { resolveVisibleScopes, USER_SCOPE, WORLD_SCOPE } from '../memory/scope';
+import type { SessionContext } from '../memory/sessions';
 import { SOUL_CHAR_BUDGET } from '../memory/soul';
 import { consolidateMemory } from '../memory/consolidation';
 import { ToolsConfig, setCurrentSessionId, runWithSessionId } from '../tools';
@@ -337,13 +339,24 @@ export class ChatEngine {
 
       // Get provider config
       const streamConfig = await getStreamConfig(model);
+      // Selected memory context also gates which marketplace MCP servers get
+      // bridged in for this turn (roadmap item 5) — same context that scopes
+      // fact recall in buildSystemPrompt above.
+      const mcpSessionContext = sessionId ? this.memory.getSessionContext(sessionId) : undefined;
       const agentTools =
         sessionMode === 'coder'
-          ? getCoderAgentTools(this.toolsConfig, this.getCoderCwd(sessionId))
-          : getChatAgentTools(
+          ? await getCoderAgentTools(
+              this.toolsConfig,
+              this.getCoderCwd(sessionId),
+              mcpSessionContext,
+              sessionId
+            )
+          : await getChatAgentTools(
               this.toolsConfig,
               this.workspace,
-              getModeConfig(sessionMode).lane ?? undefined
+              getModeConfig(sessionMode).lane ?? undefined,
+              mcpSessionContext,
+              sessionId
             );
 
       // Map thinking level
@@ -783,7 +796,26 @@ export class ChatEngine {
     const sessionMode = (
       sessionId ? this.memory.getSessionMode(sessionId) : 'general'
     ) as AgentModeId;
-    const guidelines = buildSystemGuidelines(sessionMode);
+    // Selected memory context drives scoped recall (facts) AND the active brand's
+    // voice/guardrails layered onto lane rules. Resolve it once for this turn.
+    const sessionContext = sessionId ? this.memory.getSessionContext(sessionId) : undefined;
+    // Safe default when no session is supplied (e.g. the Customize preview,
+    // formerly F3): personal (user+world) rather than an unscoped dump that
+    // would leak every client's shared facts into a generic prompt build.
+    const effectiveContext: SessionContext = sessionContext ?? {
+      contextType: 'personal',
+      clientId: null,
+      projectKey: null,
+    };
+    const visibleScopes = sessionId
+      ? resolveVisibleScopes(effectiveContext, sessionId)
+      : [USER_SCOPE, WORLD_SCOPE];
+    // daily_logs/soul carry no scope column (F1): they are the operator's
+    // personal journal/self-knowledge, not brand data, so — like the `user`
+    // fact scope — they are only injected in the personal context. Shared
+    // (world/client/project) sessions never see them.
+    const isPersonalContext = effectiveContext.contextType === 'personal';
+    const guidelines = buildSystemGuidelines(sessionMode, sessionContext);
     staticParts.push(guidelines);
     console.log(
       `[ChatEngine] System guidelines injected (${sessionMode}): ${guidelines.length} chars`
@@ -837,19 +869,21 @@ export class ChatEngine {
     // plus pinned aspects that apply every turn regardless of topic: identity-
     // critical ones and cross-cutting behavioral rules (how to work with this
     // user). These match the canonical aspect names suggested by soul_set.
-    const soul = queryEmbedding
-      ? this.memory.retrieveRelevantSoul(queryEmbedding, 5, SOUL_CHAR_BUDGET, [
-          'identity',
-          'core',
-          'mission',
-          'communication_style',
-          'boundaries',
-          'working_style',
-        ]) || this.memory.getSoulContext()
-      : this.memory.getSoulContext();
-    if (soul) {
-      dynamicParts.push(soul);
-      console.log(`[ChatEngine] Soul injected: ${soul.length} chars`);
+    if (isPersonalContext) {
+      const soul = queryEmbedding
+        ? this.memory.retrieveRelevantSoul(queryEmbedding, 5, SOUL_CHAR_BUDGET, [
+            'identity',
+            'core',
+            'mission',
+            'communication_style',
+            'boundaries',
+            'working_style',
+          ]) || this.memory.getSoulContext()
+        : this.memory.getSoulContext();
+      if (soul) {
+        dynamicParts.push(soul);
+        console.log(`[ChatEngine] Soul injected: ${soul.length} chars`);
+      }
     }
 
     // 2. User context — profile, goals, struggles, fun facts (editable in settings)
@@ -860,21 +894,24 @@ export class ChatEngine {
     }
 
     // 3. Facts — remembered information about the user (relevance-driven, with
-    //    graceful fallback to the wholesale importance-sorted dump)
-    // top-8 relevance-ranked facts; the char budget remains a safety cap. Each
-    // fact is atomic (~30 words), so 8 stays well under the budget in practice.
+    //    graceful fallback to the wholesale importance-sorted dump).
+    // Recall is scoped to the session's selected context (personal vs a shared
+    // brand space): visibleScopes lists chat → nearest → base, and personal
+    // (`user`) memory is visible only in the personal context. top-8
+    // relevance-ranked facts; the char budget remains a safety cap.
     const facts = queryEmbedding
-      ? this.memory.retrieveRelevantFacts(queryEmbedding, 8, FACTS_CHAR_BUDGET) ||
-        this.memory.getFactsForContext()
-      : this.memory.getFactsForContext();
+      ? this.memory.retrieveRelevantFacts(queryEmbedding, 8, FACTS_CHAR_BUDGET, visibleScopes) ||
+        this.memory.getFactsForContext(visibleScopes)
+      : this.memory.getFactsForContext(visibleScopes);
     if (facts) {
       dynamicParts.push(facts);
       console.log(`[ChatEngine] Facts injected: ${facts.length} chars`);
     }
 
-    // 4. Daily logs — recent conversation history (skip for scheduled/routine runs)
+    // 4. Daily logs — recent conversation history (skip for scheduled/routine
+    //    runs, and for shared (world/client/project) contexts — see F1 above)
     const isScheduledRun = channel?.startsWith('cron:');
-    if (!isScheduledRun) {
+    if (!isScheduledRun && isPersonalContext) {
       const dailyLogs = this.memory.getDailyLogsContext(3);
       if (dailyLogs) {
         dynamicParts.push(dailyLogs);

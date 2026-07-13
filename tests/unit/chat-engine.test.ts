@@ -18,11 +18,17 @@ function makeTextDelta(text: string) {
   return { type: 'text_delta' as const, text };
 }
 
-function makeTurnEnd(turn: number, usage: { inputTokens: number; outputTokens: number; cacheRead?: number; cacheWrite?: number }) {
+function makeTurnEnd(
+  turn: number,
+  usage: { inputTokens: number; outputTokens: number; cacheRead?: number; cacheWrite?: number }
+) {
   return { type: 'turn_end' as const, turn, usage };
 }
 
-function makeAgentDone(totalTurns: number, totalUsage: { inputTokens: number; outputTokens: number; cacheRead?: number; cacheWrite?: number }) {
+function makeAgentDone(
+  totalTurns: number,
+  totalUsage: { inputTokens: number; outputTokens: number; cacheRead?: number; cacheWrite?: number }
+) {
   return { type: 'agent_done' as const, totalTurns, totalUsage };
 }
 
@@ -203,6 +209,7 @@ function createEngine() {
     saveMessage: vi.fn(() => 1),
     getSmartContext: vi.fn(async () => ({ recentMessages: [], rollingSummary: null })),
     getSessionMode: vi.fn(() => 'general'),
+    getSessionContext: vi.fn(() => ({ contextType: 'personal', clientId: null, projectKey: null })),
     getFactsMemoryUsage: vi.fn(() => ({ usedChars: 0, budgetChars: 50000, pct: 0 })),
     getSoulMemoryUsage: vi.fn(() => ({ usedChars: 0, budgetChars: 50000, pct: 0 })),
   };
@@ -336,7 +343,12 @@ describe('ChatEngine', () => {
       await engine.processMessage('hi', 'desktop', 'test-session');
 
       expect(memory.saveMessage).toHaveBeenCalledWith('user', 'hi', 'test-session', undefined);
-      expect(memory.saveMessage).toHaveBeenCalledWith('assistant', 'Hello', 'test-session', undefined);
+      expect(memory.saveMessage).toHaveBeenCalledWith(
+        'assistant',
+        'Hello',
+        'test-session',
+        undefined
+      );
     });
   });
 
@@ -479,6 +491,100 @@ describe('ChatEngine', () => {
       const { engine } = createEngine();
       const { dynamicPrompt } = await engine.buildSystemPrompt();
       expect(dynamicPrompt).toContain('Current Time');
+    });
+
+    // ── F1: daily_logs/soul carry no scope column, so they're only injected
+    // for the personal context — shared (world/client/project) sessions never
+    // see the operator's personal journal or self-knowledge. ───────────────
+    describe('daily-logs/soul scoping (F1)', () => {
+      it('injects soul and daily logs for a personal-context session', async () => {
+        const { engine, memory } = createEngine();
+        memory.getSessionContext.mockReturnValue({
+          contextType: 'personal',
+          clientId: null,
+          projectKey: null,
+        });
+        memory.getSoulContext.mockReturnValue('## Soul\nSome soul content');
+        memory.getDailyLogsContext.mockReturnValue('## Recent Daily Logs\nToday: did stuff');
+
+        const { dynamicPrompt } = await engine.buildSystemPrompt('session-1');
+        expect(dynamicPrompt).toContain('Some soul content');
+        expect(dynamicPrompt).toContain('did stuff');
+      });
+
+      it('never injects soul or daily logs for a client (shared brand) session', async () => {
+        const { engine, memory } = createEngine();
+        memory.getSessionContext.mockReturnValue({
+          contextType: 'client',
+          clientId: 'brandA',
+          projectKey: null,
+        });
+        memory.getSoulContext.mockReturnValue('## Soul\nSome soul content');
+        memory.getDailyLogsContext.mockReturnValue('## Recent Daily Logs\nToday: did stuff');
+
+        const { dynamicPrompt } = await engine.buildSystemPrompt('session-1');
+        expect(dynamicPrompt).not.toContain('Some soul content');
+        expect(dynamicPrompt).not.toContain('did stuff');
+        expect(memory.getSoulContext).not.toHaveBeenCalled();
+        expect(memory.getDailyLogsContext).not.toHaveBeenCalled();
+      });
+
+      it('never injects soul or daily logs for a world (agency-shared) session', async () => {
+        const { engine, memory } = createEngine();
+        memory.getSessionContext.mockReturnValue({
+          contextType: 'world',
+          clientId: null,
+          projectKey: null,
+        });
+        memory.getSoulContext.mockReturnValue('## Soul\nSome soul content');
+        memory.getDailyLogsContext.mockReturnValue('## Recent Daily Logs\nToday: did stuff');
+
+        const { dynamicPrompt } = await engine.buildSystemPrompt('session-1');
+        expect(dynamicPrompt).not.toContain('Some soul content');
+        expect(dynamicPrompt).not.toContain('did stuff');
+      });
+
+      it('never injects soul or daily logs for a project session', async () => {
+        const { engine, memory } = createEngine();
+        memory.getSessionContext.mockReturnValue({
+          contextType: 'project',
+          clientId: 'brandA',
+          projectKey: 'site-redesign',
+        });
+        memory.getSoulContext.mockReturnValue('## Soul\nSome soul content');
+        memory.getDailyLogsContext.mockReturnValue('## Recent Daily Logs\nToday: did stuff');
+
+        const { dynamicPrompt } = await engine.buildSystemPrompt('session-1');
+        expect(dynamicPrompt).not.toContain('Some soul content');
+        expect(dynamicPrompt).not.toContain('did stuff');
+      });
+    });
+
+    // ── F3: no sessionId (e.g. the Customize preview) must default to the
+    // safe personal (user+world) context, never an unscoped dump of every
+    // client's shared facts. ────────────────────────────────────────
+    describe('safe default context with no sessionId (F3)', () => {
+      it('scopes the facts lookup to user+world when no sessionId is supplied', async () => {
+        const { engine, memory } = createEngine();
+        await engine.buildSystemPrompt();
+        expect(memory.getFactsForContext).toHaveBeenCalledWith(['user', 'world']);
+      });
+
+      it('still injects soul/daily logs (personal default) when no sessionId is supplied', async () => {
+        const { engine, memory } = createEngine();
+        memory.getSoulContext.mockReturnValue('## Soul\nSome soul content');
+        memory.getDailyLogsContext.mockReturnValue('## Recent Daily Logs\nToday: did stuff');
+
+        const { dynamicPrompt } = await engine.buildSystemPrompt();
+        expect(dynamicPrompt).toContain('Some soul content');
+        expect(dynamicPrompt).toContain('did stuff');
+      });
+
+      it('never resolves session context (no sessionId to look up)', async () => {
+        const { engine, memory } = createEngine();
+        await engine.buildSystemPrompt();
+        expect(memory.getSessionContext).not.toHaveBeenCalled();
+      });
     });
   });
 
@@ -747,7 +853,9 @@ describe('ChatEngine', () => {
 
       // Assert: the warn was logged (fallback path was taken)
       const warnCall = consoleSpy.mock.calls.find(
-        (args) => typeof args[0] === 'string' && args[0].includes('smart context produced no user/assistant')
+        (args) =>
+          typeof args[0] === 'string' &&
+          args[0].includes('smart context produced no user/assistant')
       );
       expect(warnCall).toBeDefined();
 
@@ -1066,16 +1174,10 @@ describe('ChatEngine', () => {
       ];
       const { engine, memory } = createEngine();
 
-      await engine.processMessage(
-        'check the inbox',
-        'cron:hourly-inbox-check',
-        'cron-session'
-      );
+      await engine.processMessage('check the inbox', 'cron:hourly-inbox-check', 'cron-session');
 
       // Both user and assistant messages should be saved with source: scheduler.
-      const userCall = memory.saveMessage.mock.calls.find(
-        (args: unknown[]) => args[0] === 'user'
-      );
+      const userCall = memory.saveMessage.mock.calls.find((args: unknown[]) => args[0] === 'user');
       const assistantCall = memory.saveMessage.mock.calls.find(
         (args: unknown[]) => args[0] === 'assistant'
       );

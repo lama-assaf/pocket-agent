@@ -78,8 +78,8 @@ import { getChatAgentTools, getCoderAgentTools } from '../../src/agent/chat-tool
 import type { AgentTool, ToolContext } from '@kenkaiiii/gg-agent';
 
 // Helper: extract the shell_command tool from a fresh call each time
-function getShellTool(): AgentTool {
-  const tools = getChatAgentTools({} as Parameters<typeof getChatAgentTools>[0], '/tmp');
+async function getShellTool(): Promise<AgentTool> {
+  const tools = await getChatAgentTools({} as Parameters<typeof getChatAgentTools>[0], '/tmp');
   const tool = tools.find((t) => t.name === 'shell_command');
   if (!tool) throw new Error('shell_command tool not found');
   return tool;
@@ -109,7 +109,7 @@ describe('shell_command tool — dangerous commands are blocked', () => {
 
   for (const [label, command] of dangerousCases) {
     it(`blocks: ${label}`, async () => {
-      const tool = getShellTool();
+      const tool = await getShellTool();
       const result = await tool.execute({ command }, ctx);
 
       // Must return a blocked-error string
@@ -138,7 +138,7 @@ describe('shell_command tool — safe commands pass through', () => {
 
   for (const command of safeCases) {
     it(`allows: ${command}`, async () => {
-      const tool = getShellTool();
+      const tool = await getShellTool();
       const result = await tool.execute({ command }, ctx);
 
       // execAsync MUST have been called (command was not blocked)
@@ -162,11 +162,11 @@ describe('write/edit tools — dangerous paths are blocked before delegating', (
     vi.restoreAllMocks();
   });
 
-  function getTool(name: 'write' | 'edit', mode: 'chat' | 'coder'): AgentTool {
+  async function getTool(name: 'write' | 'edit', mode: 'chat' | 'coder'): Promise<AgentTool> {
     const tools =
       mode === 'chat'
-        ? getChatAgentTools({} as Parameters<typeof getChatAgentTools>[0], '/tmp')
-        : getCoderAgentTools({} as Parameters<typeof getCoderAgentTools>[0], '/tmp');
+        ? await getChatAgentTools({} as Parameters<typeof getChatAgentTools>[0], '/tmp')
+        : await getCoderAgentTools({} as Parameters<typeof getCoderAgentTools>[0], '/tmp');
     const tool = tools.find((t) => t.name === name);
     if (!tool) throw new Error(`${name} tool not found`);
     return tool;
@@ -181,7 +181,7 @@ describe('write/edit tools — dangerous paths are blocked before delegating', (
   for (const mode of ['chat', 'coder'] as const) {
     for (const filePath of dangerousPaths) {
       it(`[${mode}] write: blocks dangerous path ${filePath}`, async () => {
-        const tool = getTool('write', mode);
+        const tool = await getTool('write', mode);
         const result = await tool.execute({ file_path: filePath, content: 'x' }, ctx);
 
         expect(typeof result).toBe('string');
@@ -190,7 +190,7 @@ describe('write/edit tools — dangerous paths are blocked before delegating', (
       });
 
       it(`[${mode}] edit: blocks dangerous path ${filePath}`, async () => {
-        const tool = getTool('edit', mode);
+        const tool = await getTool('edit', mode);
         const result = await tool.execute(
           { file_path: filePath, edits: [{ old_text: 'a', new_text: 'b' }] },
           ctx
@@ -204,7 +204,7 @@ describe('write/edit tools — dangerous paths are blocked before delegating', (
   }
 
   it('allows safe write paths to delegate to the underlying tool', async () => {
-    const tool = getTool('write', 'coder');
+    const tool = await getTool('write', 'coder');
     const result = await tool.execute(
       { file_path: '/Users/user/projects/myapp/src/index.ts', content: 'x' },
       ctx

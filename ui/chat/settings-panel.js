@@ -1301,12 +1301,31 @@ async function _stgLoadMcpServers() {
   }
 }
 
+// Live runtime pill (roadmap item 5): reflects src/mcp/manager.ts's actual
+// connection state for this server, not just the settings/scope gates above.
+// Only meaningful once the gates pass (enabled+configured+scopeEnabled) —
+// a gated-off server is always 'not_started' since it's never spawned.
+function _stgMcpRuntimePill(server) {
+  const title = server.runtimeError ? ` title="${_stgMcpEscapeAttr(server.runtimeError)}"` : '';
+  switch (server.runtimeStatus) {
+    case 'running':
+      return `<span class="status success"${title}>Running</span>`;
+    case 'starting':
+      return `<span class="status info"${title}>Starting…</span>`;
+    case 'failed':
+      return `<span class="status error"${title}>Failed</span>`;
+    case 'not_started':
+    default:
+      return `<span class="status"${title}>Not started</span>`;
+  }
+}
+
 function _stgMcpStatusPill(server) {
   if (!server.toggleable) return '<span class="status info">Built-in</span>';
   if (!server.enabled) return '<span class="status">Disabled</span>';
   if (!server.configured) return '<span class="status warning">Missing credentials</span>';
   if (!server.scopeEnabled) return `<span class="status warning">Disabled for ${_stgMcpEscapeHtml(_stgMcpScopeLabel(server.scopeEnablementScope))}</span>`;
-  return '<span class="status success">Enabled</span>';
+  return `<span class="status success">Enabled</span> ${_stgMcpRuntimePill(server)}`;
 }
 
 // Per-scope (client/project) enable/disable row — only meaningful for

@@ -26,6 +26,8 @@ import { validateBashCommand, validateWritePath } from './safety';
 import { scanForBannedTone } from './write-guards';
 import { SettingsManager } from '../settings';
 import { appendAuditLog, digestContent } from '../utils/audit-log';
+import { jsonSchemaToZod } from './schema-utils';
+import { getMcpBridgedTools } from './mcp-bridge';
 
 const execAsync = promisify(exec);
 const IS_WINDOWS = process.platform === 'win32';
@@ -194,6 +196,135 @@ function buildLaneSkillTool(lane: LaneId): AgentTool {
       return found ? found.content : `Unknown skill "${skill}". Available: ${names.join(', ')}`;
     },
   };
+}
+
+/**
+ * Build the AgentTool array for Chat mode.
+ * Wraps each handler with diagnostics and returns AgentTool[] compatible with @kenkaiiii/gg-agent.
+ *
+ * `sessionContext` (the session's selected memory scope) gates which
+ * marketplace MCP servers get bridged in (roadmap item 5): omitted, no MCP
+ * tools are added — see mcp-bridge.ts's resolveSessionMcpServers doc for why
+ * that's the conservative default. `sessionId` is required whenever a
+ * context is supplied (scope enablement resolution needs it for the
+ * chat-scope link); defaults to the async-local current session id.
+ */
+export async function getChatAgentTools(
+  config: ToolsConfig,
+  cwd: string,
+  lane?: LaneId,
+  sessionContext?: SessionContext,
+  sessionId: string = getCurrentSessionId()
+): Promise<AgentTool[]> {
+  const customTools = getCustomTools(config);
+  const tools: AgentTool[] = [];
+
+  for (const tool of customTools) {
+    const wrapped = wrapToolHandler(tool.name, tool.handler);
+    const inputSchema = tool.input_schema as {
+      properties?: Record<string, unknown>;
+      required?: string[];
+    };
+
+    const parameters = jsonSchemaToZod(inputSchema.properties || {}, inputSchema.required || []);
+
+    tools.push({
+      name: tool.name,
+      description: tool.description,
+      parameters,
+      execute: async (args: unknown, _context: ToolContext) => {
+        return await wrapped(args as Record<string, unknown>);
+      },
+    });
+  }
+
+  // Add file tools (read, write, edit) from gg-coder. getChatAgentTools is
+  // never called for coder mode (see chat-engine.ts) — every mode reachable
+  // here produces prose, so the tone guard is always on (scanTone: true).
+  const { tools: coderNativeTools } = createCoderTools(cwd);
+  const fileToolNames = new Set(['read', 'write', 'edit']);
+  for (const t of coderNativeTools) {
+    if (fileToolNames.has(t.name)) {
+      tools.push(WRITE_TOOL_NAMES.has(t.name) ? wrapWithWritePathSafety(t, lane, true) : t);
+    }
+  }
+
+  // Add web_fetch tool
+  tools.push(buildWebFetchTool());
+
+  // Add shell_command tool
+  tools.push(buildShellCommandTool());
+
+  // Add per-lane skill tool (loads full skill content on demand)
+  if (lane && skillsForLane(lane).length) {
+    tools.push(buildLaneSkillTool(lane));
+  }
+
+  // Bridge in marketplace MCP servers gated for this session's context (roadmap
+  // item 5). Lazily spawns/connects each allowed server; a server that fails
+  // to connect just contributes no tools (crash isolation lives in
+  // src/mcp/manager.ts) rather than failing this whole build.
+  const mcpTools = await getMcpBridgedTools(sessionContext, sessionId);
+  tools.push(...mcpTools);
+
+  // Add sub-agent tool (receives parent tools so it can select a subset)
+  tools.push(createSubAgentTool(tools, getStreamConfig, lane));
+
+  return tools;
+}
+
+/**
+ * Build the AgentTool array for Coder mode.
+ * Uses gg-coder native tools (read, write, edit, bash, etc.) merged with MCP tools.
+ *
+ * Same MCP-bridging contract as getChatAgentTools — see that doc. Coder mode
+ * is exempt from the anti-AI-tone guard but NOT from the MCP bridge: a
+ * scheduling/CMS MCP server is just as useful to call from coder mode.
+ */
+export async function getCoderAgentTools(
+  config: ToolsConfig,
+  cwd: string,
+  sessionContext?: SessionContext,
+  sessionId: string = getCurrentSessionId()
+): Promise<AgentTool[]> {
+  // Create gg-coder native tools
+  const { tools: coderNativeTools } = createCoderTools(cwd);
+
+  // Get MCP-wrapped tools (browser, notify, project, grep-github, switch_agent)
+  const customTools = getCustomTools(config);
+  const mcpTools: AgentTool[] = [];
+
+  for (const tool of customTools) {
+    const wrapped = wrapToolHandler(tool.name, tool.handler);
+    const inputSchema = tool.input_schema as {
+      properties?: Record<string, unknown>;
+      required?: string[];
+    };
+
+    const parameters = jsonSchemaToZod(inputSchema.properties || {}, inputSchema.required || []);
+
+    mcpTools.push({
+      name: tool.name,
+      description: tool.description,
+      parameters,
+      execute: async (args: unknown, _context: ToolContext) => {
+        return await wrapped(args as Record<string, unknown>);
+      },
+    });
+  }
+
+  // Merge: coder native tools (with write-path safety) + MCP tools. No lane,
+  // scanTone left at its default (false) — coder mode is exempt from the tone
+  // guard since scanning code for prose-tone patterns would false-positive.
+  const safeCoderTools = coderNativeTools.map((t) =>
+    WRITE_TOOL_NAMES.has(t.name) ? wrapWithWritePathSafety(t) : t
+  );
+
+  // Bridge in marketplace MCP servers gated for this session's context
+  // (roadmap item 5) — same contract as getChatAgentTools.
+  const bridgedMcpTools = await getMcpBridgedTools(sessionContext, sessionId);
+
+  return [...safeCoderTools, ...mcpTools, ...bridgedMcpTools];
 }
 
 /**

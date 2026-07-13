@@ -22,6 +22,7 @@ import { PACK_SOURCES } from '../marketplace/registry';
 import { setClientsRoot, setWorldRoot } from '../clients/paths';
 import { ensureWorldScaffold, ensureClientScaffold } from '../clients/registry';
 import { setAuditLogRoot } from '../utils/audit-log';
+import { getMcpServerManager } from '../mcp/manager';
 import { initializeUpdater, setupUpdaterIPC, setSettingsWindow, setChatWindow } from './updater';
 import { createWindow, getWindow } from './windows';
 import { fixPathForPackagedApp } from './node-paths';
@@ -843,6 +844,11 @@ app.on('before-quit', async () => {
     modelChangedHandler = null;
   }
   await stopAgent();
+  // Clean shutdown of every spawned/connected MCP server (roadmap item 5) —
+  // stdio child processes are killed, HTTP clients marked closed.
+  await getMcpServerManager()
+    .shutdownAll()
+    .catch((e) => console.error('[MCP] shutdownAll failed:', e));
   if (memory) {
     memory.close();
   }

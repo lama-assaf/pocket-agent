@@ -140,6 +140,8 @@ describe('buildMcpServerStatusList', () => {
         toggleable: false,
         scopeEnabled: true,
         scopeEnablementScope: 'default',
+        runtimeStatus: 'not_started',
+        runtimeError: undefined,
       },
     ]);
   });

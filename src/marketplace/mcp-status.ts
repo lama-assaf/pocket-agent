@@ -44,6 +44,18 @@ export interface McpServerStatus {
   scopeEnabled: boolean;
   /** Scope the scope-level decision came from, or 'default' when nothing overrides the agency-wide baseline. */
   scopeEnablementScope: string;
+  /**
+   * Live MCP connection state (roadmap item 5), sourced from
+   * src/mcp/manager.ts's in-memory server registry — NOT derived from the
+   * settings/scope gates above. 'not_started' until some session actually
+   * needs this server's tools (lazy spawn); 'running' once the handshake +
+   * tools/list succeeds; 'failed' on a spawn/handshake error or crash.
+   * Always 'not_started' for a caller with no manager reference (e.g. the
+   * pure-logic unit tests for this module).
+   */
+  runtimeStatus: 'not_started' | 'starting' | 'running' | 'failed';
+  /** Error detail when runtimeStatus is 'failed', if available. */
+  runtimeError?: string;
 }
 
 /** Per-entry stored state: enabled flag + user-supplied env values (secrets). */
@@ -140,12 +152,20 @@ export function buildMcpServerStatusList(params: {
   marketplace: Array<{ packId: string; entry: McpCatalogEntry }>;
   config: McpMarketplaceConfig;
   resolveScope?: (packId: string, entryId: string) => { enabled: boolean; scope: string };
+  /** Live runtime state lookup (roadmap item 5) — see McpServerStatus.runtimeStatus doc. Omitted defaults every entry to 'not_started'. */
+  resolveRuntime?: (id: string) => { status: McpServerStatus['runtimeStatus']; error: string | null };
 }): McpServerStatus[] {
   const out: McpServerStatus[] = [];
+  const runtimeFor = (id: string): { status: McpServerStatus['runtimeStatus']; error?: string } => {
+    const r = params.resolveRuntime?.(id);
+    if (!r) return { status: 'not_started' };
+    return { status: r.status, error: r.error ?? undefined };
+  };
 
   for (const fp of params.firstParty) {
+    const id = `first-party:${fp.id}`;
     out.push({
-      id: `first-party:${fp.id}`,
+      id,
       source: 'first-party',
       kind: fp.kind,
       name: fp.name,
@@ -156,6 +176,8 @@ export function buildMcpServerStatusList(params: {
       toggleable: false,
       scopeEnabled: true,
       scopeEnablementScope: 'default',
+      runtimeStatus: runtimeFor(id).status,
+      runtimeError: runtimeFor(id).error,
     });
   }
 
@@ -164,6 +186,7 @@ export function buildMcpServerStatusList(params: {
     const stored = params.config[id];
     const env = stored?.env ?? {};
     const scope = params.resolveScope?.(packId, entry.id) ?? { enabled: true, scope: 'default' };
+    const runtime = runtimeFor(id);
     out.push({
       id,
       source: packId,
@@ -177,6 +200,8 @@ export function buildMcpServerStatusList(params: {
       riskNote: entry.riskNote,
       scopeEnabled: scope.enabled,
       scopeEnablementScope: scope.scope,
+      runtimeStatus: runtime.status,
+      runtimeError: runtime.error,
     });
   }
 

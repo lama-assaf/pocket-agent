@@ -26,6 +26,7 @@ import {
   type McpMarketplaceConfig,
   type FirstPartyServerDescriptor,
 } from '../../marketplace/mcp-status';
+import { getMcpServerManager } from '../../mcp/manager';
 import type { SessionContext } from '../../memory/sessions';
 
 // Not a real session — the Settings MCP list has no "current chat" while
@@ -67,12 +68,14 @@ export function registerMcpIPC(): void {
   ipcMain.handle(
     'mcp:listServers',
     async (_, context?: SessionContext): Promise<McpServerStatus[]> => {
+      const manager = getMcpServerManager();
       return buildMcpServerStatusList({
         firstParty: listFirstPartyServers(),
         marketplace: allMcpCatalogs(),
         config: loadConfig(),
         resolveScope: (packId, entryId) =>
           resolveMcpEnablement(context, packId, entryId, MCP_UI_SESSION_ID),
+        resolveRuntime: (id) => ({ status: manager.getStatus(id), error: manager.getLastError(id) }),
       });
     }
   );
