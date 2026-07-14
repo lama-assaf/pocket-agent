@@ -1,0 +1,430 @@
+/* Analytics Panel — scoped under #analytics-view. Mirrors content-panel.css's
+   structure (header, filters, flat card list, detail view, edit form, empty
+   state) plus summary totals/channel cards and channel badges specific to
+   analytics. */
+
+#analytics-view {
+  display: none;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+#analytics-view.active {
+  display: flex;
+}
+
+/* Header */
+#analytics-view .ant-header {
+  background: var(--surface-panel);
+  padding: 10px 16px;
+  border-radius: var(--radius-control);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+#analytics-view .ant-header h1 {
+  font-family: 'Cal Sans', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  margin: 0;
+}
+
+#analytics-view .ant-header h1 span {
+  color: var(--text-primary);
+}
+
+#analytics-view .ant-header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+#analytics-view .ant-count {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+/* Channel filter row */
+#analytics-view .ant-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px 16px 0;
+  flex-shrink: 0;
+}
+
+#analytics-view .ant-filter-btn {
+  background: var(--surface-control);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: background-color 150ms ease;
+}
+
+#analytics-view .ant-filter-btn:hover {
+  background: var(--surface-card);
+}
+
+#analytics-view .ant-filter-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--surface-panel);
+}
+
+/* Content */
+#analytics-view .ant-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 8px 0 32px;
+}
+
+#analytics-view .ant-content.hidden {
+  display: none;
+}
+
+#analytics-view .ant-content::-webkit-scrollbar { width: 8px; }
+#analytics-view .ant-content::-webkit-scrollbar-track { background: transparent; }
+#analytics-view .ant-content::-webkit-scrollbar-thumb { background: var(--border-subtle); border-radius: 4px; }
+
+/* ---- Overall summary (totals + per-channel cards) ---- */
+#analytics-view .ant-summary {
+  padding: 4px 16px 8px;
+}
+
+#analytics-view .ant-summary-totals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+#analytics-view .ant-summary-total {
+  background: var(--surface-panel);
+  border-radius: var(--radius-control);
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  min-width: 84px;
+}
+
+#analytics-view .ant-summary-total-val {
+  font-family: 'Cal Sans', sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-heading);
+}
+
+#analytics-view .ant-summary-total-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+#analytics-view .ant-summary-channels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+#analytics-view .ant-summary-card {
+  background: var(--surface-card);
+  border-radius: var(--radius-control);
+  padding: 10px 14px;
+  min-width: 160px;
+}
+
+#analytics-view .ant-summary-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+#analytics-view .ant-summary-card-posts {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+#analytics-view .ant-summary-stat-row {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+/* ---- Channel badges ---- */
+#analytics-view .ant-badge {
+  display: inline-block;
+  background: var(--surface-control);
+  border-radius: var(--radius-control);
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  color: var(--text-secondary);
+  text-transform: capitalize;
+}
+
+#analytics-view .ant-badge--x {
+  background: #14171a;
+  color: #ffffff;
+}
+
+#analytics-view .ant-badge--linkedin {
+  background: #0a66c2;
+  color: #ffffff;
+}
+
+/* ---- Post cards — flat list, matching content-panel's cnt-card treatment ---- */
+#analytics-view .ant-posts {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 16px 0;
+}
+
+#analytics-view .ant-card {
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-control);
+  padding: 12px 16px;
+  cursor: pointer;
+  transition: background-color 150ms ease;
+  text-align: left;
+  width: 100%;
+}
+
+#analytics-view .ant-card:hover {
+  background: var(--surface-card);
+}
+
+#analytics-view .ant-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+  flex-wrap: wrap;
+}
+
+#analytics-view .ant-card-title {
+  color: var(--accent-readable);
+  font-family: 'Cal Sans', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+#analytics-view .ant-card-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+#analytics-view .ant-card-rate {
+  font-weight: 700;
+  color: var(--accent-readable);
+}
+
+#analytics-view .ant-card-meta {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+#analytics-view .ant-source-tag {
+  font-size: 10px;
+  color: var(--text-muted);
+  background: var(--surface-control);
+  border-radius: var(--radius-control);
+  padding: 1px 6px;
+}
+
+#analytics-view .ant-source-tag--mcp {
+  color: var(--accent-readable);
+}
+
+/* ---- Detail view ---- */
+#analytics-view .ant-detail-toolbar {
+  padding: 0 16px 12px;
+}
+
+#analytics-view .ant-detail {
+  padding: 0 16px;
+}
+
+#analytics-view .ant-detail-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+
+#analytics-view .ant-detail-title {
+  font-family: 'Cal Sans', sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-heading);
+}
+
+#analytics-view .ant-detail-meta {
+  color: var(--text-muted);
+  font-size: 12px;
+  margin-bottom: 12px;
+}
+
+#analytics-view .ant-detail-note {
+  color: var(--text-secondary);
+  font-size: 12px;
+  margin-bottom: 14px;
+}
+
+#analytics-view .ant-detail-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+#analytics-view .ant-detail-stat {
+  background: var(--surface-panel);
+  border-radius: var(--radius-control);
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  min-width: 100px;
+}
+
+#analytics-view .ant-detail-stat-val {
+  font-family: 'Cal Sans', sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-heading);
+}
+
+#analytics-view .ant-detail-stat-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+#analytics-view .ant-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+#analytics-view .ant-prompt-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+
+/* ---- Snapshot history ---- */
+#analytics-view .ant-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 16px;
+}
+
+#analytics-view .ant-history-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  background: var(--surface-panel);
+  border-radius: var(--radius-control);
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+#analytics-view .ant-history-date {
+  color: var(--text-muted);
+  font-size: 11px;
+  flex-shrink: 0;
+  min-width: 120px;
+}
+
+/* ---- Record-snapshot form ---- */
+#analytics-view .ant-edit-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+
+#analytics-view .ant-edit-input {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--text-primary);
+  background: var(--surface-control);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control);
+  padding: 10px 12px;
+  margin-bottom: 14px;
+}
+
+#analytics-view .ant-edit-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+#analytics-view .ant-edit-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0 12px;
+}
+
+/* Empty state */
+#analytics-view .ant-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+#analytics-view .ant-empty svg {
+  width: 48px;
+  height: 48px;
+  margin-bottom: 16px;
+  opacity: 0.3;
+}
+
+#analytics-view .ant-empty p {
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+#analytics-view .ant-empty small {
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+#analytics-view .ant-empty.hidden {
+  display: none;
+}

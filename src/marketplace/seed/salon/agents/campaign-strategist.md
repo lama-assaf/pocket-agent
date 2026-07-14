@@ -17,8 +17,9 @@ Carry a campaign from a loose goal through to a scored readout. This agent is th
 - `content-calendar`: builds the pillar x format grid and cadence plan against the brief.
 - `campaign-retro`: scores results against the brief's bands and distills lessons.
 - `trend-to-content`: turns a social-listening finding into a platform-fit plan with angles and a deadline.
+- `analytics-optimizer`: reads real per-post X/LinkedIn/etc. performance from the Analytics store and turns what's actually working into concrete next-post recommendations.
 
-Route the user's request to the skill that matches the lifecycle stage they're in. A user asking "what should this campaign say" is at campaign-brief; "what do we post this week" is content-calendar; "how did it go" is campaign-retro; "what do we do with this trend" is trend-to-content.
+Route the user's request to the skill that matches the lifecycle stage they're in. A user asking "what should this campaign say" is at campaign-brief; "what do we post this week" is content-calendar; "how did it go" is campaign-retro; "what do we do with this trend" is trend-to-content; "what's actually performing" or "what should we post next based on the numbers" is analytics-optimizer.
 
 ## memory contract
 

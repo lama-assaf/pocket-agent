@@ -36,6 +36,7 @@
   <link rel="stylesheet" href="chat/agents-panel.css">
   <link rel="stylesheet" href="chat/content-panel.css">
   <link rel="stylesheet" href="chat/campaign-panel.css">
+  <link rel="stylesheet" href="chat/analytics-panel.css">
   <link rel="stylesheet" href="chat/clients-view.css">
   <link rel="stylesheet" href="chat/routines-panel.css">
   <link rel="stylesheet" href="chat/personalize-panel.css">
@@ -101,6 +102,10 @@
       <button class="sidebar-btn" id="sidebar-campaigns-btn" title="Campaigns">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"><path d="M3 4h13l-2 5l2 5H3z"/><path d="M3 4v16"/></g></svg>
         <span class="sidebar-btn-label">Campaigns</span>
+      </button>
+      <button class="sidebar-btn" id="sidebar-analytics-btn" title="Analytics">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"><path d="M4 19h16"/><path d="M7 19v-6M12 19V9M17 19v-9"/></g></svg>
+        <span class="sidebar-btn-label">Analytics</span>
       </button>
       <button class="sidebar-btn" id="sidebar-docs-btn" title="Docs">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 7h8m-8 4h4m1 10.5V21c0-2.828 0-4.243.879-5.121C14.757 15 16.172 15 19 15h.5m.5-1.657V10c0-3.771 0-5.657-1.172-6.828S15.771 2 12 2S6.343 2 5.172 3.172S4 6.229 4 10v4.544c0 3.245 0 4.868.886 5.967a4 4 0 0 0 .603.603C6.59 22 8.211 22 11.456 22c.705 0 1.058 0 1.381-.114q.1-.036.197-.082c.31-.148.559-.397 1.058-.896l4.736-4.736c.579-.578.867-.867 1.02-1.235c.152-.368.152-.776.152-1.594"/></svg>
@@ -1077,6 +1082,39 @@
     </div>
   </div><!-- #campaigns-view -->
 
+  <!-- Analytics View: per-post X/LinkedIn/etc. performance, overall metrics,
+       per-post drill-down, filtered by client and channel. -->
+  <div id="analytics-view">
+    <div class="ant-header">
+      <h1><span>Analytics</span> <span class="ant-count" id="ant-active-count"></span></h1>
+      <div class="ant-header-actions">
+        <button onclick="playNormalClick(); hideAnalyticsPanel()">Back</button>
+        <button onclick="playNormalClick(); antShowRecordForm()">Record snapshot</button>
+        <button onclick="playNormalClick(); antRefresh()">Refresh</button>
+      </div>
+    </div>
+    <div class="ant-content" id="ant-list-view">
+      <div class="ant-filters">
+        <button class="ant-filter-btn active" data-channel="" onclick="playNormalClick(); antSetChannelFilter(null)">All channels</button>
+        <button class="ant-filter-btn" data-channel="twitter" onclick="playNormalClick(); antSetChannelFilter('twitter')">X / Twitter</button>
+        <button class="ant-filter-btn" data-channel="linkedin" onclick="playNormalClick(); antSetChannelFilter('linkedin')">LinkedIn</button>
+      </div>
+      <div class="ant-summary" id="ant-summary"></div>
+      <div id="ant-posts" class="ant-posts"></div>
+      <div id="ant-empty" class="ant-empty hidden">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"><path d="M4 19h16"/><path d="M7 19v-6M12 19V9M17 19v-9"/></g></svg>
+        <p>No analytics recorded yet</p>
+        <small>Record a snapshot by hand from X/LinkedIn's own dashboard, or connect an analytics-capable MCP server in Settings &gt; MCP Servers</small>
+      </div>
+    </div>
+    <div class="ant-content hidden" id="ant-detail-view">
+      <div class="ant-detail-toolbar">
+        <button class="btn-shell" onclick="playNormalClick(); antBackToList()">&larr; All analytics</button>
+      </div>
+      <div class="ant-detail" id="ant-detail-body"></div>
+    </div>
+  </div><!-- #analytics-view -->
+
   <!-- Client Picker (front door) — pick a workspace; everything flows from it. -->
   <div id="clients-view">
     <div class="cv-inner">
@@ -1283,6 +1321,7 @@
   <script src="chat/agents-panel.js"></script>
   <script src="chat/content-panel.js"></script>
   <script src="chat/campaign-panel.js"></script>
+  <script src="chat/analytics-panel.js"></script>
   <script src="chat/routines-panel.js"></script>
   <script src="chat/personalize-panel.js"></script>
   <script src="chat/event-bindings.js"></script>

@@ -181,6 +181,17 @@ import {
   deleteDeliverable as _deleteDeliverable,
   getNextUnblockedDeliverable as _getNextUnblockedDeliverable,
 } from './campaigns';
+import {
+  type PostAnalytics,
+  type RecordPostAnalyticsInput,
+  type AnalyticsSummary,
+  recordPostAnalytics as _recordPostAnalytics,
+  getPostAnalyticsForScopes as _getPostAnalyticsForScopes,
+  getLatestPostAnalyticsForScopes as _getLatestPostAnalyticsForScopes,
+  getPostAnalyticsHistory as _getPostAnalyticsHistory,
+  deletePostAnalytics as _deletePostAnalytics,
+  summarizeAnalytics as _summarizeAnalytics,
+} from './analytics';
 
 // Types
 export type { Session, SessionContext, ContextType } from './sessions';
@@ -202,6 +213,7 @@ export type {
   TransitionActor,
 } from './content-drafts';
 export type { Campaign, CampaignStatus, CampaignDeliverable, DeliverableStatus } from './campaigns';
+export type { PostAnalytics, PostAnalyticsSource, RecordPostAnalyticsInput, AnalyticsSummary, ChannelSummary } from './analytics';
 
 export class MemoryManager {
   private db: Database.Database;
@@ -730,6 +742,31 @@ export class MemoryManager {
         updated_at TEXT DEFAULT ((strftime('%Y-%m-%dT%H:%M:%fZ')))
       );
       CREATE INDEX IF NOT EXISTS idx_campaign_deliverables_campaign ON campaign_deliverables(campaign_id, status);
+
+      -- Post analytics (X/LinkedIn/etc. performance): per-post metric
+      -- snapshots, scoped like facts/content_drafts. See src/memory/analytics.ts
+      -- for why this is append-only (a post's numbers keep climbing after it
+      -- ships) and how "current numbers" resolves to "latest snapshot per post".
+      CREATE TABLE IF NOT EXISTS post_analytics (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        scope TEXT NOT NULL,
+        channel TEXT NOT NULL,
+        external_ref TEXT NOT NULL,
+        content_post_id INTEGER REFERENCES content_posts(id) ON DELETE SET NULL,
+        title TEXT NOT NULL DEFAULT '',
+        impressions INTEGER NOT NULL DEFAULT 0,
+        likes INTEGER NOT NULL DEFAULT 0,
+        comments INTEGER NOT NULL DEFAULT 0,
+        shares INTEGER NOT NULL DEFAULT 0,
+        clicks INTEGER NOT NULL DEFAULT 0,
+        video_views INTEGER NOT NULL DEFAULT 0,
+        source TEXT NOT NULL DEFAULT 'manual' CHECK(source IN ('manual', 'mcp')),
+        raw_json TEXT,
+        captured_at TEXT NOT NULL DEFAULT ((strftime('%Y-%m-%dT%H:%M:%fZ'))),
+        created_at TEXT DEFAULT ((strftime('%Y-%m-%dT%H:%M:%fZ')))
+      );
+      CREATE INDEX IF NOT EXISTS idx_post_analytics_scope ON post_analytics(scope, channel, captured_at);
+      CREATE INDEX IF NOT EXISTS idx_post_analytics_ref ON post_analytics(scope, channel, external_ref, captured_at);
     `);
 
     // Migration: add content_draft_id to cron_jobs (links a scheduled cron job
@@ -1507,6 +1544,36 @@ export class MemoryManager {
   /** The next unblocked, not-yet-started deliverable in a campaign, or null if none. */
   getNextUnblockedDeliverable(campaignId: number): CampaignDeliverable | null {
     return _getNextUnblockedDeliverable(this.db, campaignId);
+  }
+
+  // ============ POST ANALYTICS (X/LinkedIn/etc. performance) ============
+
+  recordPostAnalytics(input: RecordPostAnalyticsInput): number {
+    return _recordPostAnalytics(this.db, input);
+  }
+
+  getPostAnalyticsForScopes(visibleScopes: string[], channel?: string): PostAnalytics[] {
+    return _getPostAnalyticsForScopes(this.db, visibleScopes, channel);
+  }
+
+  getLatestPostAnalyticsForScopes(visibleScopes: string[], channel?: string): PostAnalytics[] {
+    return _getLatestPostAnalyticsForScopes(this.db, visibleScopes, channel);
+  }
+
+  getPostAnalyticsHistory(scope: string, channel: string, externalRef: string): PostAnalytics[] {
+    return _getPostAnalyticsHistory(this.db, scope, channel, externalRef);
+  }
+
+  deletePostAnalytics(id: number): boolean {
+    return _deletePostAnalytics(this.db, id);
+  }
+
+  /** Aggregate summary (totals, per-channel breakdown, top posts) over the given LATEST-per-post rows. */
+  summarizeAnalytics(
+    rows: PostAnalytics[],
+    options?: { topN?: number; minImpressionsForRanking?: number }
+  ): AnalyticsSummary {
+    return _summarizeAnalytics(rows, options);
   }
 
   // ============ UTILITY METHODS ============

@@ -42,6 +42,7 @@ bindClick('sidebar-brain-btn', () => { playNormalClick(); toggleBrainPanel(); })
 bindClick('sidebar-agents-btn', () => { playNormalClick(); toggleAgentsPanel(); });
 bindClick('sidebar-content-btn', () => { playNormalClick(); toggleContentPanel(); });
 bindClick('sidebar-campaigns-btn', () => { playNormalClick(); toggleCampaignsPanel(); });
+bindClick('sidebar-analytics-btn', () => { playNormalClick(); toggleAnalyticsPanel(); });
 bindClick('sidebar-docs-btn', () => { playNormalClick(); openDocs(); });
 bindClick('sidebar-settings-btn', () => { playNormalClick(); toggleSettingsPanel(); });
 bindClick('sidebar-about-btn', () => { playNormalClick(); openAbout(); });

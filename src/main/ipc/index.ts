@@ -10,3 +10,4 @@ export { registerMcpIPC } from './mcp-ipc';
 export { registerAuditLogIPC } from './audit-log-ipc';
 export { registerContentIPC } from './content-ipc';
 export { registerCampaignIPC } from './campaign-ipc';
+export { registerAnalyticsIPC } from './analytics-ipc';

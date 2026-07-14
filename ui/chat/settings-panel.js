@@ -17,6 +17,7 @@ function _dismissOtherPanels(keepId) {
     'agents-view': 'sidebar-agents-btn',
     'content-view': 'sidebar-content-btn',
     'campaigns-view': 'sidebar-campaigns-btn',
+    'analytics-view': 'sidebar-analytics-btn',
     'routines-view': 'sidebar-routines-btn',
     'personalize-view': 'sidebar-personalize-btn',
     'clients-view': 'active-client-header',

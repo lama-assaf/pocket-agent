@@ -385,7 +385,52 @@ contextBridge.exposeInMainWorld('pocketAgent', {
     nudgePrompt: (campaignId: number) => ipcRenderer.invoke('campaigns:nudgePrompt', campaignId),
   },
 
-  // ─── Location & Timezone ─────────────────────────────────────────────
+  // ─── Analytics (X/LinkedIn/etc. post performance) ───
+  analytics: {
+    list: (
+      context: {
+        contextType: 'personal' | 'world' | 'client' | 'project';
+        clientId?: string | null;
+        projectKey?: string | null;
+      },
+      channel?: string
+    ) => ipcRenderer.invoke('analytics:list', context, channel),
+    history: (scope: string, channel: string, externalRef: string) =>
+      ipcRenderer.invoke('analytics:history', scope, channel, externalRef),
+    summary: (
+      context: {
+        contextType: 'personal' | 'world' | 'client' | 'project';
+        clientId?: string | null;
+        projectKey?: string | null;
+      },
+      channel?: string
+    ) => ipcRenderer.invoke('analytics:summary', context, channel),
+    record: (
+      input: {
+        channel: string;
+        externalRef: string;
+        contentPostId?: number | null;
+        title?: string;
+        impressions?: number;
+        likes?: number;
+        comments?: number;
+        shares?: number;
+        clicks?: number;
+        videoViews?: number;
+        source?: 'manual' | 'mcp';
+        rawJson?: string | null;
+        capturedAt?: string;
+      },
+      context: {
+        contextType: 'personal' | 'world' | 'client' | 'project';
+        clientId?: string | null;
+        projectKey?: string | null;
+      }
+    ) => ipcRenderer.invoke('analytics:record', input, context),
+    delete: (id: number) => ipcRenderer.invoke('analytics:delete', id),
+  },
+
+  // ─── Location & Timezone ───────────────────────────
   location: {
     lookup: (query: string) => ipcRenderer.invoke('location:lookup', query),
     getTimezones: () => ipcRenderer.invoke('timezone:list'),
@@ -1221,6 +1266,127 @@ declare global {
         nudgePrompt: (
           campaignId: number
         ) => Promise<{ success: boolean; prompt?: string; error?: string }>;
+      };
+
+      analytics: {
+        list: (
+          context: {
+            contextType: 'personal' | 'world' | 'client' | 'project';
+            clientId?: string | null;
+            projectKey?: string | null;
+          },
+          channel?: string
+        ) => Promise<
+          Array<{
+            id: number;
+            scope: string;
+            channel: string;
+            external_ref: string;
+            content_post_id: number | null;
+            title: string;
+            impressions: number;
+            likes: number;
+            comments: number;
+            shares: number;
+            clicks: number;
+            video_views: number;
+            source: 'manual' | 'mcp';
+            raw_json: string | null;
+            captured_at: string;
+            created_at: string;
+          }>
+        >;
+        history: (
+          scope: string,
+          channel: string,
+          externalRef: string
+        ) => Promise<
+          Array<{
+            id: number;
+            scope: string;
+            channel: string;
+            external_ref: string;
+            content_post_id: number | null;
+            title: string;
+            impressions: number;
+            likes: number;
+            comments: number;
+            shares: number;
+            clicks: number;
+            video_views: number;
+            source: 'manual' | 'mcp';
+            raw_json: string | null;
+            captured_at: string;
+            created_at: string;
+          }>
+        >;
+        summary: (
+          context: {
+            contextType: 'personal' | 'world' | 'client' | 'project';
+            clientId?: string | null;
+            projectKey?: string | null;
+          },
+          channel?: string
+        ) => Promise<{
+          totalPosts: number;
+          impressions: number;
+          likes: number;
+          comments: number;
+          shares: number;
+          clicks: number;
+          videoViews: number;
+          engagementRate: number;
+          byChannel: Record<
+            string,
+            {
+              posts: number;
+              impressions: number;
+              likes: number;
+              comments: number;
+              shares: number;
+              clicks: number;
+              videoViews: number;
+              engagementRate: number;
+            }
+          >;
+          topPosts: Array<{
+            id: number;
+            scope: string;
+            channel: string;
+            external_ref: string;
+            title: string;
+            impressions: number;
+            likes: number;
+            comments: number;
+            shares: number;
+            clicks: number;
+            video_views: number;
+            captured_at: string;
+          }>;
+        }>;
+        record: (
+          input: {
+            channel: string;
+            externalRef: string;
+            contentPostId?: number | null;
+            title?: string;
+            impressions?: number;
+            likes?: number;
+            comments?: number;
+            shares?: number;
+            clicks?: number;
+            videoViews?: number;
+            source?: 'manual' | 'mcp';
+            rawJson?: string | null;
+            capturedAt?: string;
+          },
+          context: {
+            contextType: 'personal' | 'world' | 'client' | 'project';
+            clientId?: string | null;
+            projectKey?: string | null;
+          }
+        ) => Promise<{ success: boolean; id?: number; error?: string }>;
+        delete: (id: number) => Promise<{ success: boolean }>;
       };
 
       location: {
