@@ -335,6 +335,14 @@
   color: var(--text-muted);
 }
 
+/* Pull/Publish are disabled (not hidden) when the scope has no repo_url/token
+   configured — clicking them would only ever produce a graceful "sync not
+   configured" no-op, so disabling avoids a pointless error toast. */
+#brain-view .brain-sync button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* Stale indicator (roadmap item 9, relates to F6): a client's brain hasn't
    been pulled recently — a teammate may have pushed updates this operator
    hasn't seen yet. */

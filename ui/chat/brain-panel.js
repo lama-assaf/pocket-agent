@@ -645,6 +645,23 @@ function _brainRelativeTime(ms) {
   return `${days}d ago`;
 }
 
+// Disable Pull/Publish for a scope with no repo_url/token configured — a
+// click would only ever produce pullBrainRepo/publishBrainRepo's graceful
+// "sync not configured" result (src/clients/sync-manager.ts), surfaced as a
+// hard error toast for no reason the user can act on. Mirrors sync:pullAll's
+// own filter (only 'live'-mode clients WITH a repo_url are ever attempted) —
+// this just applies the same skip-don't-error rule to the single-client
+// Pull/Publish buttons instead of only the bulk path.
+function _brainSetSyncButtonsEnabled(enabled, reason) {
+  const pullBtn = document.getElementById('brain-pull-btn');
+  const publishBtn = document.getElementById('brain-publish-btn');
+  for (const btn of [pullBtn, publishBtn]) {
+    if (!btn) continue;
+    btn.disabled = !enabled;
+    btn.title = enabled ? '' : reason;
+  }
+}
+
 // Sync status label (roadmap item 9): "not configured"/"not cloned" for the
 // setup states, otherwise a last-pulled timestamp with a stale flag once
 // it's past the threshold (src/clients/sync-status.ts). World has no
@@ -657,8 +674,10 @@ async function _brainRefreshSyncStatus(scope) {
     if (!s.configured) {
       el.textContent = 'not configured';
       el.classList.remove('brain-sync-stale');
+      _brainSetSyncButtonsEnabled(false, 'Set a repo URL and GitHub token in Settings to enable sync for this brand.');
       return;
     }
+    _brainSetSyncButtonsEnabled(true);
     if (!s.cloned) {
       el.textContent = 'not cloned';
       el.classList.remove('brain-sync-stale');
@@ -677,6 +696,7 @@ async function _brainRefreshSyncStatus(scope) {
   } catch {
     el.textContent = '';
     el.classList.remove('brain-sync-stale');
+    _brainSetSyncButtonsEnabled(false, 'Sync status unavailable.');
   }
 }
 
