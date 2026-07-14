@@ -5,14 +5,61 @@
  * packs and lane rule-dirs (e.g. social pulls in brand + copy + common).
  */
 
+import fs from 'fs';
 import type { LaneId } from '../marketplace/types';
 import { rulesForLane, skillsForLane } from '../marketplace/registry';
+import { voiceFileForContext } from '../clients/registry';
+import { howToActFacts, formatBrandVoice, hasVoiceFact } from './how-to-act';
+import type { SessionContext } from '../memory/sessions';
 
-export function composeLaneRules(lane: LaneId): string {
+/**
+ * Read the active client's brand voice (`voice.md`) for the selected context.
+ * Returns '' when no client is selected or the file is absent — the voice is a
+ * single-owner brand file layered on top of the pack's lane rules.
+ */
+function activeClientVoice(context?: SessionContext): string {
+  if (!context) return '';
+  const file = voiceFileForContext(context);
+  if (!file) return '';
+  try {
+    return fs.readFileSync(file, 'utf-8').trim();
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * Compose the active client's "how to act" from `how_to_act` facts (voice, tone,
+ * instincts) merged with the mirrored `voice.md` file. Facts are the live source
+ * so an in-app edit changes behavior immediately; the file is layered in only
+ * when no `voice`-subject fact exists (pre-mirror brands), so nothing is lost.
+ */
+function composeBrandVoice(context?: SessionContext): string {
+  const facts = howToActFacts(context);
+  const fromFacts = formatBrandVoice(facts);
+  const fileVoice = hasVoiceFact(facts) ? '' : activeClientVoice(context);
+  return [fromFacts, fileVoice].filter(Boolean).join('\n\n');
+}
+
+export function composeLaneRules(lane: LaneId, context?: SessionContext): string {
   const rules = rulesForLane(lane);
-  if (!rules.length) return '';
-  const body = rules.map((r) => `### ${r.lane}/${r.filename}\n${r.content}`).join('\n\n');
-  return `## Operator rules (${lane} lane)\nThese hold across every output in this lane.\n\n${body}`;
+  const voice = composeBrandVoice(context);
+  if (!rules.length && !voice) return '';
+
+  const sections: string[] = [];
+  if (rules.length) {
+    const body = rules.map((r) => `### ${r.lane}/${r.filename}\n${r.content}`).join('\n\n');
+    sections.push(
+      `## Operator rules (${lane} lane)\nThese hold across every output in this lane.\n\n${body}`
+    );
+  }
+  // The active brand's voice overrides generic lane rules for this client.
+  if (voice) {
+    sections.push(
+      `## Brand voice (active client)\nThis brand's voice governs tone and word choice.\n\n${voice}`
+    );
+  }
+  return sections.join('\n\n');
 }
 
 /**

@@ -6,7 +6,9 @@ const mockDeleteFact = vi.fn();
 const mockDeleteFactBySubject = vi.fn();
 const mockGetAllFacts = vi.fn();
 const mockGetFactsByCategory = vi.fn();
-const mockGetFactsMemoryUsage = vi.fn().mockReturnValue({ usedChars: 500, budgetChars: 3000, pct: 17 });
+const mockGetFactsMemoryUsage = vi
+  .fn()
+  .mockReturnValue({ usedChars: 500, budgetChars: 3000, pct: 17 });
 
 // Create a mock MemoryManager instance
 const mockMemoryManagerInstance = {
@@ -120,7 +122,7 @@ describe('Memory Tools', () => {
       expect(parsed.category).toBe('user_info');
       expect(parsed.subject).toBe('name');
 
-      expect(mockSaveFact).toHaveBeenCalledWith('user_info', 'name', 'John Doe', undefined);
+      expect(mockSaveFact).toHaveBeenCalledWith('user_info', 'name', 'John Doe', undefined, 'user');
     });
 
     it('should return error when category is missing', async () => {
@@ -461,12 +463,20 @@ describe('Memory Tools', () => {
       const tools = getMemoryTools();
 
       expect(Array.isArray(tools)).toBe(true);
-      expect(tools).toHaveLength(6);
+      expect(tools).toHaveLength(7);
+    });
+
+    it('should include promote_memory tool with handler', () => {
+      const tools = getMemoryTools();
+      const promoteTool = tools.find((t) => t.name === 'promote_memory');
+
+      expect(promoteTool).toBeDefined();
+      expect(promoteTool!.description).toContain('Promote');
     });
 
     it('should include remember tool with handler', () => {
       const tools = getMemoryTools();
-      const rememberTool = tools.find(t => t.name === 'remember');
+      const rememberTool = tools.find((t) => t.name === 'remember');
 
       expect(rememberTool).toBeDefined();
       expect(rememberTool!.handler).toBe(handleRememberTool);
@@ -475,7 +485,7 @@ describe('Memory Tools', () => {
 
     it('should include forget tool with handler', () => {
       const tools = getMemoryTools();
-      const forgetTool = tools.find(t => t.name === 'forget');
+      const forgetTool = tools.find((t) => t.name === 'forget');
 
       expect(forgetTool).toBeDefined();
       expect(forgetTool!.handler).toBe(handleForgetTool);
@@ -484,7 +494,7 @@ describe('Memory Tools', () => {
 
     it('should include list_facts tool with handler', () => {
       const tools = getMemoryTools();
-      const listFactsTool = tools.find(t => t.name === 'list_facts');
+      const listFactsTool = tools.find((t) => t.name === 'list_facts');
 
       expect(listFactsTool).toBeDefined();
       expect(listFactsTool!.handler).toBe(handleListFactsTool);
@@ -493,7 +503,7 @@ describe('Memory Tools', () => {
 
     it('should include daily_log tool with handler', () => {
       const tools = getMemoryTools();
-      const dailyLogTool = tools.find(t => t.name === 'daily_log');
+      const dailyLogTool = tools.find((t) => t.name === 'daily_log');
 
       expect(dailyLogTool).toBeDefined();
       expect(dailyLogTool!.handler).toBe(handleDailyLogTool);
@@ -555,7 +565,7 @@ describe('Memory Tools', () => {
       const result = await handleRememberTool({
         category: "user's_info",
         subject: 'coffee "preference"',
-        content: "Likes O'Brien's \"special\" blend & more!",
+        content: 'Likes O\'Brien\'s "special" blend & more!',
       });
 
       const parsed = JSON.parse(result);
@@ -563,8 +573,9 @@ describe('Memory Tools', () => {
       expect(mockSaveFact).toHaveBeenCalledWith(
         "user's_info",
         'coffee "preference"',
-        "Likes O'Brien's \"special\" blend & more!",
-        undefined
+        'Likes O\'Brien\'s "special" blend & more!',
+        undefined,
+        'user'
       );
     });
 
@@ -593,7 +604,13 @@ describe('Memory Tools', () => {
 
       const parsed = JSON.parse(result);
       expect(parsed.success).toBe(true);
-      expect(mockSaveFact).toHaveBeenCalledWith('notes', 'long_note', longContent, undefined);
+      expect(mockSaveFact).toHaveBeenCalledWith(
+        'notes',
+        'long_note',
+        longContent,
+        undefined,
+        'user'
+      );
     });
 
     it('should handle newlines in content', async () => {
@@ -626,6 +643,5 @@ describe('Memory Tools', () => {
       expect(parsed.count).toBe(100);
       expect(parsed.facts).toHaveLength(100);
     });
-
   });
 });

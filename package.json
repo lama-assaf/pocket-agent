@@ -146,7 +146,10 @@
       {
         "from": "src/marketplace/seed",
         "to": "seed-plugins",
-        "filter": ["**/*.md", "**/*.json"]
+        "filter": [
+          "**/*.md",
+          "**/*.json"
+        ]
       }
     ]
   },
@@ -166,6 +169,7 @@
     "city-timezones": "^1.3.3",
     "electron-updater": "^6.8.3",
     "grammy": "^1.41.1",
+    "isomorphic-git": "^1.38.6",
     "node-cron": "^4.2.1",
     "officeparser": "^7.0.3",
     "ogg-opus-decoder": "^1.7.3",

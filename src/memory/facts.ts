@@ -10,6 +10,8 @@ export interface Fact {
   category: string;
   subject: string;
   content: string;
+  /** Isolation scope: 'user' (personal), 'world', 'client:<id>', 'project:<key>', 'chat:<id>'. */
+  scope: string;
   importance: number;
   last_accessed_at: string | null;
   created_at: string;
@@ -48,7 +50,11 @@ export const FACTS_STORE_BUDGET = 15000;
 // ============ Fact CRUD methods ============
 
 /**
- * Save a fact to long-term memory (with embedding)
+ * Save a fact to long-term memory (with embedding).
+ *
+ * The upsert key is `(scope, category, subject)` — the scope makes the same
+ * `(category, subject)` (e.g. `voice`) coexist across brands and the personal
+ * store without one overwriting another. Defaults to the `user` (personal) scope.
  */
 export function saveFact(
   db: Database.Database,
@@ -56,15 +62,16 @@ export function saveFact(
   subject: string,
   content: string,
   cache: FactsCache,
-  sensitive?: boolean
+  sensitive?: boolean,
+  scope: string = 'user'
 ): number {
   const existing = db
     .prepare(
       `
-      SELECT id FROM facts WHERE category = ? AND subject = ?
+      SELECT id FROM facts WHERE scope = ? AND category = ? AND subject = ?
     `
     )
-    .get(category, subject) as { id: number } | undefined;
+    .get(scope, category, subject) as { id: number } | undefined;
 
   let factId: number;
 
@@ -81,10 +88,10 @@ export function saveFact(
     }
   } else {
     const stmt = db.prepare(`
-        INSERT INTO facts (category, subject, content, sensitive)
-        VALUES (?, ?, ?, ?)
+        INSERT INTO facts (category, subject, content, scope, sensitive)
+        VALUES (?, ?, ?, ?, ?)
       `);
-    const result = stmt.run(category, subject, content, sensitive ? 1 : 0);
+    const result = stmt.run(category, subject, content, scope, sensitive ? 1 : 0);
     factId = result.lastInsertRowid as number;
   }
 
@@ -104,7 +111,13 @@ export function saveFact(
 export function updateFact(
   db: Database.Database,
   id: number,
-  fields: { category?: string; subject?: string; content?: string; sensitive?: boolean },
+  fields: {
+    category?: string;
+    subject?: string;
+    content?: string;
+    sensitive?: boolean;
+    scope?: string;
+  },
   cache: FactsCache
 ): boolean {
   const sets: string[] = [];
@@ -112,6 +125,10 @@ export function updateFact(
   if (fields.category !== undefined) {
     sets.push('category = ?');
     values.push(fields.category);
+  }
+  if (fields.scope !== undefined) {
+    sets.push('scope = ?');
+    values.push(fields.scope);
   }
   if (fields.subject !== undefined) {
     sets.push('subject = ?');
@@ -132,7 +149,7 @@ export function updateFact(
   const result = db.prepare(`UPDATE facts SET ${sets.join(', ')} WHERE id = ?`).run(...values);
   if (result.changes > 0) {
     cache.contextCacheValid = false;
-    // Only re-embed when semantic content changed — flag-only updates don't affect embeddings
+    // Only re-embed when semantic content changed — flag-only/scope-only updates don't affect embeddings
     if (
       fields.category !== undefined ||
       fields.subject !== undefined ||
@@ -142,6 +159,53 @@ export function updateFact(
     }
   }
   return result.changes > 0;
+}
+
+/**
+ * Promote a fact to a broader scope (chat → project → client → world), so a
+ * lesson learned locally becomes team-wide. If the target scope already holds a
+ * fact with the same (category, subject), the source content is merged onto it
+ * and the source row is removed (respecting the `(scope, category, subject)`
+ * upsert key); otherwise the fact's scope is simply moved up.
+ *
+ * Returns the id of the fact now living at `targetScope`, or null when the
+ * source fact doesn't exist. Re-embeds in the background (scope text is part of
+ * neither the embedding nor the key, so only a merge that changes content does).
+ */
+export function promoteFact(
+  db: Database.Database,
+  id: number,
+  targetScope: string,
+  cache: FactsCache
+): { ok: boolean; id: number | null } {
+  const src = db
+    .prepare('SELECT id, category, subject, content, scope FROM facts WHERE id = ?')
+    .get(id) as
+    | { id: number; category: string; subject: string; content: string; scope: string }
+    | undefined;
+  if (!src) return { ok: false, id: null };
+  if (src.scope === targetScope) return { ok: true, id: src.id };
+
+  const existing = db
+    .prepare('SELECT id FROM facts WHERE scope = ? AND category = ? AND subject = ?')
+    .get(targetScope, src.category, src.subject) as { id: number } | undefined;
+
+  if (existing) {
+    // Merge: the promoted (more-recent) content wins at the target, drop source.
+    db.prepare(
+      "UPDATE facts SET content = ?, updated_at = (strftime('%Y-%m-%dT%H:%M:%fZ')) WHERE id = ?"
+    ).run(src.content, existing.id);
+    db.prepare('DELETE FROM facts WHERE id = ?').run(src.id);
+    cache.contextCacheValid = false;
+    embedFactAsync(db, existing.id);
+    return { ok: true, id: existing.id };
+  }
+
+  db.prepare(
+    "UPDATE facts SET scope = ?, updated_at = (strftime('%Y-%m-%dT%H:%M:%fZ')) WHERE id = ?"
+  ).run(targetScope, src.id);
+  cache.contextCacheValid = false;
+  return { ok: true, id: src.id };
 }
 
 /**
@@ -161,11 +225,25 @@ export function setFactSensitive(
 }
 
 /**
+ * Get a single fact by id, or null when it doesn't exist. Used by in-app fact
+ * authoring to return the freshly-created/updated row.
+ */
+export function getFact(db: Database.Database, id: number): Fact | null {
+  const row = db
+    .prepare(
+      `SELECT id, category, subject, content, scope, importance, last_accessed_at, created_at, updated_at
+       FROM facts WHERE id = ?`
+    )
+    .get(id) as Fact | undefined;
+  return row ?? null;
+}
+
+/**
  * Get all facts ordered by category and subject.
  */
 export function getAllFacts(db: Database.Database): Fact[] {
   const stmt = db.prepare(`
-      SELECT id, category, subject, content, importance, last_accessed_at, created_at, updated_at
+      SELECT id, category, subject, content, scope, importance, last_accessed_at, created_at, updated_at
       FROM facts
       ORDER BY category, subject
     `);
@@ -191,24 +269,47 @@ function formatFactLine(fact: Fact): string {
  * a usage header with memory pressure warning when >80% full.
  * Uses the cache to avoid re-computing when nothing has changed.
  */
-export function getFactsForContext(db: Database.Database, cache: FactsCache): string {
-  // Return cached result if valid (avoids repeated DB queries on every message)
-  if (cache.contextCacheValid && cache.contextCache !== null) {
-    return cache.contextCache;
+export function getFactsForContext(
+  db: Database.Database,
+  cache: FactsCache,
+  visibleScopes?: string[]
+): string {
+  // Scoped path (chat-engine fallback when embeddings are unavailable): filter to
+  // the selected context's scopes so this wholesale dump can't leak personal or
+  // other-brand facts. Computed fresh — the global cache can't represent a
+  // per-scope result, and this degraded path is rare.
+  if (visibleScopes === undefined) {
+    // Return cached result if valid (avoids repeated DB queries on every message)
+    if (cache.contextCacheValid && cache.contextCache !== null) {
+      return cache.contextCache;
+    }
+  } else if (visibleScopes.length === 0) {
+    // An empty visible-scope list means "nothing visible" — never fall through to
+    // an unfiltered query (which would dump every scope).
+    return '';
   }
+
+  const where =
+    visibleScopes !== undefined
+      ? `WHERE scope IN (${visibleScopes.map(() => '?').join(', ')})`
+      : '';
+  const params = visibleScopes ?? [];
 
   // Fetch facts sorted by importance DESC, then recency
   const facts = db
     .prepare(
       `SELECT id, category, subject, content, importance, last_accessed_at, created_at, updated_at
        FROM facts
+       ${where}
        ORDER BY importance DESC, updated_at DESC`
     )
-    .all() as Fact[];
+    .all(...params) as Fact[];
 
   if (facts.length === 0) {
-    cache.contextCache = '';
-    cache.contextCacheValid = true;
+    if (visibleScopes === undefined) {
+      cache.contextCache = '';
+      cache.contextCacheValid = true;
+    }
     return '';
   }
 
@@ -258,8 +359,11 @@ export function getFactsForContext(db: Database.Database, cache: FactsCache): st
   }
 
   const result = lines.join('\n');
-  cache.contextCache = result;
-  cache.contextCacheValid = true;
+  // Only the unscoped (global) result is cached; scoped results vary per session.
+  if (visibleScopes === undefined) {
+    cache.contextCache = result;
+    cache.contextCacheValid = true;
+  }
   return result;
 }
 
@@ -267,13 +371,23 @@ export function getFactsForContext(db: Database.Database, cache: FactsCache): st
  * Get memory usage stats for the facts *store* budget (consolidation trigger).
  * Measures all stored facts — unlike context injection, nothing is truncated
  * here; pct can exceed 100 until consolidation shrinks the store.
+ *
+ * Pass `scope` to measure a single memory space (used by the Brain's per-space
+ * capacity bar so it matches the scoped fact list above it). No scope = every
+ * space — the global figure the nightly consolidation trigger reads.
  */
-export function getFactsMemoryUsage(db: Database.Database): {
+export function getFactsMemoryUsage(
+  db: Database.Database,
+  scope?: string
+): {
   usedChars: number;
   budgetChars: number;
   pct: number;
 } {
-  const facts = db.prepare(`SELECT category, subject, content FROM facts`).all() as Array<{
+  const where = scope ? 'WHERE scope = ?' : '';
+  const facts = db
+    .prepare(`SELECT category, subject, content FROM facts ${where}`)
+    .all(...(scope ? [scope] : [])) as Array<{
     category: string;
     subject: string;
     content: string;
@@ -330,7 +444,7 @@ export function searchFacts(db: Database.Database, query: string, category?: str
   if (category) {
     return db
       .prepare(
-        `SELECT id, category, subject, content, importance, last_accessed_at, created_at, updated_at
+        `SELECT id, category, subject, content, scope, importance, last_accessed_at, created_at, updated_at
          FROM facts
          WHERE category = ? AND (content LIKE ? OR subject LIKE ?)
          ORDER BY updated_at DESC
@@ -340,7 +454,7 @@ export function searchFacts(db: Database.Database, query: string, category?: str
   }
   return db
     .prepare(
-      `SELECT id, category, subject, content, importance, last_accessed_at, created_at, updated_at
+      `SELECT id, category, subject, content, scope, importance, last_accessed_at, created_at, updated_at
        FROM facts
        WHERE content LIKE ? OR subject LIKE ? OR category LIKE ?
        ORDER BY updated_at DESC
@@ -354,7 +468,7 @@ export function searchFacts(db: Database.Database, query: string, category?: str
  */
 export function getFactsByCategory(db: Database.Database, category: string): Fact[] {
   const stmt = db.prepare(`
-      SELECT id, category, subject, content, importance, last_accessed_at, created_at, updated_at
+      SELECT id, category, subject, content, scope, importance, last_accessed_at, created_at, updated_at
       FROM facts
       WHERE category = ?
       ORDER BY subject, updated_at DESC

@@ -12,11 +12,53 @@
 
 import type Database from 'better-sqlite3';
 import { cosineSimilarity, deserializeVector, embedText, serializeVector } from './embeddings';
+import { scopeSpecificity } from './scope';
 
 /** A scored row used internally during retrieval. */
 interface ScoredRow<T> {
   row: T;
   score: number;
+}
+
+/**
+ * When two facts are within this cosine window they count as a "tie" and the
+ * more specific scope (chat > project > client > world > user) wins. Wide enough
+ * to prefer local memory on near-ties, narrow enough that a clearly more
+ * relevant fact from a broader scope still ranks first.
+ */
+const SCOPE_TIE_EPSILON = 0.02;
+
+/**
+ * Build a `scope IN (...)` filter for the given visible scopes. Returns an empty
+ * clause when no scopes are supplied (legacy/global callers) so behavior is
+ * unchanged unless a caller opts into scoping.
+ */
+function scopeFilter(visibleScopes?: string[]): { clause: string; params: string[] } {
+  if (!visibleScopes || visibleScopes.length === 0) return { clause: '', params: [] };
+  const placeholders = visibleScopes.map(() => '?').join(', ');
+  return { clause: ` WHERE scope IN (${placeholders})`, params: visibleScopes };
+}
+
+/**
+ * Score fact rows by cosine similarity, breaking near-ties by scope specificity
+ * so nearer memory wins when relevance is effectively equal.
+ */
+function scoreFactRows(rows: FactRow[], queryEmbedding: Float32Array): ScoredRow<FactRow>[] {
+  const scored: ScoredRow<FactRow>[] = [];
+  for (const row of rows) {
+    const vec = deserializeVector(row.embedding ?? null);
+    if (!vec) continue;
+    scored.push({ row, score: cosineSimilarity(queryEmbedding, vec) });
+  }
+  scored.sort((a, b) => {
+    const scoreDiff = b.score - a.score;
+    if (Math.abs(scoreDiff) > SCOPE_TIE_EPSILON) return scoreDiff;
+    const specDiff =
+      scopeSpecificity(b.row.scope ?? 'user') - scopeSpecificity(a.row.scope ?? 'user');
+    if (specDiff !== 0) return specDiff;
+    return scoreDiff;
+  });
+  return scored;
 }
 
 /**
@@ -137,6 +179,7 @@ interface FactRow {
   category: string;
   subject: string;
   content: string;
+  scope?: string;
   updated_at?: string;
   embedding?: Buffer | Uint8Array | null;
 }
@@ -163,12 +206,16 @@ export function retrieveRelevantFacts(
   queryEmbedding: Float32Array,
   k: number,
   budgetChars: number,
+  visibleScopes?: string[],
   minScore = 0.25
 ): string {
+  const { clause, params } = scopeFilter(visibleScopes);
   const rows = db
-    .prepare('SELECT id, category, subject, content, updated_at, embedding FROM facts')
-    .all() as FactRow[];
-  const scored = scoreRows(rows, queryEmbedding).filter((s) => s.score >= minScore);
+    .prepare(
+      `SELECT id, category, subject, content, scope, updated_at, embedding FROM facts${clause}`
+    )
+    .all(...params) as FactRow[];
+  const scored = scoreFactRows(rows, queryEmbedding).filter((s) => s.score >= minScore);
   if (scored.length === 0) return '';
 
   const headerReserve = 100;
@@ -326,11 +373,13 @@ export function retrieveRelevantRollups(
  */
 export function findNearDuplicateFacts(
   db: Database.Database,
-  threshold = 0.82
+  threshold = 0.82,
+  scope?: string
 ): Array<Array<{ id: number; subject: string; content: string }>> {
+  const where = scope ? ' WHERE scope = ?' : '';
   const rows = db
-    .prepare('SELECT id, category, subject, content, embedding FROM facts')
-    .all() as FactRow[];
+    .prepare(`SELECT id, category, subject, content, scope, embedding FROM facts${where}`)
+    .all(...(scope ? [scope] : [])) as FactRow[];
   const vectors = rows
     .map((r) => ({ row: r, vec: deserializeVector(r.embedding ?? null) }))
     .filter((x): x is { row: FactRow; vec: Float32Array } => x.vec !== null);
@@ -377,12 +426,14 @@ export function semanticSearchFacts(
   db: Database.Database,
   queryEmbedding: Float32Array,
   k = 6,
+  visibleScopes?: string[],
   minScore = 0.15
 ): Array<FactRow & { score: number }> {
+  const { clause, params } = scopeFilter(visibleScopes);
   const rows = db
-    .prepare('SELECT id, category, subject, content, embedding FROM facts')
-    .all() as FactRow[];
-  return scoreRows(rows, queryEmbedding)
+    .prepare(`SELECT id, category, subject, content, scope, embedding FROM facts${clause}`)
+    .all(...params) as FactRow[];
+  return scoreFactRows(rows, queryEmbedding)
     .filter((s) => s.score >= minScore)
     .slice(0, k)
     .map((s) => ({ ...s.row, score: s.score }));

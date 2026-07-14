@@ -32,9 +32,15 @@ async function initializeChat() {
   // Load sessions first (sets currentSessionId), then init mode for correct session
   await loadSessions();
   await initAgentMode();
+  // Client-first workspaces: bind the picker/header, then the Project selector.
+  initClientsView();
+  await initMemoryScope();
   ensureStatusListener(currentSessionId);
   await loadHistory();
   updateStats();
+  // Decide the opening screen: the Client Picker front door, or resume the last
+  // workspace. Runs after sessions + mode are ready so the sidebar reflects state.
+  await cvLaunch();
   input.focus();
 
   // Initialize notification sound

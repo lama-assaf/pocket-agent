@@ -135,11 +135,123 @@ export function registerSessionsIPC(deps: IPCDependencies): void {
     return { success };
   });
 
+  // ============ Selected memory context (scoped memory) ============
+
+  // The context selector at the top of chat drives which memory scope is active:
+  // Personal (private) vs a shared World/Client/Project space. Read/write it here.
+  ipcMain.handle('sessions:getContext', async (_, id: string) => {
+    return (
+      getMemory()?.getSessionContext(id) ?? {
+        contextType: 'personal',
+        clientId: null,
+        projectKey: null,
+      }
+    );
+  });
+
+  ipcMain.handle(
+    'sessions:setContext',
+    async (
+      _,
+      id: string,
+      context: {
+        contextType: 'personal' | 'world' | 'client' | 'project';
+        clientId?: string | null;
+        projectKey?: string | null;
+      }
+    ) => {
+      const memory = getMemory();
+      if (!memory) return { success: false, error: 'Memory not initialized' };
+      // Validate that a selected client actually exists before scoping to it.
+      if (
+        (context.contextType === 'client' || context.contextType === 'project') &&
+        (!context.clientId || !memory.getClient(context.clientId))
+      ) {
+        return { success: false, error: 'Unknown client' };
+      }
+      const success = memory.setSessionContext(id, {
+        contextType: context.contextType,
+        clientId: context.clientId ?? null,
+        projectKey: context.projectKey ?? null,
+      });
+      return { success };
+    }
+  );
+
+  // ============ Clients (brands) ============
+
+  ipcMain.handle('clients:list', async () => {
+    return getMemory()?.getClients() ?? [];
+  });
+
+  ipcMain.handle(
+    'clients:create',
+    async (
+      _,
+      input: { id: string; name: string; syncMode?: 'live' | 'manual'; repoUrl?: string | null }
+    ) => {
+      try {
+        const memory = getMemory();
+        if (!memory) return { success: false, error: 'Memory not initialized' };
+        const client = memory.createClient(input);
+        // Materialize the brand's on-disk brain (.atelier/memory + guardrails).
+        const { ensureClientScaffold } = await import('../../clients/registry');
+        ensureClientScaffold(client.id);
+        return { success: true, client };
+      } catch (err) {
+        return { success: false, error: (err as Error).message };
+      }
+    }
+  );
+
   ipcMain.handle('sessions:delete', async (_, id: string) => {
     AgentManager.clearQueue(id);
     AgentManager.cleanupSession(id);
     const memory = getMemory();
     const success = memory?.deleteSession(id) ?? false;
     return { success };
+  });
+
+  // ============ Projects (sub-scope under a client) ============
+
+  ipcMain.handle('projects:list', async (_, clientId: string) => {
+    return getMemory()?.getProjects(clientId) ?? [];
+  });
+
+  ipcMain.handle(
+    'projects:create',
+    async (
+      _,
+      input: { id: string; clientId: string; name: string; workingDirectory?: string | null }
+    ) => {
+      try {
+        const memory = getMemory();
+        if (!memory) return { success: false, error: 'Memory not initialized' };
+        const project = memory.createProject(input);
+        // Scaffold the linked working directory (with coder commands) when set, so
+        // a project chat can drop straight into a ready workspace.
+        if (project.working_directory) {
+          createSessionDirectory(path.basename(project.working_directory));
+        }
+        return { success: true, project };
+      } catch (err) {
+        return { success: false, error: (err as Error).message };
+      }
+    }
+  );
+
+  ipcMain.handle(
+    'projects:update',
+    async (_, id: string, fields: { name?: string; workingDirectory?: string | null }) => {
+      const memory = getMemory();
+      if (!memory) return { success: false, error: 'Memory not initialized' };
+      return { success: memory.updateProject(id, fields) };
+    }
+  );
+
+  ipcMain.handle('projects:delete', async (_, id: string) => {
+    const memory = getMemory();
+    if (!memory) return { success: false };
+    return { success: memory.deleteProject(id) };
   });
 }

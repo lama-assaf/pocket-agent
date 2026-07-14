@@ -1,6 +1,22 @@
 import Database from 'better-sqlite3';
 import type { AgentModeId } from '../agent/agent-modes';
 
+/**
+ * The kind of memory context selected for a session. Drives which memory scopes
+ * are visible (personal vs shared) — see resolveVisibleScopes in ./scope.
+ */
+export type ContextType = 'personal' | 'world' | 'client' | 'project';
+
+/**
+ * A session's selected memory context. `clientId`/`projectKey` are only
+ * meaningful for the matching `contextType` and are null otherwise.
+ */
+export interface SessionContext {
+  contextType: ContextType;
+  clientId: string | null;
+  projectKey: string | null;
+}
+
 export interface Session {
   id: string;
   name: string;
@@ -12,6 +28,10 @@ export interface Session {
   telegram_group_name?: string | null;
   /** Proactive check-ins (Pulse). null = unset → primary-session default applies. */
   pulse_enabled?: boolean | null;
+  /** Selected memory context (scoped memory). Defaults to personal. */
+  context_type?: ContextType;
+  client_id?: string | null;
+  project_key?: string | null;
 }
 
 /**
@@ -68,7 +88,7 @@ export function getSessionByName(db: Database.Database, name: string): Session |
   const row = db
     .prepare(
       `
-      SELECT id, name, mode, working_directory, created_at, updated_at
+      SELECT id, name, mode, working_directory, context_type, client_id, project_key, created_at, updated_at
       FROM sessions
       WHERE name = ?
     `
@@ -85,7 +105,7 @@ export function getSession(db: Database.Database, id: string): Session | null {
   const row = db
     .prepare(
       `
-      SELECT id, name, mode, working_directory, created_at, updated_at
+      SELECT id, name, mode, working_directory, context_type, client_id, project_key, created_at, updated_at
       FROM sessions
       WHERE id = ?
     `
@@ -105,6 +125,9 @@ export function getSessions(db: Database.Database): Session[] {
     name: string;
     mode: string | null;
     working_directory: string | null;
+    context_type: string | null;
+    client_id: string | null;
+    project_key: string | null;
     created_at: string;
     updated_at: string;
     telegram_linked: number;
@@ -119,6 +142,9 @@ export function getSessions(db: Database.Database): Session[] {
         s.name,
         s.mode,
         s.working_directory,
+        s.context_type,
+        s.client_id,
+        s.project_key,
         s.created_at,
         s.updated_at,
         s.pulse_enabled,
@@ -136,6 +162,9 @@ export function getSessions(db: Database.Database): Session[] {
     name: row.name,
     mode: (row.mode as AgentModeId) || 'coder',
     working_directory: row.working_directory,
+    context_type: (row.context_type as ContextType) || 'personal',
+    client_id: row.client_id,
+    project_key: row.project_key,
     created_at: row.created_at,
     updated_at: row.updated_at,
     telegram_linked: !!row.telegram_linked,
@@ -288,6 +317,67 @@ export function setSessionMode(
     `
     )
     .run(mode, sessionId);
+  return result.changes > 0;
+}
+
+// ============ SELECTED MEMORY CONTEXT (scoped memory) ============
+
+/**
+ * Get a session's selected memory context. Legacy/unset sessions resolve to the
+ * `personal` context (today's behavior), so callers always get a valid value.
+ */
+export function getSessionContext(db: Database.Database, sessionId: string): SessionContext {
+  const row = db
+    .prepare('SELECT context_type, client_id, project_key FROM sessions WHERE id = ?')
+    .get(sessionId) as
+    | { context_type: string | null; client_id: string | null; project_key: string | null }
+    | undefined;
+  return {
+    contextType: (row?.context_type as ContextType) || 'personal',
+    clientId: row?.client_id ?? null,
+    projectKey: row?.project_key ?? null,
+  };
+}
+
+/**
+ * Set a session's selected memory context. `clientId`/`projectKey` that don't
+ * apply to the chosen `contextType` are cleared so stale ids never leak into
+ * scope resolution.
+ *
+ * @throws Error when a project context selects a project that doesn't belong to
+ * the selected client — an integrity violation that would otherwise attribute
+ * memory to the wrong brand.
+ */
+export function setSessionContext(
+  db: Database.Database,
+  sessionId: string,
+  context: SessionContext
+): boolean {
+  const clientId =
+    context.contextType === 'client' || context.contextType === 'project'
+      ? (context.clientId ?? null)
+      : null;
+  const projectKey = context.contextType === 'project' ? (context.projectKey ?? null) : null;
+
+  // A project must belong to the selected client. Validate before writing so a
+  // mismatched selection can never scope a session's memory to the wrong brand.
+  if (projectKey) {
+    const project = db.prepare('SELECT client_id FROM projects WHERE id = ?').get(projectKey) as
+      | { client_id: string }
+      | undefined;
+    if (!project) throw new Error(`Unknown project "${projectKey}"`);
+    if (clientId && project.client_id !== clientId) {
+      throw new Error(`Project "${projectKey}" does not belong to client "${clientId}"`);
+    }
+  }
+
+  const result = db
+    .prepare(
+      `UPDATE sessions
+       SET context_type = ?, client_id = ?, project_key = ?, updated_at = (strftime('%Y-%m-%dT%H:%M:%fZ'))
+       WHERE id = ?`
+    )
+    .run(context.contextType, clientId, projectKey, sessionId);
   return result.changes > 0;
 }
 

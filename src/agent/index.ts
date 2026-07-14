@@ -488,7 +488,13 @@ class AgentManagerClass extends EventEmitter {
     return this.chatEngine.getDeveloperPrompt();
   }
 
-  getAllFacts(): Array<{ id: number; category: string; subject: string; content: string }> {
+  getAllFacts(): Array<{
+    id: number;
+    category: string;
+    subject: string;
+    content: string;
+    scope: string;
+  }> {
     return this.memory?.getAllFacts() || [];
   }
 

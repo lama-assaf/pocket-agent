@@ -21,12 +21,23 @@ async function loadSessions() {
 let draggedTab = null;
 let draggedSessionId = null;
 
+// Sessions shown in the sidebar: only those in the active workspace (client-first
+// grouping). Falls back to all sessions before the picker initializes.
+function visibleSessions() {
+  if (typeof getActiveWorkspace !== 'function' || typeof sessionMatchesWorkspace !== 'function') {
+    return sessions;
+  }
+  const ws = getActiveWorkspace();
+  return sessions.filter((s) => sessionMatchesWorkspace(s, ws));
+}
+
 function renderTabs() {
   // Clear existing session items
   const existingTabs = tabsContainer.querySelectorAll('.sidebar-session');
   existingTabs.forEach(tab => tab.remove());
 
-  sessions.forEach((session, index) => {
+  const shown = visibleSessions();
+  shown.forEach((session, index) => {
     const tab = document.createElement('div');
     const isActive = session.id === currentSessionId;
     const isLoading = isLoadingBySession.get(session.id);
@@ -120,18 +131,20 @@ function renderTabs() {
   // Hide new chat button in sidebar when at max
   const newChatBtn = document.getElementById('sidebar-new-chat');
   if (newChatBtn) newChatBtn.classList.toggle('hidden', sessions.length >= MAX_TABS);
+
+  // Keep the active-workspace header in sync with the rendered list.
+  if (typeof updateActiveClientHeader === 'function') updateActiveClientHeader();
 }
 
 function updateSessionsOrder() {
-  // Update sessions array to match current DOM order
-  const tabs = tabsContainer.querySelectorAll('.sidebar-session');
-  const newOrder = [];
-  tabs.forEach(tab => {
-    const sessionId = tab.dataset.sessionId;
-    const session = sessions.find(s => s.id === sessionId);
-    if (session) newOrder.push(session);
-  });
-  sessions = newOrder;
+  // Update sessions array to match current DOM order. The sidebar only renders the
+  // active workspace's sessions, so reorder those in place while PRESERVING the
+  // hidden ones (other workspaces) instead of dropping them from the array.
+  const domIds = [...tabsContainer.querySelectorAll('.sidebar-session')].map(t => t.dataset.sessionId);
+  const visibleSet = new Set(domIds);
+  const reordered = domIds.map(id => sessions.find(s => s.id === id)).filter(Boolean);
+  const hidden = sessions.filter(s => !visibleSet.has(s.id));
+  sessions = [...reordered, ...hidden];
 }
 
 function confirmDeleteSession(sessionId, sessionName) {
@@ -170,6 +183,9 @@ async function switchSession(sessionId) {
 
   // Update mode toggle for this session
   updateModeUIForSession(sessionId);
+
+  // Update memory-scope selector for this session
+  if (typeof updateScopeUIForSession === 'function') updateScopeUIForSession(sessionId);
 
   disableAutoAnimate(); messagesDiv.innerHTML = ''; enableAutoAnimate();
   // Clear stale streaming bubble reference — the DOM element was just destroyed.
@@ -289,6 +305,16 @@ async function createNewSession() {
       addMessage('system', result.error || 'Failed to create session');
       return;
     }
+    // New chats inherit the active workspace so their memory scopes to the
+    // selected client/project instead of leaking to Personal.
+    if (typeof getActiveWorkspace === 'function' && typeof applyWorkspaceToSession === 'function') {
+      const ws = getActiveWorkspace();
+      await applyWorkspaceToSession(result.session.id, ws);
+      if (typeof wsToSessionFields === 'function') {
+        Object.assign(result.session, wsToSessionFields(ws));
+      }
+    }
+
     sessions.push(result.session); // Add to end (right side)
     currentSessionId = result.session.id;
     renderTabs();
@@ -449,9 +475,11 @@ async function deleteSession(sessionId) {
 
     sessions = sessions.filter(s => s.id !== sessionId);
 
-    // If we deleted the current session, switch to another
+    // If we deleted the current session, switch to another — prefer one in the
+    // active workspace so the sidebar (which is filtered) still shows the target.
     if (sessionId === currentSessionId) {
-      currentSessionId = sessions[0]?.id || 'default';
+      const inWorkspace = typeof visibleSessions === 'function' ? visibleSessions() : sessions;
+      currentSessionId = inWorkspace[0]?.id || sessions[0]?.id || 'default';
       localStorage.setItem('currentSessionId', currentSessionId);
       disableAutoAnimate(); messagesDiv.innerHTML = ''; enableAutoAnimate();
       await loadHistory();

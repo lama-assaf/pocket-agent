@@ -1,0 +1,455 @@
+/* Client Picker (front door) — scoped under #clients-view + the sidebar header */
+
+#clients-view {
+  display: none;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+#clients-view.active {
+  display: flex;
+}
+
+#clients-view .cv-inner {
+  width: 100%;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 48px 24px 64px;
+}
+
+#clients-view .cv-header {
+  text-align: center;
+  margin-bottom: 28px;
+}
+
+#clients-view .cv-header h1 {
+  font-family: 'Cal Sans', sans-serif;
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-heading);
+  margin: 0 0 8px;
+}
+
+#clients-view .cv-subtitle {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 0 auto;
+  max-width: 480px;
+  line-height: 1.5;
+}
+
+#clients-view .cv-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+#clients-view .cv-card {
+  background: var(--surface-panel);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card);
+  padding: 14px;
+  transition:
+    border-color 150ms ease,
+    background-color 150ms ease,
+    transform 150ms ease;
+}
+
+#clients-view .cv-card:hover {
+  border-color: var(--border-strong);
+  transform: translateY(-1px);
+}
+
+#clients-view .cv-card.active {
+  border-color: var(--accent);
+  background: var(--surface-card);
+}
+
+#clients-view .cv-card-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+}
+
+#clients-view .cv-avatar {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-control);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Cal Sans', sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--on-accent);
+  background: var(--accent);
+}
+
+#clients-view .cv-avatar--personal {
+  background: var(--surface-control);
+  color: var(--text-primary);
+}
+
+#clients-view .cv-avatar--world {
+  background: var(--accent-secondary);
+  color: var(--on-accent);
+}
+
+#clients-view .cv-card-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+#clients-view .cv-card-name {
+  font-family: 'Cal Sans', sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#clients-view .cv-card-sub {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: capitalize;
+}
+
+/* The sync-freshness badge appended after the sync-mode word is prose
+   ("stale · pulled 3h ago"), not a label — opt back out of the parent's
+   capitalize so it doesn't read "Stale · Pulled 3H Ago". */
+#clients-view .cv-sync-badge {
+  text-transform: none;
+  font-weight: 600;
+}
+
+#clients-view .cv-sync-badge--fresh {
+  color: var(--success-readable, var(--text-muted));
+}
+
+#clients-view .cv-sync-badge--stale {
+  color: var(--warning-readable, var(--text-muted));
+}
+
+#clients-view .cv-sync-badge--never {
+  color: var(--text-muted);
+  font-weight: 400;
+  font-style: italic;
+}
+
+#clients-view .cv-projects {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+#clients-view .cv-project-chip {
+  font-size: 11px;
+  color: var(--text-secondary);
+  background: var(--surface-control);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+  padding: 3px 10px;
+  cursor: pointer;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease,
+    border-color 150ms ease;
+}
+
+#clients-view .cv-project-chip:hover {
+  background: var(--surface-control-hover);
+  color: var(--text-primary);
+}
+
+#clients-view .cv-project-chip.active {
+  border-color: var(--accent);
+  color: var(--accent-readable);
+}
+
+#clients-view .cv-project-chip--new {
+  color: var(--text-muted);
+  background: transparent;
+  border-style: dashed;
+}
+
+#clients-view .cv-card-foot {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+/* Client/project cards already have a top border from .cv-projects — avoid a
+   double divider by letting the projects block own the separation there. */
+#clients-view .cv-card[data-kind='client'] .cv-card-foot {
+  margin-top: 8px;
+  padding-top: 0;
+  border-top: none;
+}
+
+#clients-view .cv-card-memory {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent-readable);
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+#clients-view .cv-card-memory svg {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+}
+
+#clients-view .cv-card-memory:hover {
+  color: var(--accent);
+}
+
+#clients-view .cv-card-memory:hover span {
+  text-decoration: underline;
+}
+
+#clients-view .cv-actions {
+  display: flex;
+  justify-content: center;
+  margin-top: 24px;
+}
+
+#clients-view .cv-new-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: 'Cal Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--on-accent);
+  background: var(--accent);
+  border: none;
+  border-radius: var(--radius-pill);
+  padding: 10px 20px;
+  cursor: pointer;
+  transition: background-color 150ms ease;
+}
+
+#clients-view .cv-new-btn:hover {
+  background: var(--accent-hover);
+}
+
+#clients-view .cv-new-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+#clients-view .cv-actions {
+  gap: 10px;
+}
+
+/* "Join a Client" / "Pull All" are secondary actions next to the primary
+   "New Client" pill — outlined instead of filled so New Client stays the
+   visual default. */
+#clients-view .cv-new-btn.cv-join-btn,
+#clients-view .cv-new-btn.cv-pull-all-btn {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
+}
+
+#clients-view .cv-new-btn.cv-join-btn:hover,
+#clients-view .cv-new-btn.cv-pull-all-btn:hover {
+  background: var(--surface-control-hover);
+  color: var(--text-primary);
+}
+
+#clients-view .cv-new-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* ---- Join-a-client paste dialog ---- */
+.cv-join-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin: 0 0 10px;
+}
+
+.cv-join-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--text-primary);
+  background: var(--surface-control);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control);
+  padding: 9px 11px;
+  resize: vertical;
+}
+
+.cv-join-textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* ---- Text-input modal (client/project creation) ---- */
+.cv-prompt .cv-prompt-input {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--text-primary);
+  background: var(--surface-control);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control);
+  padding: 9px 11px;
+}
+
+.cv-prompt .cv-prompt-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.cv-prompt .cv-prompt-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.cv-prompt .cv-prompt-cancel,
+.cv-prompt .cv-prompt-ok {
+  font-family: 'Cal Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: var(--radius-pill);
+  padding: 8px 16px;
+  cursor: pointer;
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease;
+}
+
+.cv-prompt .cv-prompt-cancel {
+  color: var(--text-secondary);
+  background: var(--surface-control);
+  border: 1px solid var(--border-subtle);
+}
+
+.cv-prompt .cv-prompt-cancel:hover {
+  background: var(--surface-control-hover);
+}
+
+.cv-prompt .cv-prompt-ok {
+  color: var(--on-accent);
+  background: var(--accent);
+  border: 1px solid var(--accent);
+}
+
+.cv-prompt .cv-prompt-ok:hover {
+  background: var(--accent-hover);
+}
+
+/* ---- Sidebar active-workspace header ---- */
+
+.active-client-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: calc(100% - 16px);
+  margin: 8px;
+  padding: 8px 10px;
+  background: var(--surface-control);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control);
+  cursor: pointer;
+  text-align: left;
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease;
+}
+
+.active-client-header:hover {
+  background: var(--surface-control-hover);
+  border-color: var(--border-strong);
+}
+
+.active-client-avatar {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Cal Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--on-accent);
+  background: var(--accent);
+}
+
+.active-client-avatar.cv-avatar--personal {
+  background: var(--surface-panel);
+  color: var(--text-primary);
+}
+
+.active-client-avatar.cv-avatar--world {
+  background: var(--accent-secondary);
+  color: var(--on-accent);
+}
+
+.active-client-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1;
+}
+
+.active-client-name {
+  font-family: 'Cal Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.active-client-sub {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.active-client-caret {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  color: var(--text-muted);
+}
+
+/* Collapsed sidebar: show only the avatar, hide the label + caret. */
+.sidebar.collapsed .active-client-header {
+  justify-content: center;
+  padding: 8px;
+}
+
+.sidebar.collapsed .active-client-meta,
+.sidebar.collapsed .active-client-caret {
+  display: none;
+}

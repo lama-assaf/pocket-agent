@@ -89,6 +89,7 @@ function createEngine() {
     saveMessage: vi.fn(() => 1),
     getSmartContext: vi.fn(async () => ({ recentMessages: [], rollingSummary: null })),
     getSessionMode: vi.fn(() => 'general'),
+    getSessionContext: vi.fn(() => ({ contextType: 'personal', clientId: null, projectKey: null })),
     getSessionWorkingDirectory: vi.fn(() => null),
     getFactsMemoryUsage: vi.fn(() => ({ usedChars: 0, budgetChars: 50000, pct: 0 })),
     getSoulMemoryUsage: vi.fn(() => ({ usedChars: 0, budgetChars: 50000, pct: 0 })),
@@ -106,7 +107,11 @@ function setDefaultAgentEvents(text = 'Hello') {
   mockAgentEvents = [
     { type: 'text_delta' as const, text },
     { type: 'turn_end' as const, turn: 1, usage: { inputTokens: 100, outputTokens: 50 } },
-    { type: 'agent_done' as const, totalTurns: 1, totalUsage: { inputTokens: 100, outputTokens: 50 } },
+    {
+      type: 'agent_done' as const,
+      totalTurns: 1,
+      totalUsage: { inputTokens: 100, outputTokens: 50 },
+    },
   ];
 }
 

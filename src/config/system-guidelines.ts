@@ -13,6 +13,7 @@
 
 import { AGENT_MODES } from '../agent/agent-modes';
 import { composeLaneRules } from '../agent/lane-context';
+import type { SessionContext } from '../memory/sessions';
 
 const MEMORY_SECTION = `## Memory — You Own It
 
@@ -112,12 +113,13 @@ const SECTIONS: ReadonlyArray<{ content: string; modes: ReadonlySet<string> | 'a
  * Compose the system guidelines for a given agent mode. Only sections relevant
  * to the mode's job are included (writer/therapist skip CLI and scheduler).
  */
-export function buildSystemGuidelines(mode: string): string {
+export function buildSystemGuidelines(mode: string, context?: SessionContext): string {
   const base = SECTIONS.filter((s) => s.modes === 'all' || s.modes.has(mode)).map((s) => s.content);
 
   const laneId = AGENT_MODES[mode as keyof typeof AGENT_MODES]?.lane;
   if (laneId) {
-    const laneRules = composeLaneRules(laneId);
+    // Pass the selected context so the active client's voice.md layers onto lane rules.
+    const laneRules = composeLaneRules(laneId, context);
     if (laneRules) base.push(laneRules);
   }
 

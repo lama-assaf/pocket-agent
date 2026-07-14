@@ -38,6 +38,7 @@ interface FactData {
   category: string;
   subject: string;
   content: string;
+  scope: string;
   importance: number;
   days_since_accessed: number;
 }
@@ -214,7 +215,8 @@ function applyResult(
   result: CompactionResult,
   factsData: FactData[],
   soulData: Array<{ aspect: string; content: string }>,
-  onStatus?: ConsolidationStatus
+  onStatus?: ConsolidationStatus,
+  factScope: string = 'user'
 ): { factsDeleted: number; factsAdded: number; soulDeleted: number; soulAdded: number } {
   let factsDeleted = 0;
   let factsAdded = 0;
@@ -222,8 +224,12 @@ function applyResult(
   let soulAdded = 0;
 
   if (result.facts) {
-    const deleteIds = result.facts.delete_ids ?? [];
     const upserts = result.facts.upsert ?? [];
+    // Only delete ids the model was actually shown for THIS scope. A hallucinated
+    // or cross-scope id can't reach memory.deleteFact() (which deletes by raw id),
+    // so consolidation of one scope can never delete another brand's/personal fact.
+    const inScopeIds = new Set(factsData.map((f) => f.id));
+    const deleteIds = (result.facts.delete_ids ?? []).filter((id) => inScopeIds.has(id));
     if (deleteIds.length > 0 || upserts.length > 0) {
       onStatus?.(
         'reorganizing facts... 🗂️',
@@ -240,8 +246,10 @@ function applyResult(
     );
 
     if (upsertChars < deletedChars) {
+      // Upserts are tagged with the scope being consolidated — a merged brand
+      // fact stays at that brand, never leaking into another scope or personal.
       for (const fact of upserts) {
-        memory.saveFact(fact.category, fact.subject, fact.content);
+        memory.saveFact(fact.category, fact.subject, fact.content, undefined, factScope);
         factsAdded++;
       }
     } else if (upserts.length > 0) {
@@ -324,7 +332,7 @@ export async function consolidateMemory(
   onStatus?.('scanning memory... 🔍');
 
   const now = Date.now();
-  const factsData: FactData[] = (factsOver ? memory.getAllFacts() : []).map((f) => {
+  const allFactData: FactData[] = (factsOver ? memory.getAllFacts() : []).map((f) => {
     const lastAccess = f.last_accessed_at ? new Date(f.last_accessed_at).getTime() : 0;
     const daysSinceAccess = lastAccess ? Math.round((now - lastAccess) / 86_400_000) : 999;
     return {
@@ -332,6 +340,7 @@ export async function consolidateMemory(
       category: f.category,
       subject: f.subject,
       content: f.content,
+      scope: f.scope ?? 'user',
       importance: f.importance,
       days_since_accessed: daysSinceAccess,
     };
@@ -341,49 +350,93 @@ export async function consolidateMemory(
     content: s.content,
   }));
 
-  if (factsData.length === 0 && soulData.length === 0) {
+  if (allFactData.length === 0 && soulData.length === 0) {
     const soulAdded = await runReflection();
     return soulAdded > 0 ? { ...empty, ran: true, soulAdded } : empty;
   }
-
-  const duplicateClusters = factsOver ? memory.findNearDuplicateFacts() : [];
 
   // Recent journal as ground truth: lets the model catch facts that went stale
   // relative to dated life events (e.g. fact says "reconciled", log records a
   // breakup later). Capped so it can't crowd out the entries being compacted.
   const recentJournal = factsOver ? memory.getDailyLogsContext(7).slice(0, 2000) : '';
 
-  const prompt = buildConsolidationPrompt({
-    factsData,
-    soulData,
-    factsOver,
-    soulOver,
-    contradictionAware: true,
-    duplicateClusters,
-    recentJournal,
-  });
+  let ran = false;
+  let factsDeleted = 0;
+  let factsAdded = 0;
+  let soulDeleted = 0;
+  let soulAdded = 0;
 
-  onStatus?.('compacting memories... 🧹');
-  const responseText = await summarizer(prompt, 2048);
-  if (!responseText) return empty;
-
-  const parsed = extractJson(responseText);
-  if (!parsed) {
-    console.log('[Consolidation] Could not parse model response, skipping');
-    const soulAdded = await runReflection();
-    return soulAdded > 0 ? { ...empty, ran: true, soulAdded } : empty;
+  // ── Facts: consolidate WITHIN each scope, never across ──────────────────
+  // Merging/dedup/contradiction resolution is confined to one scope at a time,
+  // so Brand A + Brand B + personal facts can never be fused together.
+  const factsByScope = new Map<string, FactData[]>();
+  for (const f of allFactData) {
+    const list = factsByScope.get(f.scope) ?? [];
+    list.push(f);
+    factsByScope.set(f.scope, list);
   }
 
-  const applied = applyResult(memory, parsed, factsData, soulData, onStatus);
+  for (const [scope, scopeFacts] of factsByScope) {
+    if (scopeFacts.length === 0) continue;
+    const duplicateClusters = memory.findNearDuplicateFacts(0.82, scope);
+    const prompt = buildConsolidationPrompt({
+      factsData: scopeFacts,
+      soulData: [],
+      factsOver: true,
+      soulOver: false,
+      contradictionAware: true,
+      duplicateClusters,
+      recentJournal,
+    });
+
+    onStatus?.('compacting memories... 🧹', scope);
+    const responseText = await summarizer(prompt, 2048);
+    if (!responseText) continue;
+    const parsed = extractJson(responseText);
+    if (!parsed) {
+      console.log(`[Consolidation] Could not parse model response for scope ${scope}, skipping`);
+      continue;
+    }
+    const applied = applyResult(memory, parsed, scopeFacts, [], onStatus, scope);
+    factsDeleted += applied.factsDeleted;
+    factsAdded += applied.factsAdded;
+    ran = true;
+  }
+
+  // ── Soul: agent identity is global (not brand-scoped), consolidated once ──
+  if (soulOver && soulData.length > 0) {
+    const prompt = buildConsolidationPrompt({
+      factsData: [],
+      soulData,
+      factsOver: false,
+      soulOver: true,
+      contradictionAware: true,
+      duplicateClusters: [],
+      recentJournal,
+    });
+    onStatus?.('refining soul notes... ✨');
+    const responseText = await summarizer(prompt, 2048);
+    const parsed = responseText ? extractJson(responseText) : null;
+    if (parsed) {
+      const applied = applyResult(memory, parsed, [], soulData, onStatus);
+      soulDeleted += applied.soulDeleted;
+      soulAdded += applied.soulAdded;
+      ran = true;
+    }
+  }
 
   // Optional reflection: evolve up to 2 soul aspects from recent logs/rollups.
-  const soulAdded = applied.soulAdded + (await runReflection());
+  soulAdded += await runReflection();
+
+  if (!ran && soulAdded === 0) {
+    return empty;
+  }
 
   console.log(
-    `[Consolidation] facts (deleted ${applied.factsDeleted}, added ${applied.factsAdded}), soul (deleted ${applied.soulDeleted}, added ${soulAdded})`
+    `[Consolidation] facts (deleted ${factsDeleted}, added ${factsAdded}), soul (deleted ${soulDeleted}, added ${soulAdded})`
   );
 
-  return { ran: true, ...applied, soulAdded };
+  return { ran: true, factsDeleted, factsAdded, soulDeleted, soulAdded };
 }
 
 /**
