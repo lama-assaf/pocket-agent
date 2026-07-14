@@ -634,6 +634,8 @@
         </div>
         <div class="settings-nav-item" data-section="mcp">MCP Servers
         </div>
+        <div class="settings-nav-item" data-section="linkedin">LinkedIn
+        </div>
         <div class="settings-nav-item" data-section="chat">Chat
         </div>
         <div class="settings-nav-item" data-section="skins">Skins
@@ -809,6 +811,47 @@
           <p class="section-desc">First-party tools plus optional servers from the Atelier and Salon marketplace catalogs. Enable one and add its credentials to make it available to the agent.</p>
           <div id="mcp-server-list" class="mcp-server-list"></div>
           <div id="mcp-server-empty" class="info-box section-spacer hidden"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" stroke-width="1.5"/><path stroke-width="1.5" d="M12 16v-4.5"/><path stroke-width="1.8" d="M12 8.012v-.01"/></g></svg><span>No MCP servers found.</span></div>
+        </section>
+
+        <!-- LinkedIn Section (Community Management API — org post analytics) -->
+        <section id="linkedin" class="settings-section">
+          <h2 class="section-title">LinkedIn</h2>
+          <p class="section-desc">Connects to LinkedIn's Community Management API to pull real per-post analytics (impressions, likes, comments, shares, clicks) for an organization page you administer. Requires your own LinkedIn Developer app — see the setup steps below.</p>
+
+          <details open style="margin-bottom: 16px;">
+            <summary style="cursor: pointer; font-size: 12px; color: var(--text-secondary); user-select: none; font-weight: 600;">Setup steps</summary>
+            <ol class="li-setup-steps">
+              <li>Go to <a href="https://developer.linkedin.com/apps" target="_blank" class="key-link">developer.linkedin.com/apps</a> and create an app (or use an existing one) tied to the organization page you want analytics for.</li>
+              <li>Under the app's <b>Products</b> tab, request access to <b>"Community Management API"</b>. Development-tier access is auto-granted for testing; production analytics for real numbers need Standard-tier approval.</li>
+              <li>Under the app's <b>Auth</b> tab, add this exact Redirect URL: <code id="li-redirect-uri">http://127.0.0.1:51739/callback</code> <button class="btn-compact" onclick="playNormalClick(); liCopyRedirectUri()">Copy</button></li>
+              <li>Copy the app's <b>Client ID</b> and <b>Client Secret</b> from the Auth tab and paste them below.</li>
+              <li>Click <b>Connect LinkedIn</b> — a browser tab opens for the org admin to sign in and grant access, then returns automatically.</li>
+              <li>Open the Analytics page, pick a client, and set that client's <b>Organization URN</b> (e.g. <code>urn:li:organization:12345678</code>, found in the page's admin URL) — then hit <b>Sync now</b>.</li>
+            </ol>
+          </details>
+
+          <div class="settings-grid">
+            <div class="setting-row setting-row--stacked">
+              <label>Client ID</label>
+              <div class="key-input"><input type="text" id="linkedin.clientId" placeholder="86xxxxxxxxxxx"><button onclick="playNormalClick(); stgSaveLinkedInAppCredentials()">Save</button></div>
+            </div>
+            <div class="setting-row setting-row--stacked">
+              <label>Client Secret</label>
+              <div class="key-input"><input type="password" id="linkedin.clientSecret" placeholder="WPL_AP1...."><button class="delete-btn" id="linkedin.clientSecret-delete" onclick="playNormalClick(); stgDeleteKey('linkedin.clientSecret')"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5" d="m19.5 5.5l-.62 10.025c-.158 2.561-.237 3.842-.88 4.763a4 4 0 0 1-1.2 1.128c-.957.584-2.24.584-4.806.584c-2.57 0-3.855 0-4.814-.585a4 4 0 0 1-1.2-1.13c-.642-.922-.72-2.205-.874-4.77L4.5 5.5M3 5.5h18m-4.944 0l-.683-1.408c-.453-.936-.68-1.403-1.071-1.695a2 2 0 0 0-.275-.172C13.594 2 13.074 2 12.035 2c-1.066 0-1.599 0-2.04.234a2 2 0 0 0-.278.18c-.395.303-.616.788-1.058 1.757L8.053 5.5"/></svg></button></div>
+            </div>
+          </div>
+
+          <div class="auth-box">
+            <div class="auth-option">
+              <div class="auth-option-header">
+                <span class="auth-option-title">Connect LinkedIn</span>
+                <div class="flex-row" style="gap: 8px;">
+                  <span id="linkedin-auth-status" class="auth-badge loading">Checking…</span>
+                  <button id="linkedin-oauth-btn" class="oauth-btn" onclick="playNormalClick(); stgHandleLinkedInAuth()">Connect LinkedIn</button>
+                </div>
+              </div>
+            </div>
+          </div>
         </section>
 
         <!-- Pocket CLI Section -->
@@ -1098,6 +1141,13 @@
         <button class="ant-filter-btn active" data-channel="" onclick="playNormalClick(); antSetChannelFilter(null)">All channels</button>
         <button class="ant-filter-btn" data-channel="twitter" onclick="playNormalClick(); antSetChannelFilter('twitter')">X / Twitter</button>
         <button class="ant-filter-btn" data-channel="linkedin" onclick="playNormalClick(); antSetChannelFilter('linkedin')">LinkedIn</button>
+      </div>
+      <div class="ant-linkedin-bar" id="ant-linkedin-bar">
+        <span class="ant-linkedin-label">LinkedIn Org URN</span>
+        <input type="text" class="ant-linkedin-input" id="ant-linkedin-org-urn" placeholder="urn:li:organization:12345678">
+        <button class="btn-compact" onclick="playNormalClick(); antSaveLinkedInOrgUrn()">Save</button>
+        <button class="btn-compact" onclick="playNormalClick(); antSyncLinkedInNow()">Sync now</button>
+        <span class="ant-linkedin-status" id="ant-linkedin-status"></span>
       </div>
       <div class="ant-summary" id="ant-summary"></div>
       <div id="ant-posts" class="ant-posts"></div>

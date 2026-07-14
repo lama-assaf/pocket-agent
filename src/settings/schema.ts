@@ -230,6 +230,54 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     type: 'string',
   },
 
+  // LinkedIn (Community Management API — org post analytics via 3-legged OAuth2)
+  {
+    key: 'linkedin.clientId',
+    defaultValue: '',
+    encrypted: false,
+    category: 'linkedin',
+    label: 'LinkedIn Client ID',
+    description: 'Client ID from your LinkedIn Developer app (developer.linkedin.com/apps).',
+    type: 'string',
+  },
+  {
+    key: 'linkedin.clientSecret',
+    defaultValue: '',
+    encrypted: true,
+    category: 'linkedin',
+    label: 'LinkedIn Client Secret',
+    description: 'Client Secret from the same LinkedIn Developer app.',
+    type: 'password',
+  },
+  {
+    key: 'linkedin.accessToken',
+    defaultValue: '',
+    encrypted: true,
+    category: 'linkedin',
+    label: 'LinkedIn Access Token',
+    description: 'OAuth2 access token from the member (org admin) who authorized the app.',
+    type: 'password',
+  },
+  {
+    key: 'linkedin.refreshToken',
+    defaultValue: '',
+    encrypted: true,
+    category: 'linkedin',
+    label: 'LinkedIn Refresh Token',
+    description:
+      'OAuth2 refresh token, when LinkedIn issues one (requires refresh-token-eligible access — see LinkedIn docs). May be absent; a missing refresh token means re-authorizing once the access token expires.',
+    type: 'password',
+  },
+  {
+    key: 'linkedin.tokenExpiresAt',
+    defaultValue: '',
+    encrypted: false,
+    category: 'linkedin',
+    label: 'LinkedIn Token Expiry',
+    description: 'When the current LinkedIn access token expires (ms since epoch).',
+    type: 'string',
+  },
+
   // Scoped-memory sync (world + client brains over git)
   {
     key: 'github.token',

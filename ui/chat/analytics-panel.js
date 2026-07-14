@@ -34,6 +34,7 @@ function showAnalyticsPanel() {
 
   _antShowList();
   _antLoadAll();
+  _antLoadLinkedInOrgUrn();
 }
 
 function hideAnalyticsPanel() {
@@ -430,5 +431,66 @@ async function antSaveRecordForm() {
   } catch (err) {
     console.error('[Analytics] Failed to save snapshot:', err);
     _antShowToast('Failed to save snapshot', 'error');
+  }
+}
+
+// ---- LinkedIn org-URN + Sync now (Community Management API ingestion) ----
+//
+// The org URN a scope tracks lives per-scope (a fact, not a global setting —
+// zilliqa's org must never bleed into ltin's org), read/written via
+// window.pocketAgent.linkedin.{get,set}OrgUrn against the ACTIVE workspace
+// context — same nearest-scope contract as content:create/analytics:record.
+
+async function _antLoadLinkedInOrgUrn() {
+  const input = document.getElementById('ant-linkedin-org-urn');
+  const statusEl = document.getElementById('ant-linkedin-status');
+  if (!input) return;
+  try {
+    const urn = await window.pocketAgent.linkedin.getOrgUrn(_antContext());
+    input.value = urn || '';
+    if (statusEl) statusEl.textContent = '';
+  } catch (err) {
+    console.error('[Analytics] Failed to load LinkedIn org URN:', err);
+  }
+}
+
+async function antSaveLinkedInOrgUrn() {
+  const input = document.getElementById('ant-linkedin-org-urn');
+  if (!input) return;
+  const urn = input.value.trim();
+  try {
+    const res = await window.pocketAgent.linkedin.setOrgUrn(urn, _antContext());
+    if (!res || !res.success) {
+      _antShowToast((res && res.error) || 'Failed to save', 'error');
+      return;
+    }
+    _antShowToast(urn ? 'Org URN saved' : 'Org URN cleared', 'success');
+  } catch (err) {
+    console.error('[Analytics] Failed to save LinkedIn org URN:', err);
+    _antShowToast('Failed to save', 'error');
+  }
+}
+
+async function antSyncLinkedInNow() {
+  const statusEl = document.getElementById('ant-linkedin-status');
+  if (statusEl) statusEl.textContent = 'Syncing…';
+  try {
+    const result = await window.pocketAgent.linkedin.syncNow(_antContext());
+    if (!result || !result.ok) {
+      const message = (result && result.error) || 'LinkedIn sync failed';
+      if (statusEl) statusEl.textContent = '';
+      _antShowToast(message, 'error');
+      return;
+    }
+    if (statusEl) statusEl.textContent = '';
+    _antShowToast(
+      result.postsWritten > 0 ? `Synced ${result.postsWritten} post(s)` : 'Synced — no new posts found',
+      'success'
+    );
+    _antLoadAll();
+  } catch (err) {
+    console.error('[Analytics] LinkedIn sync failed:', err);
+    if (statusEl) statusEl.textContent = '';
+    _antShowToast('LinkedIn sync failed', 'error');
   }
 }

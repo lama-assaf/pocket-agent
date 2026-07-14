@@ -430,6 +430,34 @@ contextBridge.exposeInMainWorld('pocketAgent', {
     delete: (id: number) => ipcRenderer.invoke('analytics:delete', id),
   },
 
+  // ─── LinkedIn (Community Management API — org post analytics) ───
+  linkedin: {
+    startOAuth: () => ipcRenderer.invoke('linkedin:startOAuth'),
+    cancelOAuth: () => ipcRenderer.invoke('linkedin:cancelOAuth'),
+    isOAuthPending: () => ipcRenderer.invoke('linkedin:isOAuthPending'),
+    logout: () => ipcRenderer.invoke('linkedin:logout'),
+    getAuthStatus: () => ipcRenderer.invoke('linkedin:getAuthStatus'),
+    getRedirectUri: () => ipcRenderer.invoke('linkedin:getRedirectUri'),
+    getOrgUrn: (context: {
+      contextType: 'personal' | 'world' | 'client' | 'project';
+      clientId?: string | null;
+      projectKey?: string | null;
+    }) => ipcRenderer.invoke('linkedin:getOrgUrn', context),
+    setOrgUrn: (
+      orgUrn: string,
+      context: {
+        contextType: 'personal' | 'world' | 'client' | 'project';
+        clientId?: string | null;
+        projectKey?: string | null;
+      }
+    ) => ipcRenderer.invoke('linkedin:setOrgUrn', orgUrn, context),
+    syncNow: (context: {
+      contextType: 'personal' | 'world' | 'client' | 'project';
+      clientId?: string | null;
+      projectKey?: string | null;
+    }) => ipcRenderer.invoke('linkedin:syncNow', context),
+  },
+
   // ─── Location & Timezone ───────────────────────────
   location: {
     lookup: (query: string) => ipcRenderer.invoke('location:lookup', query),
@@ -1387,6 +1415,33 @@ declare global {
           }
         ) => Promise<{ success: boolean; id?: number; error?: string }>;
         delete: (id: number) => Promise<{ success: boolean }>;
+      };
+
+      linkedin: {
+        startOAuth: () => Promise<{ success: boolean; error?: string }>;
+        cancelOAuth: () => Promise<{ success: boolean }>;
+        isOAuthPending: () => Promise<boolean>;
+        logout: () => Promise<{ success: boolean }>;
+        getAuthStatus: () => Promise<{ hasAppCredentials: boolean; connected: boolean }>;
+        getRedirectUri: () => Promise<string>;
+        getOrgUrn: (context: {
+          contextType: 'personal' | 'world' | 'client' | 'project';
+          clientId?: string | null;
+          projectKey?: string | null;
+        }) => Promise<string | null>;
+        setOrgUrn: (
+          orgUrn: string,
+          context: {
+            contextType: 'personal' | 'world' | 'client' | 'project';
+            clientId?: string | null;
+            projectKey?: string | null;
+          }
+        ) => Promise<{ success: boolean; error?: string }>;
+        syncNow: (context: {
+          contextType: 'personal' | 'world' | 'client' | 'project';
+          clientId?: string | null;
+          projectKey?: string | null;
+        }) => Promise<{ ok: boolean; postsWritten: number; error?: string }>;
       };
 
       location: {

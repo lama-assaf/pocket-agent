@@ -42,6 +42,7 @@ import {
   registerContentIPC,
   registerCampaignIPC,
   registerAnalyticsIPC,
+  registerLinkedInIPC,
 } from './ipc';
 import type { IPCDependencies } from './ipc';
 
@@ -454,6 +455,7 @@ function setupIPC(): void {
   registerContentIPC(deps);
   registerCampaignIPC(deps);
   registerAnalyticsIPC(deps);
+  registerLinkedInIPC(deps);
   // No IPCDependencies needed — the marketplace module has no electron/memory
   // dependency of its own.
   registerMarketplaceIPC();
@@ -820,6 +822,41 @@ app.whenReady().then(async () => {
           console.error('[clients] Auto-pull on launch failed; continuing', e);
         }
       })();
+    }
+
+    // LinkedIn org analytics: sync on launch, then every 6 hours. Fire-and-
+    // forget and fully self-gating — autoSyncAllConfiguredLinkedInScopes is a
+    // silent no-op when no scope has an org URN configured (allConfiguredLinkedInScopes
+    // returns []), and getAccessToken() degrades to null (skip, no error) when
+    // LinkedIn isn't connected. The Analytics panel's "Sync now" button and
+    // clear error surfaces are the fallback when this can't run.
+    if (memory) {
+      const capturedMemory = memory;
+      const runLinkedInSync = async (): Promise<void> => {
+        try {
+          const { LinkedInOAuth } = await import('../auth/linkedin-oauth');
+          if (!LinkedInOAuth.hasAppCredentials()) return;
+          const accessToken = await LinkedInOAuth.getAccessToken();
+          if (!accessToken) return;
+          const { autoSyncAllConfiguredLinkedInScopes } = await import('../integrations/linkedin/sync');
+          const results = await autoSyncAllConfiguredLinkedInScopes(capturedMemory, accessToken);
+          const succeeded = results.filter((r) => r.result.ok);
+          if (succeeded.length > 0) {
+            const totalPosts = succeeded.reduce((sum, r) => sum + r.result.postsWritten, 0);
+            console.log(
+              `[LinkedIn] Synced ${succeeded.length}/${results.length} configured scope(s), ${totalPosts} post row(s) recorded`
+            );
+          }
+          for (const r of results.filter((r) => !r.result.ok)) {
+            console.error(`[LinkedIn] Sync failed for scope ${r.scope}:`, r.result.error);
+          }
+        } catch (e) {
+          console.error('[LinkedIn] Auto-sync failed; continuing', e);
+        }
+      };
+      void runLinkedInSync();
+      const linkedInSyncInterval = setInterval(runLinkedInSync, 6 * 60 * 60 * 1000);
+      if (typeof linkedInSyncInterval.unref === 'function') linkedInSyncInterval.unref();
     }
 
     setupIPC();

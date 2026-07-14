@@ -136,6 +136,7 @@ function _initSettingsPanel() {
     _stgInitPocketCli();
     _stgInitSkinPicker();
     _stgInitializeUpdates();
+    _stgLoadLinkedInRedirectUri();
   });
 
   // Listen for auth expiry events from the main process
@@ -162,6 +163,7 @@ async function _stgLoadSettings() {
     _stgUpdateAuthStatus();
     _stgUpdateOpenAIAuthStatus();
     _stgUpdateKimiAuthStatus();
+    _stgUpdateLinkedInAuthStatus();
     _stgUpdateDeleteButtons();
   } catch (err) {
     console.error('[Settings] Failed to load settings:', err);
@@ -319,6 +321,7 @@ function _stgSetupAutoSave() {
     'auth-api-key', 'oauth-code',
     'telegram.botToken', 'telegram.allowedUserIds', 'telegram.defaultChatId',
     'chat.adminKey',
+    'linkedin.clientId', 'linkedin.clientSecret',
   ];
 
   const inputs = root.querySelectorAll('input, select');
@@ -393,7 +396,7 @@ async function stgSaveKey(inputId) {
 }
 
 function _stgUpdateDeleteButtons() {
-  const keyIds = ['anthropic.apiKey', 'openai.apiKey', 'moonshot.apiKey', 'glm.apiKey', 'xiaomi.apiKey', 'minimax.apiKey', 'deepseek.apiKey', 'telegram.botToken'];
+  const keyIds = ['anthropic.apiKey', 'openai.apiKey', 'moonshot.apiKey', 'glm.apiKey', 'xiaomi.apiKey', 'minimax.apiKey', 'deepseek.apiKey', 'telegram.botToken', 'linkedin.clientSecret'];
   for (const keyId of keyIds) {
     const deleteBtn = document.getElementById(`${keyId}-delete`);
     if (deleteBtn) {
@@ -812,6 +815,113 @@ async function stgStartOpenAIOAuth() {
   } catch (err) { _stgShowToast(err.message || 'OAuth failed', 'error'); }
   btn.disabled = false;
   btn.textContent = 'Sign In';
+}
+
+// ---- LinkedIn (Community Management API — org post analytics) ----
+
+// Populates the setup walkthrough's redirect-URL <code> from the real
+// REDIRECT_URI constant (src/auth/linkedin-oauth.ts) instead of a hardcoded
+// string in the HTML, so the two can never silently drift apart if the
+// callback port ever changes.
+async function _stgLoadLinkedInRedirectUri() {
+  const el = document.getElementById('li-redirect-uri');
+  if (!el) return;
+  try {
+    el.textContent = await window.pocketAgent.linkedin.getRedirectUri();
+  } catch (err) {
+    console.error('[Settings] Failed to load LinkedIn redirect URI:', err);
+  }
+}
+
+function liCopyRedirectUri() {
+  const el = document.getElementById('li-redirect-uri');
+  if (!el) return;
+  navigator.clipboard.writeText(el.textContent.trim())
+    .then(() => _stgShowToast('Copied', 'success'))
+    .catch(() => _stgShowToast('Could not copy', 'error'));
+}
+
+async function stgSaveLinkedInAppCredentials() {
+  const idInput = document.getElementById('linkedin.clientId');
+  const secretInput = document.getElementById('linkedin.clientSecret');
+  const clientId = idInput ? idInput.value.trim() : '';
+  const clientSecret = secretInput ? secretInput.value.trim() : '';
+  if (!clientId) { _stgShowToast('Need a Client ID', 'error'); return; }
+  try {
+    await window.pocketAgent.settings.set('linkedin.clientId', clientId);
+    if (clientSecret) await window.pocketAgent.settings.set('linkedin.clientSecret', clientSecret);
+    _stgSettings['linkedin.clientId'] = clientId;
+    if (clientSecret) _stgSettings['linkedin.clientSecret'] = clientSecret;
+    _stgShowToast('Saved', 'success');
+    if (secretInput) secretInput.value = '';
+    await _stgLoadSettings();
+    _stgUpdateLinkedInAuthStatus();
+  } catch (err) { _stgShowToast('Failed to save: ' + err.message, 'error'); }
+}
+
+async function _stgUpdateLinkedInAuthStatus() {
+  const statusBadge = document.getElementById('linkedin-auth-status');
+  const authBtn = document.getElementById('linkedin-oauth-btn');
+  if (!statusBadge || !authBtn) return;
+
+  statusBadge.className = 'auth-badge loading';
+  statusBadge.textContent = 'Checking…';
+  try {
+    const status = await window.pocketAgent.linkedin.getAuthStatus();
+    if (!status.hasAppCredentials) {
+      statusBadge.className = 'auth-badge none';
+      statusBadge.textContent = 'Add Client ID/Secret first';
+      authBtn.textContent = 'Connect LinkedIn';
+      authBtn.className = 'oauth-btn';
+      authBtn.disabled = true;
+      return;
+    }
+    authBtn.disabled = false;
+    if (status.connected) {
+      statusBadge.className = 'auth-badge oauth';
+      statusBadge.textContent = 'Connected';
+      authBtn.textContent = 'Disconnect';
+      authBtn.className = 'logout-btn';
+    } else {
+      statusBadge.className = 'auth-badge none';
+      statusBadge.textContent = 'Not connected';
+      authBtn.textContent = 'Connect LinkedIn';
+      authBtn.className = 'oauth-btn';
+    }
+  } catch {
+    statusBadge.className = 'auth-badge none';
+    statusBadge.textContent = 'Could not verify';
+    authBtn.textContent = 'Connect LinkedIn';
+    authBtn.className = 'oauth-btn';
+  }
+}
+
+async function stgHandleLinkedInAuth() {
+  const authBtn = document.getElementById('linkedin-oauth-btn');
+  if (authBtn.classList.contains('logout-btn')) {
+    if (!confirm('Disconnect LinkedIn? Analytics sync will stop until you reconnect.')) return;
+    try {
+      await window.pocketAgent.linkedin.logout();
+      _stgUpdateLinkedInAuthStatus();
+      _stgShowToast('Disconnected', 'success');
+    } catch (err) { _stgShowToast('Failed: ' + err.message, 'error'); }
+    return;
+  }
+
+  authBtn.disabled = true;
+  authBtn.textContent = 'Opening…';
+  try {
+    const result = await window.pocketAgent.linkedin.startOAuth();
+    if (result.success) {
+      _stgShowToast('Connected', 'success');
+    } else {
+      _stgShowToast(result.error || 'Failed to connect LinkedIn', 'error');
+    }
+  } catch (err) {
+    _stgShowToast(err.message || 'LinkedIn sign-in failed', 'error');
+  }
+  authBtn.disabled = false;
+  await _stgUpdateLinkedInAuthStatus();
 }
 
 // ---- Kimi (Moonshot) OAuth ----

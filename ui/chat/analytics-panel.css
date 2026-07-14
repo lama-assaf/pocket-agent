@@ -79,6 +79,45 @@
   color: var(--surface-panel);
 }
 
+/* LinkedIn org-URN + Sync now bar */
+#analytics-view .ant-linkedin-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px 0;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+#analytics-view .ant-linkedin-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+#analytics-view .ant-linkedin-input {
+  flex: 1;
+  min-width: 220px;
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--text-primary);
+  background: var(--surface-control);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control);
+  padding: 6px 10px;
+}
+
+#analytics-view .ant-linkedin-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+#analytics-view .ant-linkedin-status {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
 /* Content */
 #analytics-view .ant-content {
   flex: 1;

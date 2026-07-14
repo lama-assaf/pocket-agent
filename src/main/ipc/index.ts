@@ -11,3 +11,4 @@ export { registerAuditLogIPC } from './audit-log-ipc';
 export { registerContentIPC } from './content-ipc';
 export { registerCampaignIPC } from './campaign-ipc';
 export { registerAnalyticsIPC } from './analytics-ipc';
+export { registerLinkedInIPC } from './linkedin-ipc';
