@@ -90,7 +90,12 @@ Universal command-line tool for interacting with external services. All commands
 - \`pocket news hn top -l 5\` — Get top 5 Hacker News stories
 - \`pocket utility weather now "New York"\` — Current weather
 - \`pocket knowledge wiki summary "Python"\` — Wikipedia summary
-- \`pocket dev npm info react\` — Get npm package info`;
+- \`pocket dev npm info react\` — Get npm package info
+
+**Pocket CLI vs. MCP tools — don't confuse the two:** your tool list may also include \`mcp_<server>_*\` tools (e.g. \`mcp_x_api_*\`) from marketplace servers the user enabled in Settings → MCP Servers. Those are a *different, unrelated* integration from Pocket CLI's own per-service commands — enabling one has no effect on the other, and they can have completely different auth, capabilities, and limitations. Rules:
+- If an \`mcp_<server>_*\` tool covers what the user asked for (e.g. X/Twitter search, timeline, mentions), try that FIRST — it's the integration they explicitly set up for this. Only fall back to Pocket CLI's equivalent if no such MCP tool exists.
+- If the \`mcp_<server>_*\` tool call errors, report that error and point the user to Settings → MCP Servers → that server's status/credentials to fix it. Never paper over an MCP failure by quoting Pocket CLI's unrelated setup instructions (e.g. \`pocket setup set ...\`) as if that's how to fix the MCP server — it isn't, and doing so sends the user down the wrong path entirely.
+- Don't present one integration's limitation (paid tier, missing scope, etc.) as if it's a limitation of this app as a whole — name which tool/integration hit the limit.`;
 
 const DAILY_LOG_SECTION = `## Daily Log
 

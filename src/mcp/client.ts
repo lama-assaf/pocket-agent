@@ -148,7 +148,18 @@ export class StdioMcpClient implements McpClient {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(id);
-        reject(new Error(`MCP request "${method}" timed out after ${timeoutMs}ms`));
+        // A server that never crashes but also never answers (e.g. it's stuck
+        // waiting on an interactive step it printed to stderr, like an OAuth
+        // login prompt) previously produced a bare "timed out" with zero
+        // diagnostic value — the crash/exit path already included the stderr
+        // tail (see fireCrash below), but a hang was silent. Surface it here
+        // too so a stuck handshake is just as diagnosable as a dead one.
+        const tail = this.stderrTail.join('').trim().slice(-500);
+        reject(
+          new Error(
+            `MCP request "${method}" timed out after ${timeoutMs}ms` + (tail ? ` — recent stderr: ${tail}` : '')
+          )
+        );
       }, timeoutMs);
       this.pending.set(id, {
         resolve: (v) => {
@@ -245,7 +256,26 @@ export class StdioMcpClient implements McpClient {
     this.child = null;
     this.fireCrash('closed'); // fail any still-pending requests before we tear down
     try {
-      child.kill();
+      child.kill(); // SIGTERM first — graceful exit for well-behaved servers
+      // Some servers (observed with xurl blocked in a synchronous OAuth
+      // listener) don't act on SIGTERM and are left running — orphaned,
+      // still holding whatever port/resource they had (e.g. xurl's fixed
+      // localhost:8080 OAuth callback listener), which then blocks every
+      // subsequent launch attempt with a confusing "address already in use"
+      // instead of ever getting a real chance to authenticate. Escalate to
+      // SIGKILL if it hasn't exited shortly after — these are disposable
+      // tool bridges, not services needing a graceful-shutdown grace period.
+      const pid = child.pid;
+      if (pid !== undefined) {
+        setTimeout(() => {
+          try {
+            process.kill(pid, 0); // throws if the process is already gone
+            child.kill('SIGKILL');
+          } catch {
+            // Already exited — nothing to do.
+          }
+        }, 3000).unref();
+      }
     } catch {
       // Already dead — fine.
     }

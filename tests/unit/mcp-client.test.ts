@@ -85,6 +85,18 @@ describe('StdioMcpClient — timeout', () => {
     await client.initialize();
     await expect(client.callTool('echo', { message: 'x' }, 300)).rejects.toThrow(/timed out/);
   }, 10000);
+
+  // Regression test for the real-world x-api/xurl case: a server can hang
+  // indefinitely on an interactive step (e.g. an OAuth browser-login
+  // listener) without ever crashing or exiting. Previously this surfaced as a
+  // bare "timed out after Nms" indistinguishable from a merely-slow server;
+  // the recent stderr tail (which a real server typically uses to announce
+  // what it's stuck on) should now be included in the rejection message.
+  it('includes the recent stderr tail when a call times out on a hung-but-alive server', async () => {
+    const client = track(makeClient('slow_tool'));
+    await client.initialize();
+    await expect(client.callTool('echo', { message: 'x' }, 300)).rejects.toThrow(/simulated hang/);
+  }, 10000);
 });
 
 describe('StdioMcpClient — crash isolation', () => {
@@ -129,4 +141,36 @@ describe('StdioMcpClient — close', () => {
     // Any call after close must fail, not hang.
     await expect(client.callTool('echo', {}, 1000)).rejects.toThrow();
   });
+
+  // Regression test: a server that ignores SIGTERM (observed with xurl stuck
+  // in a synchronous OAuth listener) used to be left running as an orphaned
+  // process holding whatever port/resource it had — blocking every
+  // subsequent launch attempt. close() must escalate to SIGKILL rather than
+  // leaving it alive.
+  it('escalates to SIGKILL and actually terminates a process that ignores SIGTERM', async () => {
+    const client = makeClient('ignore_sigterm');
+    await client.initialize();
+
+    // Grab the underlying PID before close() clears the client's reference,
+    // so we can verify from outside the client that the OS process is gone.
+    const pid = (client as unknown as { child: { pid: number } }).child.pid;
+    expect(typeof pid).toBe('number');
+
+    await client.close();
+
+    // Poll for the process to actually disappear (the escalation timer fires
+    // after a delay) rather than asserting immediately after close() resolves.
+    const deadline = Date.now() + 5000;
+    let alive = true;
+    while (Date.now() < deadline) {
+      try {
+        process.kill(pid, 0); // throws ESRCH once the process is gone
+        await new Promise((r) => setTimeout(r, 100));
+      } catch {
+        alive = false;
+        break;
+      }
+    }
+    expect(alive).toBe(false);
+  }, 10000);
 });

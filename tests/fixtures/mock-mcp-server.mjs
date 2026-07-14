@@ -14,8 +14,12 @@
  *   normal            - full handshake, one `echo` tool that echoes its args back.
  *   crash_on_start     - exits(1) immediately, before reading any input.
  *   crash_after_init   - handshakes normally, then exits(1) on the first tools/call.
- *   slow_tool          - handshakes normally; `echo` never responds (tests client-side timeout).
+ *   slow_tool          - handshakes normally; `echo` writes a distinctive stderr line then never
+ *                        responds (tests that a call timeout surfaces recent stderr, not a bare
+ *                        "timed out" — the real-world xurl OAuth-listener-hang case).
  *   error_tool         - handshakes normally; `echo` returns an MCP-level tool error (isError: true).
+ *   ignore_sigterm     - handshakes normally, then ignores SIGTERM so only SIGKILL can end it
+ *                        (tests that close() escalates instead of leaving it orphaned).
  */
 
 import { createInterface } from 'readline';
@@ -24,6 +28,12 @@ const MODE = process.env.MOCK_MCP_MODE || 'normal';
 
 if (MODE === 'crash_on_start') {
   process.exit(1);
+}
+
+if (MODE === 'ignore_sigterm') {
+  process.on('SIGTERM', () => {
+    /* deliberately ignored — only SIGKILL should end this process */
+  });
 }
 
 const TOOLS = [
@@ -75,6 +85,7 @@ async function handle(request) {
         process.exit(1);
       }
       if (MODE === 'slow_tool') {
+        process.stderr.write('[mock-mcp-server] simulated hang: waiting on something that will never complete\n');
         return; // never respond — client-side timeout should fire
       }
       if (MODE === 'error_tool') {

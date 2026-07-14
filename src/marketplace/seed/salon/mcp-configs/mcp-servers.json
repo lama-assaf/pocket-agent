@@ -1,7 +1,7 @@
 {
   "mcpServers": {
     "x-api": {
-      "_comment": "OFFICIAL X hosted MCP (announced 2026-06) via the xurl OAuth bridge. 200+ endpoints: post, search, trends, bookmarks. Requires an X developer app enrolled in the Pay-per-use Production plan (developer.x.com); xurl opens a one-time browser OAuth login.",
+      "_comment": "OFFICIAL X hosted MCP (announced 2026-06) via the xurl OAuth bridge. 200+ endpoints: post, search, trends, bookmarks. Requires an X developer app enrolled in the Pay-per-use Production plan (developer.x.com). SETUP IS NOT JUST CREDENTIALS: the first time this runs, xurl tries to open a browser and listens on a FIXED localhost:8080 for the OAuth redirect — if that port is already taken (common: Docker Desktop, other dev servers) or there's no display to open a browser from, it fails fast with a bind error instead of ever authenticating, and the server shows as failed/no tools even though credentials are correct. Fix: free up port 8080, or complete the login once out-of-band via a terminal with `npx -y @xdevplatform/xurl auth oauth2 --headless` before enabling here.",
       "command": "npx",
       "args": [
         "-y",
