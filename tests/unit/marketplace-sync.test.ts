@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { installSeed } from '../../src/marketplace/sync';
+import { installSeed, needsPackUpdate, EXTRACTOR_VERSION } from '../../src/marketplace/sync';
 
 describe('installSeed', () => {
   let seed: string;
@@ -25,5 +25,22 @@ describe('installSeed', () => {
     fs.writeFileSync(path.join(plugins, 'atelier', 'VERSION'), '9.9.9');
     installSeed(seed, plugins, 'atelier');
     expect(fs.readFileSync(path.join(plugins, 'atelier', 'VERSION'), 'utf-8')).toBe('9.9.9');
+  });
+});
+
+describe('needsPackUpdate', () => {
+  it('forces an update when the local extractor version is behind current, even at a matching sha', () => {
+    // Reproduces the real bug: a pack extracted before the mcp-configs filter
+    // shipped has a matching sha (upstream hasn't changed) but is missing the
+    // mcp-configs bucket. A plain sha-equality check would wrongly skip it.
+    expect(needsPackUpdate('same-sha', 'same-sha', 0)).toBe(true);
+  });
+
+  it('does not force an update once the local copy matches both the sha and the current extractor version', () => {
+    expect(needsPackUpdate('same-sha', 'same-sha', EXTRACTOR_VERSION)).toBe(false);
+  });
+
+  it('still updates on a plain sha mismatch, independent of extractor version', () => {
+    expect(needsPackUpdate('old-sha', 'new-sha', EXTRACTOR_VERSION)).toBe(true);
   });
 });

@@ -11,6 +11,37 @@ import * as tar from 'tar';
 import type { PackSource } from './types';
 import { getPluginsRoot, getSeedRoot } from './paths';
 
+/**
+ * Bump whenever `updatePack`'s tar filter starts extracting a new bucket
+ * (e.g. `mcp-configs` was added 2026-07-13). Without this, a pack already
+ * extracted by an older filter is stuck missing that bucket forever once
+ * upstream's sha stops changing — `checkAndUpdate`'s plain sha-equality
+ * check would see "already up to date" and skip re-extracting even though
+ * the on-disk copy predates the newer filter. Installs from before this
+ * constant existed have no `.extractor-version` file, which reads as `0`
+ * (always < current), so every existing pack gets exactly one forced
+ * re-sync the next time `checkAndUpdate` runs with network access.
+ */
+export const EXTRACTOR_VERSION = 1;
+
+/** Filename (sibling to `.sha`) that records which EXTRACTOR_VERSION produced a pack's on-disk content. */
+export const EXTRACTOR_VERSION_FILE = '.extractor-version';
+
+/**
+ * True when a pack needs re-syncing: its sha is stale, OR its on-disk copy
+ * was extracted by an older filter than the one this app version uses (so a
+ * bucket like `mcp-configs` may be silently missing even at a matching sha).
+ * Pure — no I/O — so it's directly unit-testable without touching the network.
+ */
+export function needsPackUpdate(
+  localSha: string,
+  remoteSha: string,
+  localExtractorVersion: number
+): boolean {
+  if (localExtractorVersion < EXTRACTOR_VERSION) return true;
+  return localSha !== remoteSha;
+}
+
 /** Copy the bundled seed into pluginsRoot/<id> if that pack is not yet installed. Returns true if copied. */
 export function installSeed(seedRoot: string, pluginsRoot: string, id: string): boolean {
   const dest = path.join(pluginsRoot, id);
@@ -92,19 +123,24 @@ export class PackSyncManager {
     for (const s of this.sources) {
       const dest = path.join(root, s.id);
       const shaFile = path.join(dest, '.sha');
+      const extractorFile = path.join(dest, EXTRACTOR_VERSION_FILE);
       const remote = await latestSha(s.repo, s.branch);
       if (!remote) {
         out.push({ id: s.id, updated: false, sha: '' });
         continue;
       }
       const local = fs.existsSync(shaFile) ? fs.readFileSync(shaFile, 'utf-8').trim() : '';
-      if (remote === local) {
+      const localExtractorVersion = fs.existsSync(extractorFile)
+        ? parseInt(fs.readFileSync(extractorFile, 'utf-8').trim(), 10) || 0
+        : 0;
+      if (!needsPackUpdate(local, remote, localExtractorVersion)) {
         out.push({ id: s.id, updated: false, sha: remote });
         continue;
       }
       try {
         await updatePack(s, dest);
         fs.writeFileSync(shaFile, remote);
+        fs.writeFileSync(extractorFile, String(EXTRACTOR_VERSION));
         out.push({ id: s.id, updated: true, sha: remote });
       } catch {
         out.push({ id: s.id, updated: false, sha: local }); // keep last good copy
