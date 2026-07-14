@@ -21,6 +21,7 @@ import { PackSyncManager } from '../marketplace/sync';
 import { PACK_SOURCES } from '../marketplace/registry';
 import { setClientsRoot, setWorldRoot } from '../clients/paths';
 import { ensureWorldScaffold, ensureClientScaffold } from '../clients/registry';
+import { seedDefaultClients } from '../clients/seed';
 import { setAuditLogRoot } from '../utils/audit-log';
 import { getMcpServerManager } from '../mcp/manager';
 import { initializeUpdater, setupUpdaterIPC, setSettingsWindow, setChatWindow } from './updater';
@@ -700,6 +701,9 @@ app.whenReady().then(async () => {
       setWorldRoot(path.join(app.getPath('userData'), 'world'));
       setClientsRoot(path.join(app.getPath('userData'), 'clients'));
       ensureWorldScaffold();
+      // Bundled brands (Zilliqa, LTIN) show up already voiced and agent-wired on
+      // first launch — idempotent no-op once each client id exists.
+      if (memory) seedDefaultClients(memory, ensureClientScaffold);
       for (const client of memory?.getClients() ?? []) {
         ensureClientScaffold(client.id);
       }
