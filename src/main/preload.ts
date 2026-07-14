@@ -303,6 +303,7 @@ contextBridge.exposeInMainWorld('pocketAgent', {
         projectKey?: string | null;
       }
     ) => ipcRenderer.invoke('mcp:clearServerScopeEnablement', id, context),
+    reauthenticateServer: (id: string) => ipcRenderer.invoke('mcp:reauthenticateServer', id),
   },
 
   // ─── Content Workflow (roadmap item 6) ────────────────────────
@@ -1090,6 +1091,9 @@ declare global {
             riskNote?: string;
             scopeEnabled: boolean;
             scopeEnablementScope: string;
+            runtimeStatus: 'not_started' | 'starting' | 'running' | 'failed';
+            runtimeError?: string;
+            reauthenticable: boolean;
           }>
         >;
         setServerEnabled: (
@@ -1126,6 +1130,9 @@ declare global {
             projectKey?: string | null;
           }
         ) => Promise<{ success: boolean; scope: string }>;
+        reauthenticateServer: (
+          id: string
+        ) => Promise<{ success: boolean; cleared: boolean; message: string }>;
       };
 
       content: {

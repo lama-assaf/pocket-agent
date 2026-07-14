@@ -661,3 +661,16 @@
   font-size: 11px;
   color: var(--text-muted);
 }
+
+#settings-view .mcp-server-reauth-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+#settings-view .mcp-server-reauth-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+}

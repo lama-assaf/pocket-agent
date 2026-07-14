@@ -132,3 +132,71 @@ describe('McpServerManager — shutdown', () => {
     expect(manager.getStatus('srv-2')).toBe('not_started');
   });
 });
+
+describe('McpServerManager — reauthenticateServer', () => {
+  const REAUTH_OK = path.join(__dirname, '../fixtures/mock-reauth-ok.mjs');
+  const REAUTH_FAIL = path.join(__dirname, '../fixtures/mock-reauth-fail.mjs');
+  const OAUTH_PENDING_SERVER = path.join(__dirname, '../fixtures/mock-mcp-server-oauth-pending.mjs');
+  const PORT_CONFLICT_SERVER = path.join(__dirname, '../fixtures/mock-mcp-server-port-conflict.mjs');
+
+  it('tears down an existing connection, runs the reauth command, and reports cleared with no respawn spec', async () => {
+    await manager.ensureServer('x-api', specFor('normal'));
+    expect(manager.getStatus('x-api')).toBe('running');
+
+    const result = await manager.reauthenticateServer('x-api', {
+      command: process.execPath,
+      args: [REAUTH_OK],
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.cleared).toBe(true);
+    expect(result.message).toMatch(/next tool call/i);
+    // The stale connection must be gone — reauthenticating fully tears down
+    // the old (now-invalid-token) session rather than leaving it live.
+    expect(manager.getStatus('x-api')).toBe('not_started');
+  });
+
+  it("reports failure with the reauth command's stderr tail when the clear command itself fails", async () => {
+    const result = await manager.reauthenticateServer('x-api', {
+      command: process.execPath,
+      args: [REAUTH_FAIL],
+    });
+    expect(result.success).toBe(false);
+    expect(result.cleared).toBe(false);
+    expect(result.message).toContain('Failed to clear cached credentials');
+    expect(result.message).toContain('simulated reauth failure');
+  });
+
+  it('respawns immediately and reports success when a respawnSpec is given and it connects cleanly', async () => {
+    const result = await manager.reauthenticateServer(
+      'x-api',
+      { command: process.execPath, args: [REAUTH_OK] },
+      specFor('normal')
+    );
+    expect(result.success).toBe(true);
+    expect(result.cleared).toBe(true);
+    expect(manager.getStatus('x-api')).toBe('running');
+  });
+
+  it('classifies a respawn stuck on OAuth consent as a successful reauth START, not a failure', async () => {
+    const result = await manager.reauthenticateServer(
+      'x-api',
+      { command: process.execPath, args: [REAUTH_OK] },
+      { kind: 'stdio', command: process.execPath, args: [OAUTH_PENDING_SERVER], env: {} }
+    );
+    expect(result.success).toBe(true);
+    expect(result.cleared).toBe(true);
+    expect(result.message).toMatch(/check your browser/i);
+  });
+
+  it('classifies a port-conflict respawn failure with an actionable message', async () => {
+    const result = await manager.reauthenticateServer(
+      'x-api',
+      { command: process.execPath, args: [REAUTH_OK] },
+      { kind: 'stdio', command: process.execPath, args: [PORT_CONFLICT_SERVER], env: {} }
+    );
+    expect(result.success).toBe(false);
+    expect(result.cleared).toBe(true);
+    expect(result.message).toMatch(/port needed for the oauth callback is already in use/i);
+  });
+});

@@ -49,6 +49,15 @@ export interface McpCatalogEntry {
   env?: Record<string, string>; // stdio only — values are ${VAR} placeholders, never real secrets
   url?: string;                // url only
   headers?: Record<string, string>; // url only
+  /**
+   * One-shot command that clears this server's cached OAuth token(s) (stdio
+   * only). Present only on catalog entries that delegate OAuth caching to an
+   * external CLI (e.g. xurl) — its presence is what makes a server
+   * "reauthenticable" in the Settings UI (src/marketplace/mcp-status.ts's
+   * McpServerStatus.reauthenticable). `args` may contain the same `${VAR}`
+   * placeholders as `env`/`args` above, substituted with the same stored env.
+   */
+  reauth?: { command: string; args: string[] };
 }
 
 export interface LoadedPack {

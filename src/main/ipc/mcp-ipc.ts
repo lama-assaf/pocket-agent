@@ -23,6 +23,8 @@ import {
   serializeMcpMarketplaceConfig,
   marketplaceEntryId,
   isFullyConfigured,
+  resolveMcpServer,
+  resolveReauthCommand,
   type McpServerStatus,
   type McpMarketplaceConfig,
   type FirstPartyServerDescriptor,
@@ -181,6 +183,51 @@ export function registerMcpIPC(): void {
       const found = findMarketplaceEntry(id);
       if (!found) return { success: false, scope: '' };
       return clearMcpEnablement(context, found.packId, found.entry.id);
+    }
+  );
+
+  // ── Reauthenticate (force a fresh OAuth login) ──
+  // Only meaningful for a marketplace entry that declares a `reauth`
+  // command (McpCatalogEntry.reauth, e.g. xurl's `auth clear --all`) —
+  // see src/marketplace/mcp-status.ts's `reauthenticable` flag, which is
+  // what gates the Settings UI's "Reauthenticate" button in the first
+  // place. No session context needed: like setServerEnabled/setServerEnv,
+  // this is a global (not per-scope) settings-level action.
+  ipcMain.handle(
+    'mcp:reauthenticateServer',
+    async (
+      _,
+      id: string
+    ): Promise<{ success: boolean; cleared: boolean; message: string }> => {
+      if (id.startsWith('first-party:')) {
+        return { success: false, cleared: false, message: 'Built-in servers do not use OAuth' };
+      }
+      const found = findMarketplaceEntry(id);
+      if (!found) return { success: false, cleared: false, message: 'Unknown server' };
+
+      const config = loadConfig();
+      const stored = config[id];
+      const reauthCmd = resolveReauthCommand(found.entry, stored?.env ?? {});
+      if (!reauthCmd) {
+        return {
+          success: false,
+          cleared: false,
+          message: 'This server does not support reauthentication',
+        };
+      }
+
+      // Only attempt the immediate respawn (which kicks off a fresh OAuth
+      // login right away) if the server is actually enabled + fully
+      // configured — otherwise there's nothing valid to spawn, and the
+      // manager method already handles a missing respawnSpec by reporting
+      // just the clear step succeeded.
+      const resolvedSpec =
+        stored?.enabled && isFullyConfigured(found.entry, stored.env)
+          ? resolveMcpServer(found.entry, stored.env)
+          : null;
+
+      const manager = getMcpServerManager();
+      return manager.reauthenticateServer(id, reauthCmd, resolvedSpec ?? undefined);
     }
   );
 }

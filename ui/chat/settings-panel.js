@@ -1466,6 +1466,20 @@ function _stgMcpScopeRowHtml(server) {
     </div>`;
 }
 
+// Reauthenticate is only offered once there's something real to reauth: the
+// catalog entry supports it (server.reauthenticable — see
+// src/marketplace/mcp-status.ts), AND it's enabled + fully configured. A
+// disabled/unconfigured OAuth server has no live session to invalidate, so
+// showing the button there would just be a confusing no-op.
+function _stgMcpReauthRowHtml(server) {
+  if (!server.reauthenticable || !server.enabled || !server.configured) return '';
+  return `
+    <div class="mcp-server-reauth-row">
+      <button class="skills-setup-btn btn-compact" onclick="playNormalClick(); _stgReauthenticateMcpServer('${_stgMcpEscapeAttr(server.id)}')" id="mcp-reauth-btn-${_stgMcpEscapeAttr(server.id)}">Reauthenticate</button>
+      <span class="mcp-server-reauth-hint">Forces a fresh sign-in — use this if the connection shows Failed or a token was revoked.</span>
+    </div>`;
+}
+
 function _stgMcpServerRowHtml(server) {
   const riskBadge = server.riskNote
     ? `<span class="risk-badge">Risk<span class="risk-tooltip">${_stgMcpEscapeHtml(server.riskNote)}</span></span>`
@@ -1497,8 +1511,32 @@ function _stgMcpServerRowHtml(server) {
       </div>
       ${server.description ? `<div class="mcp-server-desc">${_stgMcpEscapeHtml(server.description)}</div>` : ''}
       ${envForm}
+      ${_stgMcpReauthRowHtml(server)}
       ${_stgMcpScopeRowHtml(server)}
     </div>`;
+}
+
+async function _stgReauthenticateMcpServer(id) {
+  const btn = document.getElementById(`mcp-reauth-btn-${CSS.escape(id)}`);
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Reauthenticating…';
+  }
+  try {
+    const res = await window.pocketAgent.mcp.reauthenticateServer(id);
+    if (!res) {
+      _stgShowToast('Reauthentication failed', 'error');
+    } else {
+      // res.message is always actionable (port conflict, pending browser
+      // consent, or a real failure with the underlying reason) — see
+      // src/mcp/manager.ts's reauthenticateServer doc for the classification.
+      _stgShowToast(res.message, res.success ? 'success' : 'error');
+    }
+  } catch (err) {
+    console.error('[Settings] Failed to reauthenticate MCP server:', err);
+    _stgShowToast('Reauthentication failed: ' + err.message, 'error');
+  }
+  _stgLoadMcpServers();
 }
 
 async function _stgToggleMcpServer(id) {

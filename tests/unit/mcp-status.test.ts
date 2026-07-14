@@ -8,6 +8,7 @@ import {
   serializeMcpMarketplaceConfig,
   buildMcpServerStatusList,
   resolveMcpServer,
+  resolveReauthCommand,
   buildEnabledResolvedServers,
   type McpMarketplaceConfig,
 } from '../../src/marketplace/mcp-status';
@@ -45,6 +46,16 @@ const noEnvEntry: McpCatalogEntry = {
   description: 'Zero-config',
   command: 'npx',
   args: ['-y', 'mcp-hacker-news'],
+};
+
+const oauthEntry: McpCatalogEntry = {
+  id: 'x-api',
+  kind: 'stdio',
+  description: 'X API via xurl OAuth bridge',
+  command: 'npx',
+  args: ['-y', '@xdevplatform/xurl', 'mcp', 'https://api.x.com/mcp'],
+  env: { CLIENT_ID: '${X_CLIENT_ID}', CLIENT_SECRET: '${X_CLIENT_SECRET}' },
+  reauth: { command: 'npx', args: ['-y', '@xdevplatform/xurl', 'auth', 'clear', '--all'] },
 };
 
 describe('extractRequiredEnv', () => {
@@ -142,6 +153,7 @@ describe('buildMcpServerStatusList', () => {
         scopeEnablementScope: 'default',
         runtimeStatus: 'not_started',
         runtimeError: undefined,
+        reauthenticable: false,
       },
     ]);
   });
@@ -254,6 +266,54 @@ describe('resolveMcpServer', () => {
 
   it('returns null for a url entry missing a url', () => {
     expect(resolveMcpServer({ id: 'x', kind: 'url' }, {})).toBeNull();
+  });
+});
+
+describe('resolveReauthCommand', () => {
+  it('returns null for an entry with no reauth command declared', () => {
+    expect(resolveReauthCommand(stdioEntry, { NOTION_TOKEN: 'abc' })).toBeNull();
+  });
+
+  it('resolves the reauth command for an entry that declares one', () => {
+    const resolved = resolveReauthCommand(oauthEntry, {
+      X_CLIENT_ID: 'id123',
+      X_CLIENT_SECRET: 'secret456',
+    });
+    expect(resolved).toEqual({
+      command: 'npx',
+      args: ['-y', '@xdevplatform/xurl', 'auth', 'clear', '--all'],
+    });
+  });
+
+  it('substitutes ${VAR} placeholders inside reauth args, if any are present', () => {
+    const entry: McpCatalogEntry = {
+      id: 'y',
+      kind: 'stdio',
+      command: 'npx',
+      reauth: { command: 'some-cli', args: ['--user=${USERNAME}', 'logout'] },
+    };
+    const resolved = resolveReauthCommand(entry, { USERNAME: 'alice' });
+    expect(resolved).toEqual({ command: 'some-cli', args: ['--user=alice', 'logout'] });
+  });
+});
+
+describe('buildMcpServerStatusList — reauthenticable flag', () => {
+  it('is false for an entry with no reauth command', () => {
+    const list = buildMcpServerStatusList({
+      firstParty: [],
+      marketplace: [{ packId: 'atelier', entry: stdioEntry }],
+      config: {},
+    });
+    expect(list[0].reauthenticable).toBe(false);
+  });
+
+  it('is true for an entry that declares a reauth command, regardless of enabled/configured state', () => {
+    const list = buildMcpServerStatusList({
+      firstParty: [],
+      marketplace: [{ packId: 'salon', entry: oauthEntry }],
+      config: {},
+    });
+    expect(list[0].reauthenticable).toBe(true);
   });
 });
 

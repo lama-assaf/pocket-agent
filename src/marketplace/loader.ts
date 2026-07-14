@@ -189,6 +189,15 @@ export function loadMcpCatalog(dir: string): McpCatalogEntry[] {
       if (entry.env && typeof entry.env === 'object') {
         base.env = entry.env as Record<string, string>;
       }
+      if (
+        entry.reauth &&
+        typeof entry.reauth === 'object' &&
+        typeof (entry.reauth as { command?: unknown }).command === 'string' &&
+        Array.isArray((entry.reauth as { args?: unknown }).args)
+      ) {
+        const reauth = entry.reauth as { command: string; args: string[] };
+        base.reauth = { command: reauth.command, args: reauth.args };
+      }
     }
     out.push(base);
   }

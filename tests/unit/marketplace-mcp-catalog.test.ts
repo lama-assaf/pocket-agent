@@ -30,6 +30,17 @@ describe('loadMcpCatalog', () => {
     expect(buffer?.headers).toHaveProperty('Authorization');
   });
 
+  it("parses x-api's reauth command (the \"Reauthenticate\" Settings button's data source)", () => {
+    const entries = loadMcpCatalog(path.join(SEED_ROOT, 'salon', 'mcp-configs'));
+    const xApi = entries.find((e) => e.id === 'x-api');
+    expect(xApi?.reauth).toEqual({
+      command: 'npx',
+      args: ['-y', '@xdevplatform/xurl', 'auth', 'clear', '--all'],
+    });
+    // No other salon entry declares a reauth command yet.
+    expect(entries.filter((e) => e.reauth).map((e) => e.id)).toEqual(['x-api']);
+  });
+
   it('returns [] for a pack with no mcp-configs dir', () => {
     expect(loadMcpCatalog(path.join(SEED_ROOT, 'nonexistent-pack', 'mcp-configs'))).toEqual([]);
   });

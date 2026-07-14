@@ -56,6 +56,14 @@ export interface McpServerStatus {
   runtimeStatus: 'not_started' | 'starting' | 'running' | 'failed';
   /** Error detail when runtimeStatus is 'failed', if available. */
   runtimeError?: string;
+  /**
+   * True when this entry declares a `reauth` command (McpCatalogEntry.reauth)
+   * — i.e. it delegates OAuth token caching to an external CLI and supports
+   * being forced through a fresh login without deleting/re-adding
+   * credentials. Always false for first-party servers (no OAuth involved).
+   * The Settings UI shows a "Reauthenticate" button only when this is true.
+   */
+  reauthenticable: boolean;
 }
 
 /** Per-entry stored state: enabled flag + user-supplied env values (secrets). */
@@ -178,6 +186,7 @@ export function buildMcpServerStatusList(params: {
       scopeEnablementScope: 'default',
       runtimeStatus: runtimeFor(id).status,
       runtimeError: runtimeFor(id).error,
+      reauthenticable: false,
     });
   }
 
@@ -202,6 +211,7 @@ export function buildMcpServerStatusList(params: {
       scopeEnablementScope: scope.scope,
       runtimeStatus: runtime.status,
       runtimeError: runtime.error,
+      reauthenticable: !!entry.reauth,
     });
   }
 
@@ -266,4 +276,21 @@ export function buildEnabledResolvedServers(params: {
     if (resolved) out[id] = resolved;
   }
   return out;
+}
+
+/**
+ * Resolve a catalog entry's `reauth` command into a concrete, ready-to-spawn
+ * `{ command, args }` (same `${VAR}` substitution as resolveMcpServer), or
+ * null if the entry declares no reauth command at all — the caller-side gate
+ * for whether the "Reauthenticate" action is even possible for this server.
+ */
+export function resolveReauthCommand(
+  entry: McpCatalogEntry,
+  env: Record<string, string>
+): { command: string; args: string[] } | null {
+  if (!entry.reauth) return null;
+  return {
+    command: entry.reauth.command,
+    args: entry.reauth.args.map((a) => substitutePlaceholders(a, env)),
+  };
 }

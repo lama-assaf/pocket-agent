@@ -40,6 +40,7 @@ import { registerMcpIPC } from '../../src/main/ipc/mcp-ipc';
 import { MCP_MARKETPLACE_CONFIG_KEY } from '../../src/agent/mcp-marketplace';
 import { setMemoryManager } from '../../src/tools/memory-tools';
 import { clientScope, WORLD_SCOPE } from '../../src/memory/scope';
+import { getMcpServerManager } from '../../src/mcp/manager';
 import type { MemoryManager } from '../../src/memory/index';
 
 const clientCtx = { contextType: 'client' as const, clientId: 'acme', projectKey: null };
@@ -52,13 +53,14 @@ describe('mcp IPC', () => {
     registerMcpIPC();
   });
 
-  it('registers all six channels', () => {
+  it('registers all seven channels', () => {
     expect(handlers.has('mcp:listServers')).toBe(true);
     expect(handlers.has('mcp:setServerEnabled')).toBe(true);
     expect(handlers.has('mcp:setServerEnv')).toBe(true);
     expect(handlers.has('mcp:getServerScopeEnablement')).toBe(true);
     expect(handlers.has('mcp:setServerScopeEnablement')).toBe(true);
     expect(handlers.has('mcp:clearServerScopeEnablement')).toBe(true);
+    expect(handlers.has('mcp:reauthenticateServer')).toBe(true);
   });
 
   it('mcp:listServers merges first-party and marketplace entries into one list', async () => {
@@ -252,6 +254,86 @@ describe('mcp IPC', () => {
     const notion = list.find((s) => s.id === 'atelier:notion');
     expect(notion?.enabled).toBe(true);
     expect(notion?.configured).toBe(false);
+  });
+});
+
+describe('mcp:reauthenticateServer', () => {
+  beforeEach(() => {
+    handlers.clear();
+    mockIpcMainHandle.mockClear();
+    settingsStore.clear();
+    registerMcpIPC();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('rejects a first-party server id', async () => {
+    const handler = handlers.get('mcp:reauthenticateServer')!;
+    const res = (await handler(undefined, 'first-party:computer')) as { success: boolean; message: string };
+    expect(res.success).toBe(false);
+    expect(res.message).toMatch(/do not use oauth/i);
+  });
+
+  it('rejects an unknown server id', async () => {
+    const handler = handlers.get('mcp:reauthenticateServer')!;
+    const res = (await handler(undefined, 'atelier:does-not-exist')) as { success: boolean; message: string };
+    expect(res.success).toBe(false);
+    expect(res.message).toMatch(/unknown server/i);
+  });
+
+  it('rejects an entry with no reauth command declared', async () => {
+    const handler = handlers.get('mcp:reauthenticateServer')!;
+    const res = (await handler(undefined, 'atelier:notion')) as { success: boolean; message: string };
+    expect(res.success).toBe(false);
+    expect(res.message).toMatch(/does not support reauthentication/i);
+  });
+
+  it('resolves the reauth command and delegates to the manager, passing a respawnSpec once fully configured+enabled', async () => {
+    const setEnvHandler = handlers.get('mcp:setServerEnv')!;
+    await setEnvHandler(undefined, 'salon:x-api', { X_CLIENT_ID: 'id123', X_CLIENT_SECRET: 'secret456' });
+    // x-api's catalog comment mentions "Pay-per-use", which trips the
+    // risk-note heuristic (src/marketplace/loader.ts's RISK_RE) — so unlike a
+    // plain entry, saving credentials alone does NOT auto-enable it; the
+    // risk-confirm gate still requires an explicit, confirmed enable.
+    const setEnabledHandler = handlers.get('mcp:setServerEnabled')!;
+    await setEnabledHandler(undefined, 'salon:x-api', true, true);
+
+    const manager = getMcpServerManager();
+    const spy = vi
+      .spyOn(manager, 'reauthenticateServer')
+      .mockResolvedValue({ success: true, cleared: true, message: 'ok' });
+
+    const handler = handlers.get('mcp:reauthenticateServer')!;
+    const res = await handler(undefined, 'salon:x-api');
+    expect(res).toEqual({ success: true, cleared: true, message: 'ok' });
+
+    expect(spy).toHaveBeenCalledWith(
+      'salon:x-api',
+      { command: 'npx', args: ['-y', '@xdevplatform/xurl', 'auth', 'clear', '--all'] },
+      expect.objectContaining({ kind: 'stdio', command: 'npx' })
+    );
+  });
+
+  it('passes no respawnSpec when the server is not enabled (nothing valid to spawn)', async () => {
+    // Store credentials via setServerEnv but immediately disable, so the
+    // reauth command still resolves (it needs no stored env for x-api's
+    // static `auth clear --all` args) while isFullyConfigured+enabled fails.
+    const setEnvHandler = handlers.get('mcp:setServerEnv')!;
+    await setEnvHandler(undefined, 'salon:x-api', { X_CLIENT_ID: 'id123', X_CLIENT_SECRET: 'secret456' });
+    const setEnabledHandler = handlers.get('mcp:setServerEnabled')!;
+    await setEnabledHandler(undefined, 'salon:x-api', false);
+
+    const manager = getMcpServerManager();
+    const spy = vi
+      .spyOn(manager, 'reauthenticateServer')
+      .mockResolvedValue({ success: true, cleared: true, message: 'cleared only' });
+
+    const handler = handlers.get('mcp:reauthenticateServer')!;
+    await handler(undefined, 'salon:x-api');
+
+    expect(spy).toHaveBeenCalledWith('salon:x-api', expect.any(Object), undefined);
   });
 });
 

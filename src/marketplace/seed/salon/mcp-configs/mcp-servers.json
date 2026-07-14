@@ -12,6 +12,10 @@
       "env": {
         "CLIENT_ID": "${X_CLIENT_ID}",
         "CLIENT_SECRET": "${X_CLIENT_SECRET}"
+      },
+      "reauth": {
+        "command": "npx",
+        "args": ["-y", "@xdevplatform/xurl", "auth", "clear", "--all"]
       }
     },
     "twitter-community": {

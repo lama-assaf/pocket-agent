@@ -14,6 +14,7 @@
 
 import type { ResolvedMcpServer } from '../marketplace/mcp-status';
 import { StdioMcpClient, HttpMcpClient, type McpClient, type McpToolDescriptor } from './client';
+import { runOneShotCommand } from './one-shot';
 
 export type McpRuntimeStatus = 'not_started' | 'starting' | 'running' | 'failed';
 
@@ -147,6 +148,84 @@ export class McpServerManager {
   async shutdownAll(): Promise<void> {
     const ids = [...this.servers.keys()];
     await Promise.all(ids.map((id) => this.stopServer(id)));
+  }
+
+  /**
+   * Force a fresh OAuth login for a server that delegates token caching to
+   * an external CLI (McpCatalogEntry.reauth, e.g. xurl) — the
+   * "Reauthenticate" Settings action. Three steps, each individually
+   * diagnosable rather than collapsing into one bare failure:
+   *
+   * 1. Tear down any existing live connection for `id` (a stale connection
+   *    holding the OLD token must not keep answering tool calls once the
+   *    user explicitly asked to reauthenticate).
+   * 2. Run the entry's one-shot `reauth` command (e.g. `xurl auth clear
+   *    --all`) to invalidate the cached token. A failure here (missing
+   *    binary, non-zero exit) is reported immediately with its stderr
+   *    tail — same diagnostic shape as src/mcp/client.ts's crash/timeout
+   *    handling — without ever attempting the respawn below.
+   * 3. If `respawnSpec` is given (the server is enabled + fully
+   *    configured), immediately spawn a fresh connection so the user sees
+   *    the browser-consent step start right away instead of waiting for
+   *    the next incidental tool call. This attempt resolves within
+   *    client.ts's handshake timeout — for an interactive OAuth CLI that
+   *    is *expected* to mean "still waiting on the user's browser", which
+   *    is classified as a successful reauth START (not a failure) by
+   *    pattern-matching the known xurl status line; a genuine port-bind
+   *    conflict is classified separately so the message names the real
+   *    cause instead of a generic timeout.
+   */
+  async reauthenticateServer(
+    id: string,
+    reauth: { command: string; args: string[] },
+    respawnSpec?: ResolvedMcpServer
+  ): Promise<{ success: boolean; cleared: boolean; message: string }> {
+    await this.stopServer(id);
+
+    const clearResult = await runOneShotCommand(reauth.command, reauth.args, {}, 10_000);
+    if (!clearResult.success) {
+      const reason = clearResult.spawnError
+        ? `could not run the reauth command (${clearResult.spawnError})`
+        : clearResult.timedOut
+          ? 'the reauth command timed out'
+          : `the reauth command exited with code ${clearResult.code ?? 'unknown'}`;
+      const tail = clearResult.stderrTail ? ` — ${clearResult.stderrTail}` : '';
+      return { success: false, cleared: false, message: `Failed to clear cached credentials: ${reason}${tail}` };
+    }
+
+    if (!respawnSpec) {
+      return {
+        success: true,
+        cleared: true,
+        message: 'Cleared cached credentials. The next tool call will trigger a fresh sign-in.',
+      };
+    }
+
+    const managed = await this.ensureServer(id, respawnSpec);
+    if (managed.status === 'running') {
+      return { success: true, cleared: true, message: 'Reauthenticated — connected successfully.' };
+    }
+
+    const err = managed.lastError || '';
+    if (/opening the browser to sign in/i.test(err) || /no valid oauth2? token/i.test(err)) {
+      return {
+        success: true,
+        cleared: true,
+        message: 'Cleared cached credentials and started a fresh sign-in — check your browser to complete the login.',
+      };
+    }
+    if (/address already in use/i.test(err) || /listenererror/i.test(err)) {
+      return {
+        success: false,
+        cleared: true,
+        message: `Cleared cached credentials, but sign-in could not start — a port needed for the OAuth callback is already in use. ${err}`,
+      };
+    }
+    return {
+      success: false,
+      cleared: true,
+      message: `Cleared cached credentials, but the fresh sign-in failed: ${err || 'unknown error'}`,
+    };
   }
 }
 
