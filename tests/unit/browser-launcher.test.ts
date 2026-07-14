@@ -11,8 +11,13 @@ vi.mock('fs', () => ({
   existsSync: vi.fn(() => false),
 }));
 
+// Default mock child: never emits 'exit'/'error' (a healthy, still-running
+// process) so existing tests that spawn but don't care about lifecycle
+// events keep working unchanged. Tests that need crash/error behavior
+// override spawn's return value per-test.
+const mockSpawn = vi.fn(() => ({ unref: vi.fn(), on: vi.fn() }));
 vi.mock('child_process', () => ({
-  spawn: vi.fn(() => ({ unref: vi.fn() })),
+  spawn: (...args: unknown[]) => mockSpawn(...args),
   exec: vi.fn((_cmd: string, cb: (err: Error | null, result: { stdout: string }) => void) =>
     cb(null, { stdout: '' }),
   ),
@@ -121,6 +126,81 @@ describe('browser-launcher', () => {
 
       expect(result.success).toBe(false);
       expect(result.error).toContain('not installed');
+    });
+
+    // Pre-flight check (fixes the reported "launched but CDP timed out"):
+    // if something already answers CDP on the target port (a leftover
+    // browser from a previous run, another automation tool, etc.), a
+    // second launch attempt is exactly the classic cause of that timeout —
+    // the new process can never bind the port. Detect this BEFORE spawning.
+    it('short-circuits to success when CDP is already available on the port, without spawning', async () => {
+      (existsSync as ReturnType<typeof vi.fn>).mockImplementation(
+        (p: string) => p === '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+      );
+      mockFetch.mockResolvedValue({ ok: true, json: async () => ({ Browser: 'Chrome/120' }) });
+
+      const result = await launchBrowser('chrome', 9222);
+
+      expect(result.success).toBe(true);
+      expect(mockSpawn).not.toHaveBeenCalled();
+    });
+
+    it('reports a distinct, actionable error when the spawned process exits immediately (not a generic timeout)', async () => {
+      vi.useFakeTimers();
+      try {
+        (existsSync as ReturnType<typeof vi.fn>).mockImplementation(
+          (p: string) => p === '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+        );
+        // No CDP ever responds — simulates a browser that failed to bind the debug port.
+        mockFetch.mockRejectedValue(new Error('Connection refused'));
+
+        let exitCallback: ((code: number | null, signal: NodeJS.Signals | null) => void) | null = null;
+        mockSpawn.mockReturnValue({
+          unref: vi.fn(),
+          on: vi.fn((event: string, cb: (...args: unknown[]) => void) => {
+            if (event === 'exit') exitCallback = cb as typeof exitCallback;
+          }),
+        });
+
+        const launchPromise = launchBrowser('chrome', 9222);
+        // Let the pending awaits (pre-flight CDP check, App Nap exec) resolve
+        // so spawn() actually runs and registers the 'exit' handler before we
+        // simulate the crash.
+        await vi.advanceTimersByTimeAsync(0);
+        // Simulate the process crashing (e.g. locked profile) right after spawn.
+        exitCallback!(1, null);
+
+        await vi.advanceTimersByTimeAsync(750);
+        const result = await launchPromise;
+
+        expect(result.success).toBe(false);
+        expect(result.error).toContain('exited immediately');
+        expect(result.error).toContain('code 1');
+        expect(result.error).toContain('Activity Monitor');
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('gives an actionable timeout message (port conflict or slow start) when CDP never comes up and the process stays alive', async () => {
+      vi.useFakeTimers();
+      try {
+        (existsSync as ReturnType<typeof vi.fn>).mockImplementation(
+          (p: string) => p === '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+        );
+        mockFetch.mockRejectedValue(new Error('Connection refused'));
+        mockSpawn.mockReturnValue({ unref: vi.fn(), on: vi.fn() }); // never exits, never errors
+
+        const launchPromise = launchBrowser('chrome', 9222);
+        await vi.advanceTimersByTimeAsync(20 * 750 + 1000);
+        const result = await launchPromise;
+
+        expect(result.success).toBe(false);
+        expect(result.error).toContain('9222');
+        expect(result.error).toContain('Test Connection');
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 });

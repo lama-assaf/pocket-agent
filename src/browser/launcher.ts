@@ -257,6 +257,21 @@ export async function launchBrowser(
     };
   }
 
+  // Pre-flight: if something is ALREADY answering CDP on this port (a
+  // leftover/orphaned browser from a previous run, another automation tool,
+  // etc.), spawning a second browser on the same port is exactly the classic
+  // cause of "launched but CDP timed out" — the new process can't bind the
+  // port, so it silently comes up with no debug endpoint while the OLD one
+  // keeps answering, and the 5-10s wait below just burns time waiting on a
+  // port that was never going to change. Detect this up front and either
+  // treat it as an immediate success (a CDP endpoint is already there, which
+  // is genuinely all the caller wanted) or tell the user precisely why a
+  // fresh launch can't work here.
+  const preflight = await testCdpConnection(`http://localhost:${port}`);
+  if (preflight.connected) {
+    return { success: true };
+  }
+
   try {
     // Disable macOS App Nap before launch (macOS only)
     if (IS_MACOS) {
@@ -286,14 +301,46 @@ export async function launchBrowser(
       }
     );
 
+    // Track whether the spawned process exits/errors during the polling
+    // window below, so a crash reports as exactly that ("process exited")
+    // instead of the misleading generic "timed out" (which reads as "still
+    // starting, just slow" — a crash is a different failure entirely and
+    // "try again in a moment" is bad advice for it).
+    let exitedEarly: { code: number | null; signal: string | null } | null = null;
+    let spawnError: Error | null = null;
+    child.on('exit', (code, signal) => {
+      exitedEarly = { code, signal };
+    });
+    child.on('error', (err) => {
+      spawnError = err;
+    });
+
     child.unref();
 
-    // Wait for CDP to become available with retries
-    const maxAttempts = 10;
-    const delayMs = 500;
+    // Wait for CDP to become available with retries. Cold-starting a real
+    // browser (profile load, extensions, first-run flows) can meaningfully
+    // exceed the previous 5s budget on a loaded machine — 15s gives it
+    // realistic room without hanging the UI indefinitely.
+    const maxAttempts = 20;
+    const delayMs = 750;
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       await new Promise((resolve) => setTimeout(resolve, delayMs));
+
+      if (spawnError) {
+        return { success: false, error: `Failed to launch ${def.name}: ${(spawnError as Error).message}` };
+      }
+      if (exitedEarly) {
+        const { code, signal } = exitedEarly as { code: number | null; signal: string | null };
+        return {
+          success: false,
+          error:
+            `${def.name} exited immediately after launching (code ${code ?? 'unknown'}` +
+            `${signal ? `, signal ${signal}` : ''}). This usually means another instance is already ` +
+            `running with a locked profile — quit ${def.name} completely (check Activity Monitor for any ` +
+            `lingering background process) and try again.`,
+        };
+      }
 
       const result = await testCdpConnection(`http://localhost:${port}`);
       if (result.connected) {
@@ -305,7 +352,11 @@ export async function launchBrowser(
 
     return {
       success: false,
-      error: 'Browser launched but CDP connection timed out. Try "Test Connection" in a moment.',
+      error:
+        `Browser launched but CDP connection timed out on port ${port}. This usually means either ` +
+        `(a) another process is already using port ${port} without exposing a working CDP endpoint — try a ` +
+        `different port, or (b) ${def.name} is still starting up (a loaded machine or a large profile can take ` +
+        `longer than usual) — wait a few seconds and click "Test Connection".`,
     };
   } catch (error) {
     return {
