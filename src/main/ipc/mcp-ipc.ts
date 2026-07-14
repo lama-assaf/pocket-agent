@@ -22,6 +22,7 @@ import {
   parseMcpMarketplaceConfig,
   serializeMcpMarketplaceConfig,
   marketplaceEntryId,
+  isFullyConfigured,
   type McpServerStatus,
   type McpMarketplaceConfig,
   type FirstPartyServerDescriptor,
@@ -111,7 +112,11 @@ export function registerMcpIPC(): void {
 
   ipcMain.handle(
     'mcp:setServerEnv',
-    async (_, id: string, env: Record<string, string>): Promise<{ success: boolean; error?: string }> => {
+    async (
+      _,
+      id: string,
+      env: Record<string, string>
+    ): Promise<{ success: boolean; error?: string; autoEnabled?: boolean }> => {
       if (id.startsWith('first-party:')) {
         return { success: false, error: 'Built-in servers have no configurable credentials' };
       }
@@ -127,9 +132,24 @@ export function registerMcpIPC(): void {
       for (const [k, v] of Object.entries(env)) {
         if (v) mergedEnv[k] = v;
       }
-      config[id] = { ...existing, env: mergedEnv };
+
+      // Auto-enable on the save that completes every required credential —
+      // fixes the exact reported bug: a user fills in every credential field
+      // and clicks "Save credentials", reasonably expecting that to mean
+      // "this server is now set up", but enabled/env used to be two fully
+      // independent flags with no UI nudge connecting them. The row stayed on
+      // "Disabled" (indistinguishable from "never touched") until a SEPARATE
+      // toggle click, which is easy to miss since it sits in the row header,
+      // not next to the Save button in the credentials form below it.
+      // Never auto-enables a risk-flagged entry — that still requires the
+      // explicit confirm-dialog opt-in via mcp:setServerEnabled, preserving
+      // the safety-critical gate mcp:setServerEnabled enforces server-side.
+      const becameFullyConfigured = isFullyConfigured(found.entry, mergedEnv);
+      const autoEnabled = becameFullyConfigured && !existing.enabled && !found.entry.riskNote;
+
+      config[id] = { ...existing, env: mergedEnv, enabled: existing.enabled || autoEnabled };
       saveConfig(config);
-      return { success: true };
+      return { success: true, autoEnabled };
     }
   );
 

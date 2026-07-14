@@ -149,8 +149,89 @@ describe('mcp IPC', () => {
 
     const listHandler = handlers.get('mcp:listServers')!;
     const list = (await listHandler()) as Array<Record<string, unknown>>;
-    // configured requires the env var; enabled is a separate flag (still false here).
     expect(list.find((s) => s.id === 'atelier:notion')?.configured).toBe(true);
+  });
+
+  // Reported bug: a user fills in every required credential and clicks "Save
+  // credentials", reasonably expecting the server to now be set up — but
+  // enabled/env used to be two fully independent flags with no UI link
+  // between them, so the row stayed on "Disabled" (indistinguishable from
+  // "never touched") until a SEPARATE toggle click. Completing every
+  // required credential for a non-risky entry now auto-enables it in the
+  // same save.
+  it('mcp:setServerEnv auto-enables a non-risky server once every required credential is present', async () => {
+    const setEnvHandler = handlers.get('mcp:setServerEnv')!;
+    const res = (await setEnvHandler(undefined, 'atelier:notion', { NOTION_TOKEN: 'abc123' })) as {
+      success: boolean;
+      autoEnabled?: boolean;
+    };
+    expect(res.success).toBe(true);
+    expect(res.autoEnabled).toBe(true);
+
+    const listHandler = handlers.get('mcp:listServers')!;
+    const list = (await listHandler()) as Array<Record<string, unknown>>;
+    const notion = list.find((s) => s.id === 'atelier:notion');
+    expect(notion?.enabled).toBe(true);
+    expect(notion?.configured).toBe(true);
+  });
+
+  it('mcp:setServerEnv does NOT auto-enable a risk-flagged entry, even once fully configured', async () => {
+    // Find a risk-flagged catalog entry that actually requires credentials —
+    // the auto-enable gate must never bypass the risk-confirm requirement
+    // mcp:setServerEnabled enforces server-side.
+    const { allMcpCatalogs } = await import('../../src/marketplace/registry');
+    const { extractRequiredEnv } = await import('../../src/marketplace/mcp-status');
+    const risky = allMcpCatalogs().find(
+      (m) => !!m.entry.riskNote && extractRequiredEnv(m.entry).length > 0
+    );
+    expect(risky).toBeTruthy(); // sanity check the catalog still has a matching fixture
+    const id = `${risky!.packId}:${risky!.entry.id}`;
+    const requiredEnv = extractRequiredEnv(risky!.entry);
+    const env = Object.fromEntries(requiredEnv.map((name) => [name, 'test-value']));
+
+    const setEnvHandler = handlers.get('mcp:setServerEnv')!;
+    const res = (await setEnvHandler(undefined, id, env)) as { success: boolean; autoEnabled?: boolean };
+    expect(res.success).toBe(true);
+    expect(res.autoEnabled).toBe(false);
+
+    const listHandler = handlers.get('mcp:listServers')!;
+    const list = (await listHandler()) as Array<Record<string, unknown>>;
+    const entry = list.find((s) => s.id === id);
+    expect(entry?.configured).toBe(true);
+    expect(entry?.enabled).toBe(false); // still requires the explicit confirm-gated toggle
+  });
+
+  it('mcp:setServerEnv does not re-disable or otherwise touch an already-enabled server', async () => {
+    const enableHandler = handlers.get('mcp:setServerEnabled')!;
+    await enableHandler(undefined, 'atelier:notion', true);
+
+    const setEnvHandler = handlers.get('mcp:setServerEnv')!;
+    const res = (await setEnvHandler(undefined, 'atelier:notion', { NOTION_TOKEN: 'abc123' })) as {
+      autoEnabled?: boolean;
+    };
+    expect(res.autoEnabled).toBe(false); // already enabled — nothing to auto-enable
+
+    const listHandler = handlers.get('mcp:listServers')!;
+    const list = (await listHandler()) as Array<Record<string, unknown>>;
+    expect(list.find((s) => s.id === 'atelier:notion')?.enabled).toBe(true);
+  });
+
+  it('mcp:setServerEnv does not auto-enable while credentials remain incomplete', async () => {
+    // notion requires only NOTION_TOKEN, so submit an unrelated/empty env to
+    // simulate a partial save that never actually completes isFullyConfigured.
+    const setEnvHandler = handlers.get('mcp:setServerEnv')!;
+    const res = (await setEnvHandler(undefined, 'atelier:notion', {})) as {
+      success: boolean;
+      autoEnabled?: boolean;
+    };
+    expect(res.success).toBe(true);
+    expect(res.autoEnabled).toBe(false);
+
+    const listHandler = handlers.get('mcp:listServers')!;
+    const list = (await listHandler()) as Array<Record<string, unknown>>;
+    const notion = list.find((s) => s.id === 'atelier:notion');
+    expect(notion?.enabled).toBe(false);
+    expect(notion?.configured).toBe(false);
   });
 
   it('mcp:setServerEnv only overwrites keys with a non-empty submitted value (blank = unchanged)', async () => {

@@ -1542,7 +1542,10 @@ async function _stgSaveMcpServerEnv(id) {
       _stgShowToast((res && res.error) || 'Failed to save credentials', 'error');
       return;
     }
-    _stgShowToast('Credentials saved', 'success');
+    // Completing every required credential auto-enables a non-risky server
+    // (src/main/ipc/mcp-ipc.ts) — say so explicitly so "saved" and "enabled"
+    // don't read as two separate, easy-to-miss steps.
+    _stgShowToast(res.autoEnabled ? 'Credentials saved — server enabled' : 'Credentials saved', 'success');
     _stgActivateReboot();
     _stgLoadMcpServers();
   } catch (err) {

@@ -1100,7 +1100,7 @@ declare global {
         setServerEnv: (
           id: string,
           env: Record<string, string>
-        ) => Promise<{ success: boolean; error?: string }>;
+        ) => Promise<{ success: boolean; error?: string; autoEnabled?: boolean }>;
         getServerScopeEnablement: (
           id: string,
           context: {
