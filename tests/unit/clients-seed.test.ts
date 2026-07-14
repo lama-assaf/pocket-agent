@@ -1,8 +1,10 @@
 /**
- * Bundled client seeds (Zilliqa, LTIN): created once at first launch, voiced
- * via `how_to_act` facts, and wired to the right marketplace agents via
- * explicit `enabled-agents` facts — idempotent so re-running never clobbers
- * an operator's edits.
+ * Bundled client seeds (Zilliqa, LTIN): every bundled client is voiced via
+ * `how_to_act` facts, given starter `lesson` facts, and wired to the right
+ * marketplace agents via explicit `enabled-agents` facts. Backfills a client
+ * row that already exists but has no voice yet (e.g. hand-created via the
+ * Clients picker, or seeded by a build that only wrote the bare row) —
+ * idempotent so re-running never clobbers an operator's real edits.
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
@@ -11,16 +13,15 @@ import {
   seedDefaultClients,
   type ClientSeed,
   type SeedMemory,
+  type SeedFactRow,
 } from '../../src/clients/seed';
 import { clientScope } from '../../src/memory/scope';
 import { HOW_TO_ACT_CATEGORY, VOICE_SUBJECT_ORDER } from '../../src/agent/how-to-act';
 import { ENABLED_AGENTS_CATEGORY, agentEnablementSubject } from '../../src/marketplace/enablement';
 
-interface FakeFact {
-  category: string;
+interface FakeFact extends SeedFactRow {
   subject: string;
   content: string;
-  scope: string;
 }
 
 class FakeMemory implements SeedMemory {
@@ -38,6 +39,10 @@ class FakeMemory implements SeedMemory {
     const client = { id: input.id, name: input.name };
     this.clients.push(client);
     return client;
+  }
+
+  getAllFacts(): SeedFactRow[] {
+    return this.facts;
   }
 
   saveFact(category: string, subject: string, content: string, _sensitive?: boolean, scope = 'user'): number {
@@ -59,6 +64,13 @@ describe('DEFAULT_CLIENT_SEEDS', () => {
       expect(subjects).toContain('banned_words');
       expect(seed.facts.every((f) => f.content.trim().length > 0)).toBe(true);
       expect(seed.agents.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('every seed carries at least one starter lesson', () => {
+    for (const seed of DEFAULT_CLIENT_SEEDS) {
+      expect(seed.lessons.length).toBeGreaterThan(0);
+      expect(seed.lessons.every((l) => l.content.trim().length > 0)).toBe(true);
     }
   });
 
@@ -101,6 +113,13 @@ describe('seedDefaultClients', () => {
     expect(voiceFact?.content).toContain('evidence-first');
   });
 
+  it('seeds lesson facts scoped to client:<id>', () => {
+    seedDefaultClients(memory, ensureScaffold);
+    const ltinScope = clientScope('ltin');
+    const lessonFacts = memory.facts.filter((f) => f.scope === ltinScope && f.category === 'lesson');
+    expect(lessonFacts.length).toBeGreaterThan(0);
+  });
+
   it('seeds explicit enabled-agents facts for each mapped agent', () => {
     seedDefaultClients(memory, ensureScaffold);
     const ltinScope = clientScope('ltin');
@@ -112,13 +131,39 @@ describe('seedDefaultClients', () => {
     expect(fact?.content).toBe('true');
   });
 
-  it('is idempotent — an existing client id is left untouched, no duplicate facts', () => {
-    memory.createClient({ id: 'zilliqa', name: 'Custom name kept as-is' });
+  it('is idempotent — a scope that already has a how_to_act fact is left untouched, no duplicate facts', () => {
+    seedDefaultClients(memory, ensureScaffold);
+    const factCountAfterFirstRun = memory.facts.length;
+    const created = seedDefaultClients(memory, ensureScaffold);
+    expect(created).toEqual([]);
+    expect(memory.facts.length).toBe(factCountAfterFirstRun);
+  });
+
+  it('never overwrites an operator-authored voice fact in an existing client scope', () => {
+    memory.createClient({ id: 'zilliqa', name: 'Zilliqa' });
+    memory.saveFact(HOW_TO_ACT_CATEGORY, 'voice', 'Operator-authored voice', false, clientScope('zilliqa'));
     const created = seedDefaultClients(memory, ensureScaffold);
     expect(created).toEqual(['ltin']);
-    expect(memory.clients.find((c) => c.id === 'zilliqa')?.name).toBe('Custom name kept as-is');
-    expect(scaffolded).toEqual(['ltin']);
-    expect(memory.facts.some((f) => f.scope === clientScope('zilliqa'))).toBe(false);
+    const zilliqaVoiceFacts = memory.facts.filter(
+      (f) => f.scope === clientScope('zilliqa') && f.category === HOW_TO_ACT_CATEGORY && f.subject === 'voice'
+    );
+    expect(zilliqaVoiceFacts).toHaveLength(1);
+    expect(zilliqaVoiceFacts[0]?.content).toBe('Operator-authored voice');
+  });
+
+  it('backfills a hand-created client that exists with zero facts (the reported bug)', () => {
+    // Reproduces the real-world case: a client row exists (created by an
+    // older build, or by hand) but has no how_to_act/lesson facts at all —
+    // creation alone must not be treated as "already seeded".
+    memory.createClient({ id: 'zilliqa', name: 'Zilliqa' });
+    memory.createClient({ id: 'ltin', name: 'LTIN' });
+    const created = seedDefaultClients(memory, ensureScaffold);
+    expect(created.sort()).toEqual(['ltin', 'zilliqa']);
+    const zilliqaScope = clientScope('zilliqa');
+    expect(
+      memory.facts.some((f) => f.scope === zilliqaScope && f.category === HOW_TO_ACT_CATEGORY && f.subject === 'voice')
+    ).toBe(true);
+    expect(memory.facts.some((f) => f.scope === zilliqaScope && f.category === 'lesson')).toBe(true);
   });
 
   it('supports a custom seed list for isolated testing', () => {
@@ -127,6 +172,7 @@ describe('seedDefaultClients', () => {
         id: 'acme',
         name: 'Acme',
         facts: [{ subject: 'voice', content: 'Bold and brief' }],
+        lessons: [{ subject: 'test lesson', content: 'Keep it short.' }],
         agents: [{ packId: 'atelier', agentName: 'copywriter' }],
       },
     ];

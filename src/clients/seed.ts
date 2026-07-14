@@ -1,14 +1,24 @@
 // src/clients/seed.ts
 // Bundled client (brand) seeds so known clients are available in-app at first
 // launch, without an operator having to hand-create them. Each seed carries its
-// `how_to_act` voice facts (see src/agent/how-to-act.ts) and the marketplace
-// agents it should have explicitly enabled (src/marketplace/enablement.ts),
-// so a brand shows up already voiced and wired to the right specialists.
+// `how_to_act` voice facts (see src/agent/how-to-act.ts), starter `lesson`
+// facts (the Brain panel's Lessons tab, category 'lesson'), and the
+// marketplace agents it should have explicitly enabled
+// (src/marketplace/enablement.ts), so a brand shows up already voiced,
+// lessoned, and wired to the right specialists.
 //
 // Seeding writes through the same paths a human would use in-app (createClient
 // + saveFact), never a parallel storage path — so seeded clients are
-// indistinguishable from ones created by hand, and re-running seeding is a
-// no-op once a client id exists.
+// indistinguishable from ones created by hand.
+//
+// Backfill, not just first-create: a client row can already exist with zero
+// facts (hand-created via the Clients picker before this seed ever ran, or a
+// prior partial seed) — creation alone is NOT a reliable "already seeded"
+// signal. So the gate for writing facts is "this scope has no how_to_act fact
+// yet," independent of whether the client row itself is new. That backfills
+// an empty pre-existing client exactly once, while never clobbering a real
+// how_to_act edit an operator already made (its mere presence, of any
+// subject, is enough to skip re-seeding that scope for good).
 
 import type { ClientSyncMode } from '../memory/clients';
 import { clientScope } from '../memory/scope';
@@ -17,6 +27,12 @@ import { ENABLED_AGENTS_CATEGORY, agentEnablementSubject } from '../marketplace/
 
 /** One `how_to_act` fact to seed for a client (subject 'voice' | 'tone' | 'instincts' | 'banned_words'). */
 export interface ClientSeedFact {
+  subject: string;
+  content: string;
+}
+
+/** One starter `lesson` fact (Brain panel Lessons tab). Subject is a short free-text label, may be ''. */
+export interface ClientSeedLesson {
   subject: string;
   content: string;
 }
@@ -33,6 +49,8 @@ export interface ClientSeed {
   syncMode?: ClientSyncMode;
   /** `how_to_act` facts (voice/tone/instincts/banned_words) seeded at `client:<id>` scope. */
   facts: ClientSeedFact[];
+  /** `lesson`-category facts seeded at `client:<id>` scope (Brain panel Lessons tab). */
+  lessons: ClientSeedLesson[];
   /** Atelier/Salon agents wired to this brand via explicit `enabled-agents` facts. */
   agents: ClientSeedAgent[];
 }
@@ -67,6 +85,18 @@ const ZILLIQA_SEED: ClientSeed = {
       subject: 'banned_words',
       content:
         'revolutionary, game-changing, cutting-edge, world-class, unleash, supercharge, the best, the leading, the #1, sign up now, mediation not settlement, settlement stays where it is, validation not settlement per transaction, settles nothing, clears no trades, cannot be the layer that settles, steps aside, zilliqa vs solana tps, why zilliqa chose liechtenstein',
+    },
+  ],
+  lessons: [
+    {
+      subject: 'canon reconciliation must sweep every surface',
+      content:
+        "When a claim or wedge is reconciled and phrases are banned, the sweep must cover every surface the campaign lives on, not just repo markdown. A banned-phrase check against only local files missed the same retired language ('settles nothing', 'clears no trades', 'steps aside', 'cannot be the layer that settles') sitting live in the master content-calendar Google Doc, which lags repo canon by weeks. Re-run banned-phrase sweeps against the Doc export whenever ground truth changes.",
+    },
+    {
+      subject: 'brand voice extraction before copy, not after',
+      content:
+        'Writing landing copy or email sequences before a voice guide exists lets multiple contributors invent different voices in parallel. Extracting the voice guide is a one-day investment that prevents weeks of revision later; never let new copy ship without checking it against the guide.',
     },
   ],
   agents: [
@@ -111,6 +141,18 @@ const LTIN_SEED: ClientSeed = {
         "revolutionary, game-changing, the future of, disrupt, 10x, synergy, circle back, zilliqa vs solana tps, why zilliqa chose liechtenstein, zilliqa enables liechtenstein's sovereign vision, mediation not settlement, settlement stays where it is",
     },
   ],
+  lessons: [
+    {
+      subject: 'positioning evolved hard — use the May–June 2026 material, not June 2025',
+      content:
+        "The earliest strategy asset (June 2025) frames LTIN generically as 'the regulatory-compliant blockchain infrastructure leader' — renewable energy, data sovereignty, competing with AWS/Infura. The May–June 2026 board decks are a completely different, sharper strategy: twin narrative (LTIN authority / Zilliqa category), the vLEI value chain, mediation-above-settlement, ZIL as meter, revenue-vs-subsidy proof. Default to the 2026 material for all positioning and proof; treat the 2025 doc as historical context only — publishing the old framing would sound generic and merge the streams the new strategy works hard to keep apart.",
+    },
+    {
+      subject: 'gate confidential material before it reaches public content',
+      content:
+        'Memory synthesized from internal board decks (several marked confidential) surfaces the richest material — stakeholder maps, opposition architecture, stealth track, ZIL economics — but most of it is internal only. When drafting public content, pull the principle and mechanism, but gate anything naming unshipped partners, numbers, or stealth items (Alatau, China/EU corridors, agentic AI, academic partners, SCION/SSFN, GSMA). Leaking a stealth item or an unshipped partner number would break proof discipline before anchors are validated.',
+    },
+  ],
   agents: [
     { packId: 'atelier', agentName: 'copywriter' },
     { packId: 'atelier', agentName: 'brand-voice-keeper' },
@@ -124,6 +166,12 @@ const LTIN_SEED: ClientSeed = {
 /** Bundled client seeds, applied once each at first launch (see seedDefaultClients). */
 export const DEFAULT_CLIENT_SEEDS: ClientSeed[] = [ZILLIQA_SEED, LTIN_SEED];
 
+/** Minimal fact shape the seeding backfill check needs. */
+export interface SeedFactRow {
+  category: string;
+  scope: string;
+}
+
 /** Memory-store surface seeding needs — a subset of MemoryManager, mirroring src/clients/export.ts's ExportMemory pattern. */
 export interface SeedMemory {
   getClients(): { id: string }[];
@@ -133,6 +181,7 @@ export interface SeedMemory {
     syncMode?: ClientSyncMode;
     repoUrl?: string | null;
   }): unknown;
+  getAllFacts(): SeedFactRow[];
   saveFact(
     category: string,
     subject: string,
@@ -143,31 +192,49 @@ export interface SeedMemory {
 }
 
 /**
- * Create any bundled client that doesn't already exist, seeding its
- * `how_to_act` voice facts and explicit agent enablement facts. Idempotent —
- * an existing client id is left untouched (never overwrites operator edits).
+ * Ensure every bundled client exists and is voiced: creates a missing client
+ * row, and — independent of whether the row was just created or already
+ * existed — backfills its `how_to_act` voice facts, starter `lesson` facts,
+ * and explicit agent-enablement facts whenever that scope has no
+ * `how_to_act` fact yet. A client hand-created via the Clients picker before
+ * this seed ran (or seeded by an older build that only wrote a bare client
+ * row) is exactly that case: creation alone is not a reliable "already
+ * seeded" signal, so the gate checks the facts store directly. Once a scope
+ * has any `how_to_act` fact (seeded or hand-authored), it is left alone for
+ * good — this never overwrites an operator's edits.
  * `ensureScaffold` materializes the on-disk `.atelier/memory` + `guardrails`
  * scaffold (injected so this module stays Electron-free, like the rest of
  * src/clients/); callers pass `ensureClientScaffold` from ./registry.
- * Returns the ids of clients actually created.
+ * Returns the ids of clients that were newly created OR backfilled.
  */
 export function seedDefaultClients(
   memory: SeedMemory,
   ensureScaffold: (id: string) => void,
   seeds: ClientSeed[] = DEFAULT_CLIENT_SEEDS
 ): string[] {
-  const existing = new Set(memory.getClients().map((c) => c.id));
-  const created: string[] = [];
+  const existingClients = new Set(memory.getClients().map((c) => c.id));
+  const scopesWithVoice = new Set(
+    memory
+      .getAllFacts()
+      .filter((f) => f.category === HOW_TO_ACT_CATEGORY)
+      .map((f) => f.scope)
+  );
+  const touched: string[] = [];
 
   for (const seed of seeds) {
-    if (existing.has(seed.id)) continue;
+    const scope = clientScope(seed.id);
+    if (scopesWithVoice.has(scope)) continue; // already voiced — never re-seed or clobber
 
-    memory.createClient({ id: seed.id, name: seed.name, syncMode: seed.syncMode ?? 'manual' });
+    if (!existingClients.has(seed.id)) {
+      memory.createClient({ id: seed.id, name: seed.name, syncMode: seed.syncMode ?? 'manual' });
+    }
     ensureScaffold(seed.id);
 
-    const scope = clientScope(seed.id);
     for (const fact of seed.facts) {
       memory.saveFact(HOW_TO_ACT_CATEGORY, fact.subject, fact.content, false, scope);
+    }
+    for (const lesson of seed.lessons) {
+      memory.saveFact('lesson', lesson.subject, lesson.content, false, scope);
     }
     for (const agent of seed.agents) {
       memory.saveFact(
@@ -179,8 +246,8 @@ export function seedDefaultClients(
       );
     }
 
-    created.push(seed.id);
+    touched.push(seed.id);
   }
 
-  return created;
+  return touched;
 }
