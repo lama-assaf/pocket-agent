@@ -18,7 +18,7 @@ choose interactively.
 
 | key | server | env / setup | flag |
 |---|---|---|---|
-| x-api | official X hosted MCP (xurl OAuth bridge) | `X_CLIENT_ID`, `X_CLIENT_SECRET` | COST: requires an X dev app on the Pay-per-use Production plan, not free. SETUP: xurl also needs a one-time OAuth login on a FIXED localhost:8080 redirect port — if that port is taken (e.g. Docker Desktop) it fails to connect even with correct credentials; run `npx -y @xdevplatform/xurl auth oauth2 --headless` once out-of-band, or free the port |
+| x-api | official X hosted MCP (xurl OAuth bridge) | `X_CLIENT_ID`, `X_CLIENT_SECRET` | COST: requires an X dev app on the Pay-per-use Production plan, not free. SETUP: xurl also needs a one-time OAuth login on a FIXED localhost:8080 redirect port — if that port is taken (e.g. Docker Desktop) it fails to connect even with correct credentials; run `npx -y @xdevplatform/xurl auth oauth2 --headless` once out-of-band, or free the port. REDIRECT URI: must be registered on the X app as EXACTLY `http://localhost:8080/callback` (not `127.0.0.1`) — per docs.x.com/tools/mcp, X's OAuth2 authorize endpoint requires an exact string match; `127.0.0.1` vs `localhost` is a common cause of the browser's "Something went wrong" consent failure |
 | twitter-community | @enescinar/twitter-mcp (raw v1.1-style keys) | `TWITTER_API_KEY` + 3 more | community, stale ~1yr |
 | discord | mcp-discord | `DISCORD_TOKEN` | none |
 | telegram | @chaindead/telegram-mcp (MTProto user session) | `TG_APP_ID`, `TG_API_HASH` | ToS: user-session automation; requires a one-time interactive `auth` subcommand before first use |
