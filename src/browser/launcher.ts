@@ -262,8 +262,8 @@ export async function launchBrowser(
   // etc.), spawning a second browser on the same port is exactly the classic
   // cause of "launched but CDP timed out" — the new process can't bind the
   // port, so it silently comes up with no debug endpoint while the OLD one
-  // keeps answering, and the 5-10s wait below just burns time waiting on a
-  // port that was never going to change. Detect this up front and either
+  // keeps answering, and the wait below just burns time waiting on a port
+  // that was never going to change. Detect this up front and either
   // treat it as an immediate success (a CDP endpoint is already there, which
   // is genuinely all the caller wanted) or tell the user precisely why a
   // fresh launch can't work here.
