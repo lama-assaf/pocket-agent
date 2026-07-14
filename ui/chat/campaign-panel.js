@@ -247,7 +247,18 @@ async function cpnShowDetail(id) {
       return;
     }
     _cpnCurrentCampaignId = id;
-    _cpnRenderDetail(result.campaign, result.deliverables || []);
+
+    // Campaign -> attached content -> analytics (best-effort — a campaign
+    // with no linked content, or content with no analytics yet, degrades to
+    // an empty section rather than blocking the rest of the detail view).
+    let analytics = null;
+    try {
+      analytics = await window.pocketAgent.campaigns.analytics(id);
+    } catch (err) {
+      console.error('[Campaigns] Failed to load campaign analytics:', err);
+    }
+
+    _cpnRenderDetail(result.campaign, result.deliverables || [], analytics);
   } catch (err) {
     console.error('[Campaigns] Failed to load campaign detail:', err);
     body.innerHTML = '<div class="cpn-detail-desc">Failed to load campaign.</div>';
@@ -303,7 +314,47 @@ function _cpnDeliverableRowHtml(d, deliverables) {
     </div>`;
 }
 
-function _cpnRenderDetail(campaign, deliverables) {
+// Compact aggregate + per-post analytics for a campaign's linked content
+// (campaign -> deliverable.result_ref='content_draft:<id>' -> content_posts
+// -> post_analytics, see MemoryManager.getCampaignAnalytics). Mirrors
+// analytics-panel.js's summary/card rendering conventions (same stat-total
+// language, same per-post line shape) so the numbers read consistently
+// whether you're looking at them here or on the Analytics page.
+function _cpnAnalyticsSectionHtml(analytics) {
+  const posts = (analytics && analytics.posts) || [];
+  if (posts.length === 0) {
+    return `
+      <div class="cpn-prompt-label">Analytics (linked content)</div>
+      <div class="cpn-dlv-empty">No analytics recorded yet for this campaign's linked content.</div>`;
+  }
+  const s = analytics.summary;
+  const rate = ((s.engagementRate || 0) * 100).toFixed(2);
+  const totals = `
+    <div class="cpn-analytics-totals">
+      <span><b>${s.totalPosts}</b> posts</span>
+      <span><b>${(s.impressions || 0).toLocaleString()}</b> impressions</span>
+      <span><b>${(s.likes || 0).toLocaleString()}</b> likes</span>
+      <span><b>${(s.comments || 0).toLocaleString()}</b> comments</span>
+      <span><b>${(s.shares || 0).toLocaleString()}</b> shares</span>
+      <span><b>${rate}%</b> eng. rate</span>
+    </div>`;
+  const rows = posts.map((p) => {
+    const pRate = p.impressions ? (((p.likes + p.comments + p.shares) / p.impressions) * 100).toFixed(2) : '0.00';
+    return `
+      <div class="cpn-analytics-row">
+        <span class="badge">${_cpnEscapeHtml(p.channel)}</span>
+        <span class="cpn-analytics-row-title">${_cpnEscapeHtml(p.title || p.external_ref)}</span>
+        <span>${p.impressions.toLocaleString()} impr.</span>
+        <span>${pRate}% eng.</span>
+      </div>`;
+  }).join('');
+  return `
+    <div class="cpn-prompt-label">Analytics (linked content)</div>
+    ${totals}
+    <div class="cpn-analytics-rows">${rows}</div>`;
+}
+
+function _cpnRenderDetail(campaign, deliverables, analytics) {
   const body = document.getElementById('cpn-detail-body');
   if (!body) return;
 
@@ -339,6 +390,8 @@ function _cpnRenderDetail(campaign, deliverables) {
 
     <div class="cpn-prompt-label">Deliverables</div>
     <div class="cpn-deliverables">${deliverablesHtml}</div>
+
+    ${_cpnAnalyticsSectionHtml(analytics)}
 
     <div class="cpn-prompt-label">Add deliverable</div>
     <input class="cnt-edit-input" id="cpn-new-dlv-title" placeholder="Title" />

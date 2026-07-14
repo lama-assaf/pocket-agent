@@ -79,43 +79,40 @@
   color: var(--surface-panel);
 }
 
-/* LinkedIn org-URN + Sync now bar */
-#analytics-view .ant-linkedin-bar {
+/* Campaign filter (unbounded dynamic list — a select, matching the
+   established convention for large/dynamic option sets, e.g. campaign-panel.js's
+   cpn-dlv-status-select, rather than a button row like the small fixed
+   channel-filter enum above). */
+#analytics-view .ant-campaign-filter {
+  width: 180px;
+  margin-bottom: 0;
+}
+
+/* LinkedIn sync bar (Sync now for the active client scope) — mirrors
+   brain-panel.js's per-scope sync-bar convention exactly: a compact status +
+   action cluster in the header, hidden entirely for scopes it doesn't apply
+   to (see brain-panel.css's .brain-sync). */
+#analytics-view .ant-sync {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 16px 0;
-  flex-shrink: 0;
-  flex-wrap: wrap;
 }
-
-#analytics-view .ant-linkedin-label {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-muted);
-  white-space: nowrap;
+#analytics-view .ant-sync[hidden] {
+  display: none;
 }
-
-#analytics-view .ant-linkedin-input {
-  flex: 1;
-  min-width: 220px;
-  font-family: inherit;
-  font-size: 12px;
-  color: var(--text-primary);
-  background: var(--surface-control);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-control);
-  padding: 6px 10px;
-}
-
-#analytics-view .ant-linkedin-input:focus {
-  outline: none;
-  border-color: var(--accent);
-}
-
-#analytics-view .ant-linkedin-status {
+#analytics-view .ant-sync-status {
   font-size: 11px;
   color: var(--text-muted);
+}
+#analytics-view .ant-sync-status a {
+  color: var(--accent-readable);
+}
+/* Sync now is disabled (not hidden) when no org URN is set yet — clicking it
+   would only ever produce a graceful "no org configured" no-op, same
+   discipline as brain-panel's Pull/Publish disabling. */
+#analytics-view .ant-sync button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* Content */

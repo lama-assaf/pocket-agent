@@ -8,6 +8,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   canTransitionDeliverable,
   canStartDeliverable,
+  contentDraftIdFromResultRef,
 } from '../../src/memory/campaigns';
 import { clientScope, resolveVisibleScopes } from '../../src/memory/scope';
 
@@ -382,5 +383,118 @@ describe('MemoryManager campaigns — scope isolation', () => {
     expect(names).toContain('Agency-wide initiative');
     expect(names).toContain('Brand A campaign');
     expect(names).not.toContain('Brand B campaign');
+  });
+});
+
+// ── contentDraftIdFromResultRef (pure) ─────────────────────────────────────
+describe('contentDraftIdFromResultRef', () => {
+  it('extracts the id from a well-formed content_draft:<id> ref', () => {
+    expect(contentDraftIdFromResultRef('content_draft:42')).toBe(42);
+  });
+
+  it('returns null for a plain summary string', () => {
+    expect(contentDraftIdFromResultRef('shipped the launch post manually')).toBeNull();
+  });
+
+  it('returns null for null/undefined/empty', () => {
+    expect(contentDraftIdFromResultRef(null)).toBeNull();
+    expect(contentDraftIdFromResultRef(undefined)).toBeNull();
+    expect(contentDraftIdFromResultRef('')).toBeNull();
+  });
+
+  it('returns null for a near-miss format (no match, never partially parses)', () => {
+    expect(contentDraftIdFromResultRef('content_draft:abc')).toBeNull();
+    expect(contentDraftIdFromResultRef('content_draft:')).toBeNull();
+    expect(contentDraftIdFromResultRef('draft:42')).toBeNull();
+  });
+});
+
+// ── MemoryManager.getCampaignAnalytics (campaign -> content -> analytics join) ──
+describe('MemoryManager.getCampaignAnalytics', () => {
+  let memory: import('../../src/memory/index').MemoryManager;
+
+  beforeEach(async () => {
+    const { MemoryManager } = await import('../../src/memory/index');
+    memory = new MemoryManager(':memory:');
+  });
+
+  it('returns an empty summary and no posts for a campaign with no linked content', () => {
+    const campaignId = memory.createCampaign({ scope: clientScope('acme'), name: 'No content yet' });
+    const result = memory.getCampaignAnalytics(campaignId);
+    expect(result.posts).toEqual([]);
+    expect(result.summary.totalPosts).toBe(0);
+  });
+
+  it('returns no posts when linked content exists but has no analytics recorded yet', () => {
+    const campaignId = memory.createCampaign({ scope: clientScope('acme'), name: 'Campaign' });
+    const draftId = memory.createContentDraft({ scope: clientScope('acme'), channel: 'twitter', body: 'hello' });
+    const added = memory.addDeliverable({ campaignId, title: 'Ship the post' });
+    memory.linkDeliverableToContentDraft(added.id!, draftId);
+    memory.recordContentPost({ draftId, scope: clientScope('acme'), channel: 'twitter', status: 'posted', externalRef: 'post-1' });
+
+    const result = memory.getCampaignAnalytics(campaignId);
+    expect(result.posts).toEqual([]);
+    expect(result.summary.totalPosts).toBe(0);
+  });
+
+  it('joins campaign -> deliverable -> content draft -> content post -> analytics by content_post_id', () => {
+    const campaignId = memory.createCampaign({ scope: clientScope('acme'), name: 'Campaign' });
+    const draftId = memory.createContentDraft({ scope: clientScope('acme'), channel: 'twitter', body: 'hello' });
+    const added = memory.addDeliverable({ campaignId, title: 'Ship the post' });
+    memory.linkDeliverableToContentDraft(added.id!, draftId);
+    const postId = memory.recordContentPost({
+      draftId, scope: clientScope('acme'), channel: 'twitter', status: 'posted', externalRef: 'post-1',
+    });
+    memory.recordPostAnalytics({
+      scope: clientScope('acme'), channel: 'twitter', externalRef: 'post-1', contentPostId: postId, impressions: 1000, likes: 50,
+    });
+
+    const result = memory.getCampaignAnalytics(campaignId);
+    expect(result.posts).toHaveLength(1);
+    expect(result.posts[0].external_ref).toBe('post-1');
+    expect(result.summary.totalPosts).toBe(1);
+    expect(result.summary.impressions).toBe(1000);
+  });
+
+  it('falls back to a scope+channel+external_ref match when content_post_id was never explicitly linked', () => {
+    const campaignId = memory.createCampaign({ scope: clientScope('acme'), name: 'Campaign' });
+    const draftId = memory.createContentDraft({ scope: clientScope('acme'), channel: 'twitter', body: 'hello' });
+    const added = memory.addDeliverable({ campaignId, title: 'Ship the post' });
+    memory.linkDeliverableToContentDraft(added.id!, draftId);
+    memory.recordContentPost({ draftId, scope: clientScope('acme'), channel: 'twitter', status: 'posted', externalRef: 'post-1' });
+    // Analytics recorded WITHOUT a contentPostId — just the same URL pasted by hand.
+    memory.recordPostAnalytics({ scope: clientScope('acme'), channel: 'twitter', externalRef: 'post-1', impressions: 500 });
+
+    const result = memory.getCampaignAnalytics(campaignId);
+    expect(result.posts).toHaveLength(1);
+    expect(result.summary.impressions).toBe(500);
+  });
+
+  it('never includes analytics from a deliverable with a non-content_draft result_ref (e.g. a plain summary)', () => {
+    const campaignId = memory.createCampaign({ scope: clientScope('acme'), name: 'Campaign' });
+    const added = memory.addDeliverable({ campaignId, title: 'Done manually' });
+    memory.setDeliverableStatus(added.id!, 'done', 'shipped it outside the app');
+    memory.recordPostAnalytics({ scope: clientScope('acme'), channel: 'twitter', externalRef: 'unrelated-post', impressions: 999 });
+
+    const result = memory.getCampaignAnalytics(campaignId);
+    expect(result.posts).toEqual([]);
+  });
+
+  it('never leaks another campaign\u2019s linked-content analytics into this one\u2019s result', () => {
+    const campaignA = memory.createCampaign({ scope: clientScope('acme'), name: 'Campaign A' });
+    const campaignB = memory.createCampaign({ scope: clientScope('acme'), name: 'Campaign B' });
+    const draftA = memory.createContentDraft({ scope: clientScope('acme'), channel: 'twitter', body: 'a' });
+    const draftB = memory.createContentDraft({ scope: clientScope('acme'), channel: 'twitter', body: 'b' });
+    const addedA = memory.addDeliverable({ campaignId: campaignA, title: 'A' });
+    const addedB = memory.addDeliverable({ campaignId: campaignB, title: 'B' });
+    memory.linkDeliverableToContentDraft(addedA.id!, draftA);
+    memory.linkDeliverableToContentDraft(addedB.id!, draftB);
+    const postIdA = memory.recordContentPost({ draftId: draftA, scope: clientScope('acme'), channel: 'twitter', status: 'posted', externalRef: 'post-a' });
+    const postIdB = memory.recordContentPost({ draftId: draftB, scope: clientScope('acme'), channel: 'twitter', status: 'posted', externalRef: 'post-b' });
+    memory.recordPostAnalytics({ scope: clientScope('acme'), channel: 'twitter', externalRef: 'post-a', contentPostId: postIdA, impressions: 100 });
+    memory.recordPostAnalytics({ scope: clientScope('acme'), channel: 'twitter', externalRef: 'post-b', contentPostId: postIdB, impressions: 200 });
+
+    const resultA = memory.getCampaignAnalytics(campaignA);
+    expect(resultA.posts.map((p) => p.external_ref)).toEqual(['post-a']);
   });
 });

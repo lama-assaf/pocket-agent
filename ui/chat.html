@@ -1131,6 +1131,10 @@
     <div class="ant-header">
       <h1><span>Analytics</span> <span class="ant-count" id="ant-active-count"></span></h1>
       <div class="ant-header-actions">
+        <span class="ant-sync" id="ant-sync-bar" hidden>
+          <span class="ant-sync-status" id="ant-sync-status">…</span>
+          <button id="ant-sync-now-btn" onclick="playNormalClick(); antSyncLinkedInNow()">Sync now</button>
+        </span>
         <button onclick="playNormalClick(); hideAnalyticsPanel()">Back</button>
         <button onclick="playNormalClick(); antShowRecordForm()">Record snapshot</button>
         <button onclick="playNormalClick(); antRefresh()">Refresh</button>
@@ -1141,13 +1145,9 @@
         <button class="ant-filter-btn active" data-channel="" onclick="playNormalClick(); antSetChannelFilter(null)">All channels</button>
         <button class="ant-filter-btn" data-channel="twitter" onclick="playNormalClick(); antSetChannelFilter('twitter')">X / Twitter</button>
         <button class="ant-filter-btn" data-channel="linkedin" onclick="playNormalClick(); antSetChannelFilter('linkedin')">LinkedIn</button>
-      </div>
-      <div class="ant-linkedin-bar" id="ant-linkedin-bar">
-        <span class="ant-linkedin-label">LinkedIn Org URN</span>
-        <input type="text" class="ant-linkedin-input" id="ant-linkedin-org-urn" placeholder="urn:li:organization:12345678">
-        <button class="btn-compact" onclick="playNormalClick(); antSaveLinkedInOrgUrn()">Save</button>
-        <button class="btn-compact" onclick="playNormalClick(); antSyncLinkedInNow()">Sync now</button>
-        <span class="ant-linkedin-status" id="ant-linkedin-status"></span>
+        <select class="ant-edit-input ant-campaign-filter" id="ant-campaign-filter" onchange="antSetCampaignFilter(this)">
+          <option value="">All campaigns</option>
+        </select>
       </div>
       <div class="ant-summary" id="ant-summary"></div>
       <div id="ant-posts" class="ant-posts"></div>

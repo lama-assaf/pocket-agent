@@ -343,6 +343,21 @@ export function linkDeliverableToContentDraft(
   return { ok: true };
 }
 
+/**
+ * Extract the linked content_draft id from a deliverable's result_ref, if it
+ * follows the 'content_draft:<id>' convention (see
+ * linkDeliverableToContentDraft above and campaign-panel.js's client-side
+ * regex, which this mirrors). Pure — the campaign -> content -> analytics
+ * join (src/memory/index.ts's getCampaignAnalytics) uses this to resolve
+ * which content drafts a campaign's deliverables actually reference. Returns
+ * null for any other result_ref shape (a plain summary string, or none).
+ */
+export function contentDraftIdFromResultRef(resultRef: string | null | undefined): number | null {
+  if (!resultRef) return null;
+  const m = /^content_draft:(\d+)$/.exec(resultRef);
+  return m ? parseInt(m[1], 10) : null;
+}
+
 export function deleteDeliverable(db: Database.Database, id: number): boolean {
   const result = db.prepare('DELETE FROM campaign_deliverables WHERE id = ?').run(id);
   return result.changes > 0;

@@ -443,7 +443,9 @@ function cvOpenMemory(kind, clientId) {
 // contextIsolation), so client/project creation uses this in-DOM dialog. Reuses
 // the app's .modal-overlay/.modal classes; resolves to the trimmed value, or
 // null on Cancel/Escape/click-outside.
-function cvTextPrompt(title, placeholder) {
+function cvTextPrompt(title, placeholder, options = {}) {
+  const okLabel = options.okLabel || 'Create';
+  const initialValue = options.initialValue || '';
   return new Promise((resolve) => {
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay cv-prompt-overlay';
@@ -451,10 +453,10 @@ function cvTextPrompt(title, placeholder) {
       <div class="modal cv-prompt">
         <div class="modal-header"><div class="modal-title"><h2>${cvEscape(title)}</h2></div></div>
         <div class="modal-body">
-          <input class="cv-prompt-input" type="text" placeholder="${cvEscape(placeholder || '')}" maxlength="60" />
+          <input class="cv-prompt-input" type="text" placeholder="${cvEscape(placeholder || '')}" value="${cvEscape(initialValue)}" maxlength="120" />
           <div class="cv-prompt-actions">
             <button class="cv-prompt-cancel">Cancel</button>
-            <button class="cv-prompt-ok">Create</button>
+            <button class="cv-prompt-ok">${cvEscape(okLabel)}</button>
           </div>
         </div>
       </div>`;
@@ -484,6 +486,7 @@ function cvTextPrompt(title, placeholder) {
     requestAnimationFrame(() => {
       overlay.classList.add('show');
       input.focus();
+      input.select();
     });
   });
 }

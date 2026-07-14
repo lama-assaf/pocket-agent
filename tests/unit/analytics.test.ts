@@ -5,7 +5,13 @@
  * the DB-layer tests, hand-built rows for the pure summarizeAnalytics tests.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { computeEngagementRate, summarizeAnalytics, type PostAnalytics } from '../../src/memory/analytics';
+import {
+  computeEngagementRate,
+  summarizeAnalytics,
+  filterAnalyticsForContentPosts,
+  type PostAnalytics,
+  type ContentPostRef,
+} from '../../src/memory/analytics';
 import { clientScope, resolveVisibleScopes } from '../../src/memory/scope';
 
 // Stub only the async embedding writes so MemoryManager needs no embedding model.
@@ -243,5 +249,70 @@ describe('MemoryManager post analytics — append-only + latest-per-post resolut
     const rows = memory.getPostAnalyticsForScopes(visible);
     expect(rows.find((r) => r.id === manualId)!.source).toBe('manual');
     expect(rows.find((r) => r.id === mcpId)!.source).toBe('mcp');
+  });
+});
+
+// ── Campaign -> content -> analytics linking (pure filter) ────────────────
+describe('filterAnalyticsForContentPosts', () => {
+  function row(over: Partial<PostAnalytics>): PostAnalytics {
+    return {
+      id: 1,
+      scope: 'client:acme',
+      channel: 'twitter',
+      external_ref: 'post-1',
+      content_post_id: null,
+      title: '',
+      impressions: 0,
+      likes: 0,
+      comments: 0,
+      shares: 0,
+      clicks: 0,
+      video_views: 0,
+      source: 'manual',
+      raw_json: null,
+      captured_at: '2026-01-01T00:00:00.000Z',
+      created_at: '2026-01-01T00:00:00.000Z',
+      ...over,
+    };
+  }
+
+  it('returns [] immediately when there are no content post refs to match against', () => {
+    const rows = [row({ content_post_id: 5 })];
+    expect(filterAnalyticsForContentPosts(rows, [])).toEqual([]);
+  });
+
+  it('matches by explicit content_post_id — the clean, intended link', () => {
+    const rows = [
+      row({ id: 1, content_post_id: 10, external_ref: 'a' }),
+      row({ id: 2, content_post_id: 20, external_ref: 'b' }),
+    ];
+    const refs: ContentPostRef[] = [{ id: 10, scope: 'client:acme', channel: 'twitter', externalRef: null }];
+    expect(filterAnalyticsForContentPosts(rows, refs).map((r) => r.id)).toEqual([1]);
+  });
+
+  it('falls back to a scope+channel+external_ref match when content_post_id is not set', () => {
+    const rows = [row({ id: 1, content_post_id: null, scope: 'client:acme', channel: 'twitter', external_ref: 'shared-url' })];
+    const refs: ContentPostRef[] = [
+      { id: 999, scope: 'client:acme', channel: 'twitter', externalRef: 'shared-url' },
+    ];
+    expect(filterAnalyticsForContentPosts(rows, refs).map((r) => r.id)).toEqual([1]);
+  });
+
+  it('never matches across scopes or channels even with the same external_ref', () => {
+    const rows = [row({ id: 1, scope: 'client:other', channel: 'twitter', external_ref: 'shared-url' })];
+    const refs: ContentPostRef[] = [{ id: 999, scope: 'client:acme', channel: 'twitter', externalRef: 'shared-url' }];
+    expect(filterAnalyticsForContentPosts(rows, refs)).toEqual([]);
+  });
+
+  it('excludes analytics rows that match neither an id nor a scope+channel+ref', () => {
+    const rows = [row({ id: 1, content_post_id: null, external_ref: 'unrelated' })];
+    const refs: ContentPostRef[] = [{ id: 10, scope: 'client:acme', channel: 'twitter', externalRef: 'shared-url' }];
+    expect(filterAnalyticsForContentPosts(rows, refs)).toEqual([]);
+  });
+
+  it('a ref with no externalRef only matches by content_post_id, never by an accidental external_ref collision', () => {
+    const rows = [row({ id: 1, content_post_id: null, scope: 'client:acme', channel: 'twitter', external_ref: 'x' })];
+    const refs: ContentPostRef[] = [{ id: 10, scope: 'client:acme', channel: 'twitter', externalRef: null }];
+    expect(filterAnalyticsForContentPosts(rows, refs)).toEqual([]);
   });
 });

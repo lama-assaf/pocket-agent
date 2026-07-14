@@ -42,6 +42,34 @@ export function registerCampaignIPC(deps: IPCDependencies): void {
     return { campaign, deliverables };
   });
 
+  // Campaign -> attached content -> analytics (follow-up to roadmap item 10):
+  // aggregate + per-post analytics for whatever content this campaign's
+  // deliverables are linked to (result_ref = 'content_draft:<id>'). Degrades
+  // to an empty summary/[] posts — never an error — when memory isn't
+  // initialized, the campaign has no linked content yet, or that content has
+  // no analytics recorded yet. See MemoryManager.getCampaignAnalytics.
+  ipcMain.handle('campaigns:analytics', async (_, campaignId: number) => {
+    const memory = getMemory();
+    if (!memory) {
+      return {
+        summary: {
+          totalPosts: 0,
+          impressions: 0,
+          likes: 0,
+          comments: 0,
+          shares: 0,
+          clicks: 0,
+          videoViews: 0,
+          engagementRate: 0,
+          byChannel: {},
+          topPosts: [],
+        },
+        posts: [],
+      };
+    }
+    return memory.getCampaignAnalytics(campaignId);
+  });
+
   ipcMain.handle(
     'campaigns:create',
     async (

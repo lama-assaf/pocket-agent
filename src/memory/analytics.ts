@@ -270,3 +270,39 @@ export function summarizeAnalytics(
     topPosts,
   };
 }
+
+// ============ Campaign -> content -> analytics linking ============
+
+/** Minimal shape of a content_posts row the campaign/content join needs — decoupled from content-drafts.ts's full ContentPost type for easy unit testing. */
+export interface ContentPostRef {
+  id: number;
+  scope: string;
+  channel: string;
+  externalRef: string | null;
+}
+
+/**
+ * Filter a set of (latest-per-post) analytics rows down to only the ones
+ * linked to one of the given content posts — by explicit `content_post_id`
+ * (the clean, intended link, set when analytics are recorded for something
+ * this app posted), OR by a scope+channel+external_ref match as a best-effort
+ * fallback (the same post URL/id was pasted both when the draft was posted
+ * and when its analytics were recorded, even without an explicit link —
+ * mirrors content-tools.ts's existing "best-effort heuristic" philosophy for
+ * MCP posting-tool matching). Pure — no DB — directly unit-testable.
+ */
+export function filterAnalyticsForContentPosts(
+  rows: PostAnalytics[],
+  refs: ContentPostRef[]
+): PostAnalytics[] {
+  if (refs.length === 0) return [];
+  const idSet = new Set(refs.map((r) => r.id));
+  const refKeySet = new Set(
+    refs.filter((r) => r.externalRef).map((r) => `${r.scope}\u0000${r.channel}\u0000${r.externalRef}`)
+  );
+  return rows.filter(
+    (row) =>
+      (row.content_post_id !== null && idSet.has(row.content_post_id)) ||
+      refKeySet.has(`${row.scope}\u0000${row.channel}\u0000${row.external_ref}`)
+  );
+}

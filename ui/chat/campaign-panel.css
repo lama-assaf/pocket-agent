@@ -227,6 +227,48 @@
   padding: 8px 0 16px;
 }
 
+/* Analytics section (campaign -> linked content -> analytics) — compact
+   stat totals + per-post rows, same visual language as analytics-panel.css's
+   .ant-summary-total/.ant-card-stats so numbers read consistently across
+   both panels. */
+#campaigns-view .cpn-analytics-totals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  background: var(--surface-panel);
+  border-radius: var(--radius-control);
+  padding: 10px 14px;
+  margin-bottom: 10px;
+}
+
+#campaigns-view .cpn-analytics-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 20px;
+}
+
+#campaigns-view .cpn-analytics-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: var(--surface-panel);
+  border-radius: var(--radius-control);
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+#campaigns-view .cpn-analytics-row-title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-primary);
+}
+
 #campaigns-view .cpn-dlv-row {
   background: var(--surface-panel);
   border-radius: var(--radius-control);

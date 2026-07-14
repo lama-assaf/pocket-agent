@@ -157,6 +157,11 @@ export function registerSettingsIPC(deps: IPCDependencies): void {
       const memoryScope = scope === 'world' ? 'world' : `client:${scope}`;
       const { exportScopeToDisk } = await import('../../clients/export');
       exportScopeToDisk(memory, memoryScope);
+      // Team-shareable analytics (roadmap follow-up): a client's latest
+      // per-post snapshots + aggregate summary get published alongside
+      // voice/lessons, so a teammate pulling the repo sees the numbers too.
+      const { exportAnalyticsToDisk } = await import('../../clients/analytics-export');
+      exportAnalyticsToDisk(memory, memoryScope);
     }
     const { publishBrainRepo } = await import('../../clients/sync-manager');
     const result = await publishBrainRepo(repo, message || `Update ${scope} memory`);

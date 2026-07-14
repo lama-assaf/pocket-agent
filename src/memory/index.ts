@@ -180,17 +180,20 @@ import {
   linkDeliverableToContentDraft as _linkDeliverableToContentDraft,
   deleteDeliverable as _deleteDeliverable,
   getNextUnblockedDeliverable as _getNextUnblockedDeliverable,
+  contentDraftIdFromResultRef as _contentDraftIdFromResultRef,
 } from './campaigns';
 import {
   type PostAnalytics,
   type RecordPostAnalyticsInput,
   type AnalyticsSummary,
+  type ContentPostRef,
   recordPostAnalytics as _recordPostAnalytics,
   getPostAnalyticsForScopes as _getPostAnalyticsForScopes,
   getLatestPostAnalyticsForScopes as _getLatestPostAnalyticsForScopes,
   getPostAnalyticsHistory as _getPostAnalyticsHistory,
   deletePostAnalytics as _deletePostAnalytics,
   summarizeAnalytics as _summarizeAnalytics,
+  filterAnalyticsForContentPosts as _filterAnalyticsForContentPosts,
 } from './analytics';
 
 // Types
@@ -213,7 +216,7 @@ export type {
   TransitionActor,
 } from './content-drafts';
 export type { Campaign, CampaignStatus, CampaignDeliverable, DeliverableStatus } from './campaigns';
-export type { PostAnalytics, PostAnalyticsSource, RecordPostAnalyticsInput, AnalyticsSummary, ChannelSummary } from './analytics';
+export type { PostAnalytics, PostAnalyticsSource, RecordPostAnalyticsInput, AnalyticsSummary, ChannelSummary, ContentPostRef } from './analytics';
 
 export class MemoryManager {
   private db: Database.Database;
@@ -1574,6 +1577,43 @@ export class MemoryManager {
     options?: { topN?: number; minImpressionsForRanking?: number }
   ): AnalyticsSummary {
     return _summarizeAnalytics(rows, options);
+  }
+
+  /**
+   * Campaign -> attached content -> analytics join: resolves every content
+   * draft a campaign's deliverables reference (`result_ref` =
+   * 'content_draft:<id>', see campaigns.ts's linkDeliverableToContentDraft),
+   * the post-attempt log entries those drafts produced (content_posts), and
+   * every analytics row linked to one of those posts (by explicit
+   * content_post_id, or a scope+channel+external_ref match as a best-effort
+   * fallback — see filterAnalyticsForContentPosts). Returns the same
+   * { summary, posts } shape as the general analytics summary/list surface
+   * so the Campaign board and Analytics panel can share rendering code.
+   * Never throws — a campaign with no linked content, or linked content with
+   * no analytics yet, resolves to an empty summary + [] posts.
+   */
+  getCampaignAnalytics(campaignId: number): { summary: AnalyticsSummary; posts: PostAnalytics[] } {
+    const deliverables = this.getDeliverablesForCampaign(campaignId);
+    const draftIds = deliverables
+      .map((d) => _contentDraftIdFromResultRef(d.result_ref))
+      .filter((id): id is number => id !== null);
+
+    const refs: ContentPostRef[] = [];
+    const scopes = new Set<string>();
+    for (const draftId of draftIds) {
+      for (const post of this.getContentPostsForDraft(draftId)) {
+        refs.push({ id: post.id, scope: post.scope, channel: post.channel, externalRef: post.external_ref });
+        scopes.add(post.scope);
+      }
+    }
+
+    if (refs.length === 0) {
+      return { summary: _summarizeAnalytics([]), posts: [] };
+    }
+
+    const allRows = this.getLatestPostAnalyticsForScopes([...scopes]);
+    const posts = _filterAnalyticsForContentPosts(allRows, refs);
+    return { summary: _summarizeAnalytics(posts), posts };
   }
 
   // ============ UTILITY METHODS ============

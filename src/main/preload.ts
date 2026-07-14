@@ -383,6 +383,7 @@ contextBridge.exposeInMainWorld('pocketAgent', {
       ipcRenderer.invoke('campaigns:setDeliverableStatus', id, status, resultRef),
     deleteDeliverable: (id: number) => ipcRenderer.invoke('campaigns:deleteDeliverable', id),
     nudgePrompt: (campaignId: number) => ipcRenderer.invoke('campaigns:nudgePrompt', campaignId),
+    analytics: (campaignId: number) => ipcRenderer.invoke('campaigns:analytics', campaignId),
   },
 
   // ─── Analytics (X/LinkedIn/etc. post performance) ───
@@ -1294,6 +1295,63 @@ declare global {
         nudgePrompt: (
           campaignId: number
         ) => Promise<{ success: boolean; prompt?: string; error?: string }>;
+        analytics: (campaignId: number) => Promise<{
+          summary: {
+            totalPosts: number;
+            impressions: number;
+            likes: number;
+            comments: number;
+            shares: number;
+            clicks: number;
+            videoViews: number;
+            engagementRate: number;
+            byChannel: Record<
+              string,
+              {
+                posts: number;
+                impressions: number;
+                likes: number;
+                comments: number;
+                shares: number;
+                clicks: number;
+                videoViews: number;
+                engagementRate: number;
+              }
+            >;
+            topPosts: Array<{
+              id: number;
+              scope: string;
+              channel: string;
+              external_ref: string;
+              title: string;
+              impressions: number;
+              likes: number;
+              comments: number;
+              shares: number;
+              clicks: number;
+              video_views: number;
+              captured_at: string;
+            }>;
+          };
+          posts: Array<{
+            id: number;
+            scope: string;
+            channel: string;
+            external_ref: string;
+            content_post_id: number | null;
+            title: string;
+            impressions: number;
+            likes: number;
+            comments: number;
+            shares: number;
+            clicks: number;
+            video_views: number;
+            source: 'manual' | 'mcp';
+            raw_json: string | null;
+            captured_at: string;
+            created_at: string;
+          }>;
+        }>;
       };
 
       analytics: {

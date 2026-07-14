@@ -13,8 +13,10 @@
 let _antNotyf = null;
 let _antRows = []; // cached latest-per-post rows from the last load
 let _antCurrentChannelFilter = null; // null = all channels
+let _antCurrentCampaignFilter = null; // null = no campaign filter (mutually exclusive with channel filter)
 let _antClientsCache = null;
 let _antProjectsCache = {};
+let _antCampaignsCache = null;
 
 // ---- Show / Hide ----
 
@@ -34,7 +36,7 @@ function showAnalyticsPanel() {
 
   _antShowList();
   _antLoadAll();
-  _antLoadLinkedInOrgUrn();
+  _antUpdateSyncBar();
 }
 
 function hideAnalyticsPanel() {
@@ -157,14 +159,44 @@ function _antChannelBadgeClass(channel) {
   return 'ant-badge';
 }
 
-// ---- Channel filter ----
+// ---- Channel + campaign filters (mutually exclusive — selecting one clears the other) ----
 
 function antSetChannelFilter(channel) {
   _antCurrentChannelFilter = channel || null;
+  _antCurrentCampaignFilter = null;
+  const campaignSelect = document.getElementById('ant-campaign-filter');
+  if (campaignSelect) campaignSelect.value = '';
   document.querySelectorAll('.ant-filter-btn').forEach((btn) => {
     btn.classList.toggle('active', btn.dataset.channel === (channel || ''));
   });
   _antLoadAll();
+}
+
+function antSetCampaignFilter(select) {
+  _antCurrentCampaignFilter = select.value || null;
+  if (_antCurrentCampaignFilter) {
+    _antCurrentChannelFilter = null;
+    document.querySelectorAll('.ant-filter-btn').forEach((btn) => btn.classList.toggle('active', btn.dataset.channel === ''));
+  }
+  _antLoadAll();
+}
+
+async function _antEnsureCampaignsCache() {
+  if (_antCampaignsCache) return;
+  try {
+    _antCampaignsCache = (await window.pocketAgent.campaigns.list(_antContext())) || [];
+  } catch (_) {
+    _antCampaignsCache = [];
+  }
+}
+
+async function _antLoadCampaignFilterOptions() {
+  const select = document.getElementById('ant-campaign-filter');
+  if (!select) return;
+  await _antEnsureCampaignsCache();
+  const options = _antCampaignsCache.map((c) => `<option value="${c.id}">${_antEscapeHtml(c.name)}</option>`).join('');
+  select.innerHTML = `<option value="">All campaigns</option>${options}`;
+  select.value = _antCurrentCampaignFilter || '';
 }
 
 // ---- Load (summary + per-post list together) ----
@@ -178,48 +210,86 @@ function _antShowList() {
 
 async function _antLoadAll() {
   await _antEnsureScopeLabelData();
-  await Promise.all([_antLoadSummary(), _antLoadPosts()]);
+  await _antLoadCampaignFilterOptions();
+  if (_antCurrentCampaignFilter) {
+    await _antLoadForCampaign(_antCurrentCampaignFilter);
+  } else {
+    await Promise.all([_antLoadSummary(), _antLoadPosts()]);
+  }
+}
+
+// Shared by the normal scope+channel path and the campaign-filtered path so
+// both render through the exact same summary markup.
+function _antRenderSummary(summary) {
+  const summaryEl = document.getElementById('ant-summary');
+  if (!summaryEl) return;
+  if (!summary || summary.totalPosts === 0) {
+    summaryEl.innerHTML = '';
+    return;
+  }
+
+  const channelCards = Object.entries(summary.byChannel || {})
+    .map(([channel, c]) => `
+      <div class="ant-summary-card">
+        <div class="ant-summary-card-head">
+          <span class="${_antChannelBadgeClass(channel)}">${_antEscapeHtml(channel)}</span>
+          <span class="ant-summary-card-posts">${c.posts} post${c.posts === 1 ? '' : 's'}</span>
+        </div>
+        <div class="ant-summary-stat-row">
+          <span class="ant-summary-stat"><b>${_antFormatNumber(c.impressions)}</b> impressions</span>
+          <span class="ant-summary-stat"><b>${_antFormatRate(c.engagementRate)}</b> eng. rate</span>
+        </div>
+      </div>
+    `).join('');
+
+  summaryEl.innerHTML = `
+    <div class="ant-summary-totals">
+      <div class="ant-summary-total"><span class="ant-summary-total-val">${summary.totalPosts}</span><span class="ant-summary-total-label">Posts</span></div>
+      <div class="ant-summary-total"><span class="ant-summary-total-val">${_antFormatNumber(summary.impressions)}</span><span class="ant-summary-total-label">Impressions</span></div>
+      <div class="ant-summary-total"><span class="ant-summary-total-val">${_antFormatNumber(summary.likes)}</span><span class="ant-summary-total-label">Likes</span></div>
+      <div class="ant-summary-total"><span class="ant-summary-total-val">${_antFormatNumber(summary.comments)}</span><span class="ant-summary-total-label">Comments</span></div>
+      <div class="ant-summary-total"><span class="ant-summary-total-val">${_antFormatNumber(summary.shares)}</span><span class="ant-summary-total-label">Shares</span></div>
+      <div class="ant-summary-total"><span class="ant-summary-total-val">${_antFormatNumber(summary.clicks)}</span><span class="ant-summary-total-label">Clicks</span></div>
+      <div class="ant-summary-total"><span class="ant-summary-total-val">${_antFormatRate(summary.engagementRate)}</span><span class="ant-summary-total-label">Eng. rate</span></div>
+    </div>
+    ${channelCards ? `<div class="ant-summary-channels">${channelCards}</div>` : ''}
+  `;
 }
 
 async function _antLoadSummary() {
-  const summaryEl = document.getElementById('ant-summary');
-  if (!summaryEl) return;
-
   try {
     const summary = await window.pocketAgent.analytics.summary(_antContext(), _antCurrentChannelFilter || undefined);
-    if (!summary || summary.totalPosts === 0) {
-      summaryEl.innerHTML = '';
-      return;
-    }
-
-    const channelCards = Object.entries(summary.byChannel || {})
-      .map(([channel, c]) => `
-        <div class="ant-summary-card">
-          <div class="ant-summary-card-head">
-            <span class="${_antChannelBadgeClass(channel)}">${_antEscapeHtml(channel)}</span>
-            <span class="ant-summary-card-posts">${c.posts} post${c.posts === 1 ? '' : 's'}</span>
-          </div>
-          <div class="ant-summary-stat-row">
-            <span class="ant-summary-stat"><b>${_antFormatNumber(c.impressions)}</b> impressions</span>
-            <span class="ant-summary-stat"><b>${_antFormatRate(c.engagementRate)}</b> eng. rate</span>
-          </div>
-        </div>
-      `).join('');
-
-    summaryEl.innerHTML = `
-      <div class="ant-summary-totals">
-        <div class="ant-summary-total"><span class="ant-summary-total-val">${summary.totalPosts}</span><span class="ant-summary-total-label">Posts</span></div>
-        <div class="ant-summary-total"><span class="ant-summary-total-val">${_antFormatNumber(summary.impressions)}</span><span class="ant-summary-total-label">Impressions</span></div>
-        <div class="ant-summary-total"><span class="ant-summary-total-val">${_antFormatNumber(summary.likes)}</span><span class="ant-summary-total-label">Likes</span></div>
-        <div class="ant-summary-total"><span class="ant-summary-total-val">${_antFormatNumber(summary.comments)}</span><span class="ant-summary-total-label">Comments</span></div>
-        <div class="ant-summary-total"><span class="ant-summary-total-val">${_antFormatNumber(summary.shares)}</span><span class="ant-summary-total-label">Shares</span></div>
-        <div class="ant-summary-total"><span class="ant-summary-total-val">${_antFormatNumber(summary.clicks)}</span><span class="ant-summary-total-label">Clicks</span></div>
-        <div class="ant-summary-total"><span class="ant-summary-total-val">${_antFormatRate(summary.engagementRate)}</span><span class="ant-summary-total-label">Eng. rate</span></div>
-      </div>
-      ${channelCards ? `<div class="ant-summary-channels">${channelCards}</div>` : ''}
-    `;
+    _antRenderSummary(summary);
   } catch (err) {
     console.error('[Analytics] Failed to load summary:', err);
+  }
+}
+
+// Campaign-filtered path: reuses the same summary/list rendering as the
+// normal scope+channel path (_antRenderSummary/_antCardHtml), just fed from
+// campaigns:analytics (the campaign -> content -> analytics join) instead of
+// analytics:summary/analytics:list.
+async function _antLoadForCampaign(campaignId) {
+  const listEl = document.getElementById('ant-posts');
+  const emptyEl = document.getElementById('ant-empty');
+  const countEl = document.getElementById('ant-active-count');
+  try {
+    const result = await window.pocketAgent.campaigns.analytics(parseInt(campaignId, 10));
+    const rows = (result && result.posts) || [];
+    _antRows = rows;
+    if (countEl) countEl.textContent = `(${rows.length})`;
+    _antRenderSummary(result && result.summary);
+
+    if (rows.length === 0) {
+      if (listEl) listEl.innerHTML = '';
+      if (emptyEl) emptyEl.classList.remove('hidden');
+      return;
+    }
+    if (emptyEl) emptyEl.classList.add('hidden');
+    if (listEl) listEl.innerHTML = rows.map(_antCardHtml).join('');
+  } catch (err) {
+    console.error('[Analytics] Failed to load campaign analytics:', err);
+    _antShowToast('Failed to load campaign analytics', 'error');
   }
 }
 
@@ -436,35 +506,79 @@ async function antSaveRecordForm() {
 
 // ---- LinkedIn org-URN + Sync now (Community Management API ingestion) ----
 //
-// The org URN a scope tracks lives per-scope (a fact, not a global setting —
-// zilliqa's org must never bleed into ltin's org), read/written via
+// Mirrors brain-panel.js's per-scope sync-bar convention exactly: a compact
+// status + action cluster that lives in the header (never a permanent
+// full-width bar in the main content area), hidden entirely for scopes it
+// doesn't apply to. LinkedIn org pages are inherently client-specific (not
+// personal, not agency-wide), so — tighter than brain's world+client gate —
+// this only shows for an exact client scope (not project, which shares its
+// parent client's brain but has no LinkedIn org of its own).
+//
+// The org URN itself lives per-scope as a fact (never a global setting —
+// zilliqa's org must never bleed into ltin's), read/written via
 // window.pocketAgent.linkedin.{get,set}OrgUrn against the ACTIVE workspace
 // context — same nearest-scope contract as content:create/analytics:record.
+// Configuring it reuses cvTextPrompt (clients-view.js's shared single-field
+// modal, already used for client/project creation) instead of a permanent
+// input field sitting in the list view.
 
-async function _antLoadLinkedInOrgUrn() {
-  const input = document.getElementById('ant-linkedin-org-urn');
-  const statusEl = document.getElementById('ant-linkedin-status');
-  if (!input) return;
+function _antSyncScope() {
+  const ctx = _antContext();
+  return ctx.contextType === 'client' && ctx.clientId ? ctx.clientId : null;
+}
+
+async function _antUpdateSyncBar() {
+  const bar = document.getElementById('ant-sync-bar');
+  if (!bar) return;
+  const scope = _antSyncScope();
+  if (!scope) {
+    bar.hidden = true;
+    return;
+  }
+  bar.hidden = false;
+  await _antRefreshSyncStatus();
+}
+
+async function _antRefreshSyncStatus() {
+  const statusEl = document.getElementById('ant-sync-status');
+  const syncBtn = document.getElementById('ant-sync-now-btn');
+  if (!statusEl) return;
   try {
     const urn = await window.pocketAgent.linkedin.getOrgUrn(_antContext());
-    input.value = urn || '';
-    if (statusEl) statusEl.textContent = '';
-  } catch (err) {
-    console.error('[Analytics] Failed to load LinkedIn org URN:', err);
+    if (!urn) {
+      statusEl.innerHTML = `LinkedIn: <a href="#" onclick="event.preventDefault(); playNormalClick(); antConfigureLinkedInOrg();">set org</a>`;
+      if (syncBtn) syncBtn.disabled = true;
+      return;
+    }
+    const shortUrn = urn.replace('urn:li:organization:', '#');
+    statusEl.innerHTML = `LinkedIn org ${_antEscapeHtml(shortUrn)} · <a href="#" onclick="event.preventDefault(); playNormalClick(); antConfigureLinkedInOrg();">change</a>`;
+    if (syncBtn) syncBtn.disabled = false;
+  } catch {
+    statusEl.textContent = 'LinkedIn: status unavailable';
+    if (syncBtn) syncBtn.disabled = true;
   }
 }
 
-async function antSaveLinkedInOrgUrn() {
-  const input = document.getElementById('ant-linkedin-org-urn');
-  if (!input) return;
-  const urn = input.value.trim();
+async function antConfigureLinkedInOrg() {
+  let current = '';
   try {
-    const res = await window.pocketAgent.linkedin.setOrgUrn(urn, _antContext());
+    current = (await window.pocketAgent.linkedin.getOrgUrn(_antContext())) || '';
+  } catch (_) {
+    /* best-effort prefill */
+  }
+  const value = await cvTextPrompt('LinkedIn Organization URN', 'urn:li:organization:12345678', {
+    okLabel: 'Save',
+    initialValue: current,
+  });
+  if (value === null) return; // cancelled
+  try {
+    const res = await window.pocketAgent.linkedin.setOrgUrn(value, _antContext());
     if (!res || !res.success) {
       _antShowToast((res && res.error) || 'Failed to save', 'error');
       return;
     }
-    _antShowToast(urn ? 'Org URN saved' : 'Org URN cleared', 'success');
+    _antShowToast(value ? 'Org URN saved' : 'Org URN cleared', 'success');
+    await _antRefreshSyncStatus();
   } catch (err) {
     console.error('[Analytics] Failed to save LinkedIn org URN:', err);
     _antShowToast('Failed to save', 'error');
@@ -472,25 +586,26 @@ async function antSaveLinkedInOrgUrn() {
 }
 
 async function antSyncLinkedInNow() {
-  const statusEl = document.getElementById('ant-linkedin-status');
+  const statusEl = document.getElementById('ant-sync-status');
+  const priorText = statusEl ? statusEl.innerHTML : '';
   if (statusEl) statusEl.textContent = 'Syncing…';
   try {
     const result = await window.pocketAgent.linkedin.syncNow(_antContext());
     if (!result || !result.ok) {
       const message = (result && result.error) || 'LinkedIn sync failed';
-      if (statusEl) statusEl.textContent = '';
+      if (statusEl) statusEl.innerHTML = priorText;
       _antShowToast(message, 'error');
       return;
     }
-    if (statusEl) statusEl.textContent = '';
     _antShowToast(
       result.postsWritten > 0 ? `Synced ${result.postsWritten} post(s)` : 'Synced — no new posts found',
       'success'
     );
+    await _antRefreshSyncStatus();
     _antLoadAll();
   } catch (err) {
     console.error('[Analytics] LinkedIn sync failed:', err);
-    if (statusEl) statusEl.textContent = '';
+    if (statusEl) statusEl.innerHTML = priorText;
     _antShowToast('LinkedIn sync failed', 'error');
   }
 }
