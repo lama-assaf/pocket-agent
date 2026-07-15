@@ -6,6 +6,8 @@ const mockDeleteFact = vi.fn();
 const mockDeleteFactBySubject = vi.fn();
 const mockGetAllFacts = vi.fn();
 const mockGetFactsByCategory = vi.fn();
+const mockUpdateFact = vi.fn();
+const mockGetFact = vi.fn();
 const mockGetFactsMemoryUsage = vi
   .fn()
   .mockReturnValue({ usedChars: 500, budgetChars: 3000, pct: 17 });
@@ -18,6 +20,8 @@ const mockMemoryManagerInstance = {
   getAllFacts: mockGetAllFacts,
   getFactsByCategory: mockGetFactsByCategory,
   getFactsMemoryUsage: mockGetFactsMemoryUsage,
+  updateFact: mockUpdateFact,
+  getFact: mockGetFact,
 };
 
 // Mock the memory module with a constructor function
@@ -34,6 +38,8 @@ import {
   handleForgetTool,
   getListFactsToolDefinition,
   handleListFactsTool,
+  handleUpdateFactTool,
+  AGENT_RESERVED_CATEGORIES,
   getDailyLogToolDefinition,
   handleDailyLogTool,
   getMemoryTools,
@@ -178,6 +184,60 @@ describe('Memory Tools', () => {
 
       const parsed = JSON.parse(result);
       expect(parsed.error).toBe('Missing required fields: category, subject, content');
+    });
+
+    it.each([...AGENT_RESERVED_CATEGORIES])('should refuse to save into reserved category "%s"', async (category) => {
+      const result = await handleRememberTool({
+        category,
+        subject: 'voice',
+        content: 'hijack attempt',
+      });
+
+      const parsed = JSON.parse(result);
+      expect(parsed.error).toBeTruthy();
+      expect(mockSaveFact).not.toHaveBeenCalled();
+    });
+  });
+
+  // ============ UPDATE FACT TOOL HANDLER (reserved-category guard) ============
+
+  describe('handleUpdateFactTool — reserved category guard', () => {
+    beforeEach(() => {
+      setMemoryManager(mockMemoryManagerInstance as unknown as MemoryManager);
+      mockGetFact.mockReturnValue({ id: 1, category: 'notes', subject: 'x', content: 'y', scope: 'user' });
+    });
+
+    it.each([...AGENT_RESERVED_CATEGORIES])('refuses to retarget a fact into reserved category "%s"', async (category) => {
+      const result = await handleUpdateFactTool({ id: 1, category });
+
+      const parsed = JSON.parse(result);
+      expect(parsed.error).toBeTruthy();
+      expect(mockUpdateFact).not.toHaveBeenCalled();
+    });
+
+    it('refuses to edit a fact whose existing category is reserved', async () => {
+      mockGetFact.mockReturnValue({ id: 1, category: 'how_to_act', subject: 'voice', content: 'y', scope: 'client:acme' });
+
+      const result = await handleUpdateFactTool({ id: 1, content: 'HACKED' });
+
+      const parsed = JSON.parse(result);
+      expect(parsed.error).toBeTruthy();
+      expect(mockUpdateFact).not.toHaveBeenCalled();
+    });
+
+    it('allows editing an ordinary (non-reserved) fact', async () => {
+      mockUpdateFact.mockReturnValue(true);
+
+      const result = await handleUpdateFactTool({ id: 1, content: 'updated content' });
+
+      const parsed = JSON.parse(result);
+      expect(parsed.success).toBe(true);
+      expect(mockUpdateFact).toHaveBeenCalledWith(1, {
+        category: undefined,
+        subject: undefined,
+        content: 'updated content',
+        sensitive: undefined,
+      });
     });
   });
 

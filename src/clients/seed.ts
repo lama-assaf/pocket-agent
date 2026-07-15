@@ -58,8 +58,12 @@ export interface ClientSeed {
 /**
  * Zilliqa — the "category" voice (permissionless onchain finance, the
  * mediation layer). Extracted from Zilliqa-comms: `brand/voice-guide.md`
- * (voice/vocabulary/tone-by-surface) and `.atelier/memory/instincts.md`
- * (the locked Zilliqa x LTIN comms ground truth).
+ * (voice/vocabulary/tone-by-surface), `.atelier/memory/instincts.md`
+ * (the locked Zilliqa x LTIN comms ground truth), and `.atelier/memory/
+ * lessons.md` (dated, brand-specific takeaways — NOT the atelier
+ * marketplace pack's own generic template examples, which lessons.md still
+ * carries unremoved and which must never be mistaken for real Zilliqa
+ * history).
  */
 const ZILLIQA_SEED: ClientSeed = {
   id: 'zilliqa',
@@ -94,9 +98,16 @@ const ZILLIQA_SEED: ClientSeed = {
         "When a claim or wedge is reconciled and phrases are banned, the sweep must cover every surface the campaign lives on, not just repo markdown. A banned-phrase check against only local files missed the same retired language ('settles nothing', 'clears no trades', 'steps aside', 'cannot be the layer that settles') sitting live in the master content-calendar Google Doc, which lags repo canon by weeks. Re-run banned-phrase sweeps against the Doc export whenever ground truth changes.",
     },
     {
-      subject: 'brand voice extraction before copy, not after',
+      // Replaces a prior entry that was actually the atelier marketplace
+      // pack's own generic onboarding-template example lesson ("brand voice
+      // extraction skipped, copy drift accelerated" — see src/marketplace/
+      // seed/atelier/memory/lessons.md's "(delete these once you have your
+      // own.)" examples), never a real Zilliqa-specific takeaway. This is
+      // the project's actual second dated lesson from `.atelier/memory/
+      // lessons.md`.
+      subject: "reconciled canon to LTIN's authoritative OneDrive positioning docs",
       content:
-        'Writing landing copy or email sequences before a voice guide exists lets multiple contributors invent different voices in parallel. Extracting the voice guide is a one-day investment that prevents weeks of revision later; never let new copy ship without checking it against the guide.',
+        "Derived instincts drift from the principals' own source docs over weeks — the board decks used to draft this brand's memory were a SUPERSEDED source that still carried CEO-retired language. When a canon dispute arises, go to the source-owner's approved docs (LTIN's AL-approved OneDrive positioning set) before picking a side; don't arbitrate from secondary/derived notes.",
     },
   ],
   agents: [

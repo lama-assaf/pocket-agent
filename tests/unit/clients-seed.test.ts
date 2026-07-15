@@ -74,6 +74,23 @@ describe('DEFAULT_CLIENT_SEEDS', () => {
     }
   });
 
+  it('never seeds a marketplace packs own generic template lesson as brand-specific content', () => {
+    const templateLessonSnippets = [
+      'three writers contributed',
+      'a metric (even a rough one) goes in the prd',
+      'golden-hour engagement',
+      'off-voice copy shipped from a rushed campaign',
+    ];
+    for (const seed of DEFAULT_CLIENT_SEEDS) {
+      for (const lesson of seed.lessons) {
+        const haystack = `${lesson.subject} ${lesson.content}`.toLowerCase();
+        for (const snippet of templateLessonSnippets) {
+          expect(haystack).not.toContain(snippet);
+        }
+      }
+    }
+  });
+
   it('only wires atelier/salon agents (the packs pocket-agent bundles)', () => {
     for (const seed of DEFAULT_CLIENT_SEEDS) {
       for (const agent of seed.agents) {

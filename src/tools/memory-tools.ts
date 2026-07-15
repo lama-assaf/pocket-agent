@@ -9,6 +9,39 @@ import { MemoryManager } from '../memory';
 import { resolveNearestScope, resolveVisibleScopes, nextBroaderScope } from '../memory/scope';
 import { getCurrentSessionId } from './session-context';
 
+/**
+ * Fact categories with their own dedicated, convention-bound storage path —
+ * the generic agent-facing `remember`/`update_fact` tools must never write or
+ * retarget a fact into one of these, even though the model can technically
+ * pass any string as `category` (neither tool's schema restricts it, and
+ * production data has shown the model freelancing into all four):
+ *  - `how_to_act`     — brand voice/tone/instincts/banned_words. Single
+ *    source of truth for in-app edits via the Memory Workbench (see
+ *    src/agent/how-to-act.ts); subjects are the fixed set VOICE_SUBJECT_ORDER
+ *    + banned_words. No agent tool is meant to write this — a model
+ *    freelancing a category like 'how_to_act' with an ad hoc subject (seen in
+ *    production as a stray 'voice_and_tone' fact) creates a second,
+ *    drifting copy of the brand's real voice/tone facts instead of editing them.
+ *  - `atelier-memory` — the verbatim mirror of a scope's `.atelier/memory/*.md`
+ *    files (src/memory/atelier-bridge.ts), rewritten wholesale on every pull.
+ *  - `enabled-agents` / `enabled-mcp` — exact `<packId>:<agentName>` /
+ *    `<packId>:<entryId>` enablement toggles (src/marketplace/enablement.ts).
+ *    A model saving an aggregate 'all enabled agents' summary under one
+ *    made-up subject (seen in production) doesn't match the convention every
+ *    reader of this category expects and can't be told apart from the real
+ *    per-agent toggles.
+ * `lesson` is deliberately NOT reserved — the remember tool's own "Keep each
+ * fact atomic" instruction is the (weaker, prompt-level) guard against
+ * non-atomic lessons; lessons are ordinary agent-writable knowledge, just
+ * like `user_info` or `notes`, not a system-managed category.
+ */
+export const AGENT_RESERVED_CATEGORIES = new Set([
+  'how_to_act',
+  'atelier-memory',
+  'enabled-agents',
+  'enabled-mcp',
+]);
+
 let memoryManager: MemoryManager | null = null;
 
 export function setMemoryManager(memory: MemoryManager): void {
@@ -103,6 +136,11 @@ export async function handleRememberTool(input: unknown): Promise<string> {
 
   if (!category || !subject || !content) {
     return JSON.stringify({ error: 'Missing required fields: category, subject, content' });
+  }
+  if (AGENT_RESERVED_CATEGORIES.has(category)) {
+    return JSON.stringify({
+      error: `Category "${category}" is managed by its own dedicated flow (the Memory Workbench for how_to_act, marketplace enablement for enabled-agents/enabled-mcp, the atelier/salon sync for atelier-memory) — remember can't write to it. Use a different category, or ask the user to make the change in-app.`,
+    });
   }
 
   const scope = nearestScopeForCurrentSession(memoryManager);
@@ -410,6 +448,21 @@ export async function handleUpdateFactTool(input: unknown): Promise<string> {
     sensitive === undefined
   ) {
     return JSON.stringify({ error: 'Provide at least one field to update' });
+  }
+  // Block both directions: retargeting a fact INTO a reserved category, and
+  // editing a fact that's already IN one (e.g. a how_to_act voice/tone entry
+  // found via list_facts) — those stay Memory-Workbench-only / marketplace-
+  // enablement-only, matching remember's guard above.
+  if (category !== undefined && AGENT_RESERVED_CATEGORIES.has(category)) {
+    return JSON.stringify({
+      error: `Category "${category}" is managed by its own dedicated flow — update_fact can't retarget a fact into it.`,
+    });
+  }
+  const existing = memoryManager.getFact(id);
+  if (existing && AGENT_RESERVED_CATEGORIES.has(existing.category)) {
+    return JSON.stringify({
+      error: `Fact ${id} is category "${existing.category}", which is managed by its own dedicated flow (the Memory Workbench, marketplace enablement, or atelier/salon sync) — update_fact can't edit it. Ask the user to make the change in-app.`,
+    });
   }
   const updated = memoryManager.updateFact(id, { category, subject, content, sensitive });
   return JSON.stringify(

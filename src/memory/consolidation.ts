@@ -11,6 +11,37 @@ import type { MemoryManager } from './index';
 import type { Summarizer } from './summarizer';
 import { summarizeText } from './summarizer';
 
+/**
+ * Fact categories that automatic consolidation (nightly sleep-time job, or the
+ * in-turn near-full compactor) must never merge, rewrite, or delete — each is
+ * an operator-controlled or mechanically-synced source of truth, not free-form
+ * knowledge the model should feel free to "compress to 10 words":
+ *  - `how_to_act`   — brand voice/tone/instincts/banned_words. The documented
+ *    single source of truth for in-app edits (src/agent/how-to-act.ts); an
+ *    operator changes it deliberately via the Memory Workbench, never via a
+ *    background LLM pass silently rewording a client's voice.
+ *  - `lesson`       — dated, append-only learnings (Brain panel Lessons tab,
+ *    mirrors atelier/salon's own `lessons.md` convention: "dated takeaways...
+ *    add as you go"). A historical record, not a rolling summary to shrink.
+ *  - `atelier-memory` — the verbatim mirror of a scope's `.atelier/memory/*.md`
+ *    files (src/memory/atelier-bridge.ts). Re-synced idempotently on every
+ *    pull, so LLM-rewriting it here would only drift from the source file
+ *    until the next sync overwrites it — pure wasted risk, no benefit.
+ *  - `enabled-agents` / `enabled-mcp` — exact on/off marketplace enablement
+ *    toggles (src/marketplace/enablement.ts), not summarizable knowledge.
+ * Excluded facts are simply never shown to the compaction model and can never
+ * appear in its delete_ids/upsert — they don't count toward "what's over
+ * budget" from consolidation's point of view, only toward the raw capacity
+ * bars (getFactsMemoryUsage), which intentionally still count everything.
+ */
+const PROTECTED_CATEGORIES = new Set([
+  'how_to_act',
+  'lesson',
+  'atelier-memory',
+  'enabled-agents',
+  'enabled-mcp',
+]);
+
 /** Status callback so callers can surface progress in their own UI/log channels. */
 export type ConsolidationStatus = (message: string, detail?: string) => void;
 
@@ -224,7 +255,12 @@ function applyResult(
   let soulAdded = 0;
 
   if (result.facts) {
-    const upserts = result.facts.upsert ?? [];
+    // A hallucinating model could emit an upsert tagged with a protected
+    // category (e.g. "how_to_act") even though it was never shown any such
+    // facts — silently rewriting a brand's voice via a background
+    // compaction pass. Drop those upserts outright; only delete_ids are
+    // scope-checked below because upserts create NEW rows (no id to check).
+    const upserts = (result.facts.upsert ?? []).filter((f) => !PROTECTED_CATEGORIES.has(f.category));
     // Only delete ids the model was actually shown for THIS scope. A hallucinated
     // or cross-scope id can't reach memory.deleteFact() (which deletes by raw id),
     // so consolidation of one scope can never delete another brand's/personal fact.
@@ -332,19 +368,21 @@ export async function consolidateMemory(
   onStatus?.('scanning memory... 🔍');
 
   const now = Date.now();
-  const allFactData: FactData[] = (factsOver ? memory.getAllFacts() : []).map((f) => {
-    const lastAccess = f.last_accessed_at ? new Date(f.last_accessed_at).getTime() : 0;
-    const daysSinceAccess = lastAccess ? Math.round((now - lastAccess) / 86_400_000) : 999;
-    return {
-      id: f.id,
-      category: f.category,
-      subject: f.subject,
-      content: f.content,
-      scope: f.scope ?? 'user',
-      importance: f.importance,
-      days_since_accessed: daysSinceAccess,
-    };
-  });
+  const allFactData: FactData[] = (factsOver ? memory.getAllFacts() : [])
+    .filter((f) => !PROTECTED_CATEGORIES.has(f.category))
+    .map((f) => {
+      const lastAccess = f.last_accessed_at ? new Date(f.last_accessed_at).getTime() : 0;
+      const daysSinceAccess = lastAccess ? Math.round((now - lastAccess) / 86_400_000) : 999;
+      return {
+        id: f.id,
+        category: f.category,
+        subject: f.subject,
+        content: f.content,
+        scope: f.scope ?? 'user',
+        importance: f.importance,
+        days_since_accessed: daysSinceAccess,
+      };
+    });
   const soulData = (soulOver ? memory.getAllSoulAspects() : []).map((s) => ({
     aspect: s.aspect,
     content: s.content,
@@ -378,7 +416,19 @@ export async function consolidateMemory(
 
   for (const [scope, scopeFacts] of factsByScope) {
     if (scopeFacts.length === 0) continue;
-    const duplicateClusters = memory.findNearDuplicateFacts(0.82, scope);
+    // findNearDuplicateFacts queries the DB directly (not the protected-
+    // category-filtered scopeFacts above), so it can surface a protected
+    // fact (e.g. a how_to_act voice entry) as part of a "likely duplicate"
+    // cluster. applyResult's own inScopeIds cross-check would already
+    // refuse to delete it, but showing the model a cluster referencing a
+    // fact it was never given (and can't act on) is confusing prompt noise
+    // — filter to only the consolidatable ids actually shown, and drop
+    // clusters that shrink below 2.
+    const candidateIds = new Set(scopeFacts.map((f) => f.id));
+    const duplicateClusters = memory
+      .findNearDuplicateFacts(0.82, scope)
+      .map((cluster) => cluster.filter((c) => candidateIds.has(c.id)))
+      .filter((cluster) => cluster.length >= 2);
     const prompt = buildConsolidationPrompt({
       factsData: scopeFacts,
       soulData: [],

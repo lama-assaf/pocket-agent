@@ -113,3 +113,112 @@ describe('consolidateMemory', () => {
     expect(result.ran).toBe(false);
   });
 });
+
+// ── Protected categories: how_to_act (voice), lesson, atelier-memory,
+// enabled-agents/enabled-mcp must survive automatic consolidation untouched —
+// they're operator-controlled or mechanically-synced sources of truth, not
+// free-form knowledge a background LLM pass should compress or rewrite. ──────
+describe('consolidateMemory — protected categories are never touched', () => {
+  let memory: MemoryManager;
+
+  beforeEach(() => {
+    memory = new MemoryManager(':memory:');
+  });
+
+  function padScopeOverBudget(scope: string): void {
+    for (let i = 0; i < 40; i++) {
+      memory.saveFact('notes', `fact${i}`, `Some knowledge fact number ${i} with enough text to add up.`, undefined, scope);
+    }
+  }
+
+  it('never shows how_to_act (voice) facts to the compaction model, and refuses a delete/upsert targeting it', async () => {
+    const voiceId = memory.saveFact(
+      'how_to_act',
+      'voice',
+      'Understated, evidence-first, institutional.',
+      undefined,
+      'client:acme'
+    );
+    padScopeOverBudget('client:acme');
+
+    const seenCategories: string[] = [];
+    const summarizer = vi.fn(async (prompt: string) => {
+      const matches = [...prompt.matchAll(/"category":\s*"([^"]+)"/g)].map((m) => m[1]!);
+      seenCategories.push(...matches);
+      // Try to sneak a delete of the voice fact + an upsert into how_to_act —
+      // both must be refused regardless of what the model asks for.
+      return JSON.stringify({
+        facts: {
+          delete_ids: [voiceId],
+          upsert: [{ category: 'how_to_act', subject: 'voice', content: 'HACKED VOICE' }],
+        },
+      });
+    });
+
+    await consolidateMemory(memory, { force: true, summarizer });
+
+    expect(seenCategories).not.toContain('how_to_act');
+    const voiceFact = memory.getFact(voiceId);
+    expect(voiceFact).not.toBeNull();
+    expect(voiceFact!.content).toBe('Understated, evidence-first, institutional.');
+    // The malicious upsert must not have created a second how_to_act row either.
+    const howToActFacts = memory.getFactsByCategory('how_to_act');
+    expect(howToActFacts).toHaveLength(1);
+    expect(howToActFacts[0]!.content).toBe('Understated, evidence-first, institutional.');
+  });
+
+  it('never deletes or rewrites lesson facts via consolidation', async () => {
+    const lessonId = memory.saveFact(
+      'lesson',
+      'canon sweep',
+      'Sweep every surface, not just repo markdown.',
+      undefined,
+      'client:acme'
+    );
+    padScopeOverBudget('client:acme');
+
+    const summarizer = vi.fn(async () =>
+      JSON.stringify({
+        facts: {
+          delete_ids: [lessonId],
+          upsert: [{ category: 'lesson', subject: 'canon sweep', content: 'shortened' }],
+        },
+      })
+    );
+
+    await consolidateMemory(memory, { force: true, summarizer });
+
+    const lessonFact = memory.getFact(lessonId);
+    expect(lessonFact).not.toBeNull();
+    expect(lessonFact!.content).toBe('Sweep every surface, not just repo markdown.');
+    expect(memory.getFactsByCategory('lesson')).toHaveLength(1);
+  });
+
+  it('never deletes atelier-memory mirror rows or enabled-agents/enabled-mcp toggles', async () => {
+    const mirrorId = memory.saveFact(
+      'atelier-memory',
+      'voice.md',
+      '# voice\n\nmirrored file content',
+      undefined,
+      'client:acme'
+    );
+    const agentId = memory.saveFact('enabled-agents', 'atelier:copywriter', 'true', undefined, 'client:acme');
+    const mcpId = memory.saveFact('enabled-mcp', 'atelier:figma', 'true', undefined, 'client:acme');
+    padScopeOverBudget('client:acme');
+
+    const summarizer = vi.fn(async () =>
+      JSON.stringify({
+        facts: {
+          delete_ids: [mirrorId, agentId, mcpId],
+          upsert: [],
+        },
+      })
+    );
+
+    await consolidateMemory(memory, { force: true, summarizer });
+
+    expect(memory.getFact(mirrorId)).not.toBeNull();
+    expect(memory.getFact(agentId)).not.toBeNull();
+    expect(memory.getFact(mcpId)).not.toBeNull();
+  });
+});
