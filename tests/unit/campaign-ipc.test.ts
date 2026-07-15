@@ -70,3 +70,49 @@ describe('campaign-ipc: campaigns:analytics', () => {
     expect(result).toMatchObject({ summary: { totalPosts: 1, impressions: 100 } });
   });
 });
+
+describe('campaign-ipc: campaigns:linkContentDraft', () => {
+  beforeEach(() => {
+    handlers.clear();
+    mockIpcMainHandle.mockClear();
+  });
+
+  it('registers the campaigns:linkContentDraft channel', () => {
+    registerCampaignIPC({ getMemory: () => null } as never);
+    expect(handlers.has('campaigns:linkContentDraft')).toBe(true);
+  });
+
+  it('reports "Memory not initialized" when memory is unavailable', async () => {
+    registerCampaignIPC({ getMemory: () => null } as never);
+    const result = (await handlers.get('campaigns:linkContentDraft')!({}, 1, 2)) as {
+      success: boolean;
+      error?: string;
+    };
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/not initialized/i);
+  });
+
+  it('delegates to memory.linkDeliverableToContentDraft with the deliverable and draft ids', async () => {
+    const linkDeliverableToContentDraft = vi.fn(() => ({ ok: true }));
+    registerCampaignIPC({ getMemory: () => ({ linkDeliverableToContentDraft }) } as never);
+
+    const result = await handlers.get('campaigns:linkContentDraft')!({}, 5, 9);
+    expect(linkDeliverableToContentDraft).toHaveBeenCalledWith(5, 9);
+    expect(result).toEqual({ success: true, error: undefined });
+  });
+
+  it('surfaces a not-found error from the memory layer', async () => {
+    const linkDeliverableToContentDraft = vi.fn(() => ({
+      ok: false,
+      error: 'Deliverable #5 not found.',
+    }));
+    registerCampaignIPC({ getMemory: () => ({ linkDeliverableToContentDraft }) } as never);
+
+    const result = (await handlers.get('campaigns:linkContentDraft')!({}, 5, 9)) as {
+      success: boolean;
+      error?: string;
+    };
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/not found/);
+  });
+});

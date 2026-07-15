@@ -157,6 +157,74 @@ describe('MemoryManager content drafts — status transitions enforced', () => {
   });
 });
 
+// ── Leaving 'scheduled' cleans up the cron job (queue-panel "Cancel
+// schedule"/"Back to draft" actions, and the scheduler's own job-fired
+// transitions) — without this, a canceled schedule left an armed cron job
+// that would still fire later and report a confusing failure. ──────────────
+describe('MemoryManager content drafts — canceling a schedule cleans up its cron job', () => {
+  let memory: import('../../src/memory/index').MemoryManager;
+
+  beforeEach(async () => {
+    const { MemoryManager } = await import('../../src/memory/index');
+    memory = new MemoryManager(':memory:');
+  });
+
+  function scheduleDraft(): { id: number; cronJobId: number } {
+    const id = memory.createContentDraft({ scope: 'user', channel: 'twitter', body: 'hello' });
+    memory.setContentDraftStatus(id, 'pending_approval', 'agent');
+    memory.setContentDraftStatus(id, 'approved', 'human');
+    const cronJobId = memory.saveCronJob(`content-post-${id}`, '2027-01-01T09:00:00Z', 'x', 'desktop', 'default');
+    memory.setCronJobForContentPost(cronJobId, '2027-01-01T09:00:00Z', id);
+    memory.setContentDraftStatus(id, 'scheduled', 'human', {
+      scheduledFor: '2027-01-01T09:00:00Z',
+      cronJobId,
+    });
+    return { id, cronJobId };
+  }
+
+  it('deletes the cron job and clears scheduling fields when a human cancels back to draft', () => {
+    const { id, cronJobId } = scheduleDraft();
+    expect(memory.getCronJobs(false).some((j) => j.id === cronJobId)).toBe(true);
+
+    const result = memory.setContentDraftStatus(id, 'draft', 'human');
+    expect(result.ok).toBe(true);
+
+    expect(memory.getCronJobs(false).some((j) => j.id === cronJobId)).toBe(false);
+    const draft = memory.getContentDraft(id)!;
+    expect(draft.status).toBe('draft');
+    expect(draft.scheduled_for).toBeNull();
+    expect(draft.cron_job_id).toBeNull();
+  });
+
+  it('deletes the cron job when a human re-approves (cancels the schedule) instead', () => {
+    const { id, cronJobId } = scheduleDraft();
+
+    const result = memory.setContentDraftStatus(id, 'approved', 'human');
+    expect(result.ok).toBe(true);
+
+    expect(memory.getCronJobs(false).some((j) => j.id === cronJobId)).toBe(false);
+    expect(memory.getContentDraft(id)!.scheduled_for).toBeNull();
+  });
+
+  it('leaves an unrelated cron job alone', () => {
+    const { id } = scheduleDraft();
+    const otherJobId = memory.saveCronJob('unrelated-job', '2027-02-01T09:00:00Z', 'y', 'desktop', 'default');
+
+    memory.setContentDraftStatus(id, 'draft', 'human');
+
+    expect(memory.getCronJobs(false).some((j) => j.id === otherJobId)).toBe(true);
+  });
+
+  it('an explicit options.cronJobId still overrides the auto-clear (e.g. re-scheduling in one call)', () => {
+    const { id } = scheduleDraft();
+    const newCronJobId = memory.saveCronJob('content-post-new', '2027-03-01T09:00:00Z', 'z', 'desktop', 'default');
+
+    const result = memory.setContentDraftStatus(id, 'approved', 'human', { cronJobId: newCronJobId });
+    expect(result.ok).toBe(true);
+    expect(memory.getContentDraft(id)!.cron_job_id).toBe(newCronJobId);
+  });
+});
+
 describe('MemoryManager content drafts — scope isolation', () => {
   let memory: import('../../src/memory/index').MemoryManager;
 

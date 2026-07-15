@@ -46,7 +46,26 @@ export function registerContentIPC(deps: IPCDependencies): void {
     return memory.getContentPostsForScopes(visible);
   });
 
-  // ── Human-only approval ─────────────────────────────────────────────────
+  // Human path into the approval pipeline: a draft created by hand in this
+  // panel (rather than via the agent's save_draft + submit_for_approval
+  // tools) had no way to reach 'pending_approval' — Edit/Delete were the
+  // only actions offered for status 'draft', a dead end for anyone not
+  // asking the agent to submit it on their behalf. Mirrors
+  // handleSubmitForApprovalTool's transition exactly, just with actor
+  // 'human' (canTransition only special-cases 'agent' targeting
+  // approved/rejected, so 'human' -> 'pending_approval' was always a valid
+  // transition — this just exposes it here too).
+  ipcMain.handle(
+    'content:submitForApproval',
+    async (_, id: number): Promise<{ success: boolean; error?: string }> => {
+      const memory = getMemory();
+      if (!memory) return { success: false, error: 'Memory not initialized' };
+      const result = memory.setContentDraftStatus(id, 'pending_approval', 'human');
+      return { success: result.ok, error: result.error };
+    }
+  );
+
+  // ── Human-only approval ──────────────────────────────────────────────────
   ipcMain.handle(
     'content:approve',
     async (_, id: number): Promise<{ success: boolean; error?: string }> => {
@@ -63,6 +82,22 @@ export function registerContentIPC(deps: IPCDependencies): void {
       const memory = getMemory();
       if (!memory) return { success: false, error: 'Memory not initialized' };
       const result = memory.setContentDraftStatus(id, 'rejected', 'human');
+      return { success: result.ok, error: result.error };
+    }
+  );
+
+  // Generic human-triggered status transition, for the edges that don't
+  // already have a dedicated verb (e.g. 'scheduled' -> 'draft', 'failed' ->
+  // 'draft' — a "back to draft to fix it up" escape hatch from either dead
+  // end). Mirrors campaigns:setDeliverableStatus's generic-target shape;
+  // canTransition (actor 'human') still enforces the underlying state
+  // machine, so this can't be used to skip the approval gate.
+  ipcMain.handle(
+    'content:setStatus',
+    async (_, id: number, status: ContentDraftStatus): Promise<{ success: boolean; error?: string }> => {
+      const memory = getMemory();
+      if (!memory) return { success: false, error: 'Memory not initialized' };
+      const result = memory.setContentDraftStatus(id, status, 'human');
       return { success: result.ok, error: result.error };
     }
   );

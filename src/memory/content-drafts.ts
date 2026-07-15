@@ -232,6 +232,16 @@ export interface SetStatusOptions {
  * Transition a draft's status, enforcing `canTransition` (including the
  * human-only gate on approved/rejected). Returns an error string on a
  * disallowed transition or a missing draft; never partially applies.
+ *
+ * Leaving 'scheduled' for any other status — whether a human cancels from
+ * the queue panel (approve/reject/back-to-draft) or the scheduler itself
+ * flips the row to 'posted'/'failed' once the job fires — deletes the
+ * one-time cron job `scheduleApprovedDraft` created (via cron_job_id) and
+ * clears scheduled_for/cron_job_id, unless the caller explicitly passed a
+ * value for them. Without this, canceling a schedule left the cron job
+ * armed: it would still fire at the original time, find the draft no longer
+ * approved/scheduled, and surface a confusing "scheduled post failed"
+ * notification for a post nobody was trying to send anymore.
  */
 export function setContentDraftStatus(
   db: Database.Database,
@@ -246,15 +256,24 @@ export function setContentDraftStatus(
   const check = canTransition(draft.status, to, actor);
   if (!check.ok) return { ok: false, error: check.error };
 
+  const leavingSchedule = draft.status === 'scheduled' && to !== 'scheduled';
+  if (leavingSchedule && draft.cron_job_id) {
+    db.prepare('DELETE FROM cron_jobs WHERE id = ?').run(draft.cron_job_id);
+  }
+
   const sets: string[] = ['status = ?'];
   const values: unknown[] = [to];
-  if (options.scheduledFor !== undefined) {
+  const scheduledFor =
+    options.scheduledFor !== undefined ? options.scheduledFor : leavingSchedule ? null : undefined;
+  if (scheduledFor !== undefined) {
     sets.push('scheduled_for = ?');
-    values.push(options.scheduledFor);
+    values.push(scheduledFor);
   }
-  if (options.cronJobId !== undefined) {
+  const cronJobId =
+    options.cronJobId !== undefined ? options.cronJobId : leavingSchedule ? null : undefined;
+  if (cronJobId !== undefined) {
     sets.push('cron_job_id = ?');
-    values.push(options.cronJobId);
+    values.push(cronJobId);
   }
   if (options.postedAt !== undefined) {
     sets.push('posted_at = ?');

@@ -146,6 +146,27 @@ export function registerCampaignIPC(deps: IPCDependencies): void {
     return { success: memory.deleteDeliverable(id) };
   });
 
+  // Human path to attach a deliverable's result to a content-workflow draft
+  // (roadmap item 10, requirement 3). memory.linkDeliverableToContentDraft
+  // already existed for the agent's update_deliverable_status tool
+  // (result_ref: "content_draft:<id>") but had no IPC handler, so a human
+  // managing the campaign board from the UI had no way to make this link
+  // themselves. Thin wrapper — same underlying write setDeliverableStatus's
+  // resultRef param would do, just without needing a status change too.
+  ipcMain.handle(
+    'campaigns:linkContentDraft',
+    async (
+      _,
+      deliverableId: number,
+      contentDraftId: number
+    ): Promise<{ success: boolean; error?: string }> => {
+      const memory = getMemory();
+      if (!memory) return { success: false, error: 'Memory not initialized' };
+      const result = memory.linkDeliverableToContentDraft(deliverableId, contentDraftId);
+      return { success: result.ok, error: result.error };
+    }
+  );
+
   // "Nudge" (roadmap item 10, requirement 4): resolve the next unblocked
   // deliverable and hand back a ready-to-send prompt string. The renderer
   // decides how to deliver it (prefill the composer, same pattern

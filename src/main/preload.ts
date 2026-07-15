@@ -333,8 +333,10 @@ contextBridge.exposeInMainWorld('pocketAgent', {
         projectKey?: string | null;
       }
     ) => ipcRenderer.invoke('content:create', input, context),
+    submitForApproval: (id: number) => ipcRenderer.invoke('content:submitForApproval', id),
     approve: (id: number) => ipcRenderer.invoke('content:approve', id),
     reject: (id: number) => ipcRenderer.invoke('content:reject', id),
+    setStatus: (id: number, status: string) => ipcRenderer.invoke('content:setStatus', id, status),
     postNow: (
       id: number,
       context?: {
@@ -383,6 +385,8 @@ contextBridge.exposeInMainWorld('pocketAgent', {
     setDeliverableStatus: (id: number, status: string, resultRef?: string) =>
       ipcRenderer.invoke('campaigns:setDeliverableStatus', id, status, resultRef),
     deleteDeliverable: (id: number) => ipcRenderer.invoke('campaigns:deleteDeliverable', id),
+    linkContentDraft: (deliverableId: number, contentDraftId: number) =>
+      ipcRenderer.invoke('campaigns:linkContentDraft', deliverableId, contentDraftId),
     nudgePrompt: (campaignId: number) => ipcRenderer.invoke('campaigns:nudgePrompt', campaignId),
     analytics: (campaignId: number) => ipcRenderer.invoke('campaigns:analytics', campaignId),
   },
@@ -1202,8 +1206,10 @@ declare global {
             projectKey?: string | null;
           }
         ) => Promise<{ success: boolean; id?: number; error?: string }>;
+        submitForApproval: (id: number) => Promise<{ success: boolean; error?: string }>;
         approve: (id: number) => Promise<{ success: boolean; error?: string }>;
         reject: (id: number) => Promise<{ success: boolean; error?: string }>;
+        setStatus: (id: number, status: string) => Promise<{ success: boolean; error?: string }>;
         postNow: (
           id: number,
           context?: {
@@ -1299,6 +1305,10 @@ declare global {
           resultRef?: string
         ) => Promise<{ success: boolean; error?: string }>;
         deleteDeliverable: (id: number) => Promise<{ success: boolean }>;
+        linkContentDraft: (
+          deliverableId: number,
+          contentDraftId: number
+        ) => Promise<{ success: boolean; error?: string }>;
         nudgePrompt: (
           campaignId: number
         ) => Promise<{ success: boolean; prompt?: string; error?: string }>;

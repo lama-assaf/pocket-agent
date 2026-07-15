@@ -258,7 +258,17 @@ async function cpnShowDetail(id) {
       console.error('[Campaigns] Failed to load campaign analytics:', err);
     }
 
-    _cpnRenderDetail(result.campaign, result.deliverables || [], analytics);
+    // Content drafts in the active scope, for the "link to content draft"
+    // picker on each deliverable row (see _cpnDeliverableRowHtml) — also
+    // best-effort, same degrade-to-empty rationale as analytics above.
+    let contentDrafts = [];
+    try {
+      contentDrafts = (await window.pocketAgent.content.list(_cpnContext())) || [];
+    } catch (err) {
+      console.error('[Campaigns] Failed to load content drafts for linking:', err);
+    }
+
+    _cpnRenderDetail(result.campaign, result.deliverables || [], analytics, contentDrafts);
   } catch (err) {
     console.error('[Campaigns] Failed to load campaign detail:', err);
     body.innerHTML = '<div class="cpn-detail-desc">Failed to load campaign.</div>';
@@ -270,7 +280,7 @@ function _cpnDeliverableTitle(deliverables, id) {
   return d ? d.title : `#${id}`;
 }
 
-function _cpnDeliverableRowHtml(d, deliverables) {
+function _cpnDeliverableRowHtml(d, deliverables, contentDrafts) {
   const depNote = d.depends_on
     ? `<div class="cpn-dlv-dep">depends on: ${_cpnEscapeHtml(_cpnDeliverableTitle(deliverables, d.depends_on))}</div>`
     : '';
@@ -283,6 +293,7 @@ function _cpnDeliverableRowHtml(d, deliverables) {
   // (src/memory/campaigns.ts's linkDeliverableToContentDraft), make it a
   // click-through into the Content queue panel instead of plain text.
   const contentDraftMatch = d.result_ref ? /^content_draft:(\d+)$/.exec(d.result_ref) : null;
+  const linkedDraftId = contentDraftMatch ? parseInt(contentDraftMatch[1], 10) : null;
   const resultNote = contentDraftMatch
     ? `<div class="cpn-dlv-result">result: <a href="#" class="cpn-dlv-result-link" onclick="playNormalClick(); cpnOpenContentDraft(event, ${contentDraftMatch[1]})">content draft #${contentDraftMatch[1]}</a></div>`
     : d.result_ref
@@ -292,6 +303,29 @@ function _cpnDeliverableRowHtml(d, deliverables) {
   const statusOptions = CPN_DELIVERABLE_STATUSES
     .map((s) => `<option value="${s}" ${s === d.status ? 'selected' : ''}>${_cpnFormatStatus(s)}</option>`)
     .join('');
+
+  // Link-to-content-draft picker (roadmap item 10, requirement 3): the
+  // memory-layer link already existed (linkDeliverableToContentDraft) but
+  // had no reachable UI — a human managing the board could only see a link
+  // the agent had already made, never create one. Lists every content draft
+  // visible in the active scope so picking one doesn't require knowing its
+  // numeric id.
+  const draftOptions = (contentDrafts || [])
+    .map((cd) => {
+      const label = `#${cd.id} [${cd.channel}] ${cd.title || '(untitled)'}`;
+      return `<option value="${cd.id}" ${cd.id === linkedDraftId ? 'selected' : ''}>${_cpnEscapeHtml(label)}</option>`;
+    })
+    .join('');
+  const linkRow = (contentDrafts || []).length
+    ? `
+      <div class="cpn-dlv-actions">
+        <select class="cnt-edit-input cpn-dlv-link-select" id="cpn-dlv-link-${d.id}">
+          <option value="">Link content draft…</option>
+          ${draftOptions}
+        </select>
+        <button class="btn-shell btn-compact" onclick="playNormalClick(); cpnLinkContentDraft(${d.id})">Link</button>
+      </div>`
+    : '';
 
   return `
     <div class="cpn-dlv-row">
@@ -311,6 +345,7 @@ function _cpnDeliverableRowHtml(d, deliverables) {
         <button class="btn-shell btn-compact" onclick="playNormalClick(); cpnSetDeliverableStatus(${d.id})">Update</button>
         <button class="btn-shell btn-compact" onclick="playNormalClick(); cpnDeleteDeliverable(${d.id})">Delete</button>
       </div>
+      ${linkRow}
     </div>`;
 }
 
@@ -354,7 +389,7 @@ function _cpnAnalyticsSectionHtml(analytics) {
     <div class="cpn-analytics-rows">${rows}</div>`;
 }
 
-function _cpnRenderDetail(campaign, deliverables, analytics) {
+function _cpnRenderDetail(campaign, deliverables, analytics, contentDrafts) {
   const body = document.getElementById('cpn-detail-body');
   if (!body) return;
 
@@ -364,7 +399,7 @@ function _cpnRenderDetail(campaign, deliverables, analytics) {
     : '';
 
   const deliverablesHtml = deliverables.length
-    ? deliverables.map((d) => _cpnDeliverableRowHtml(d, deliverables)).join('')
+    ? deliverables.map((d) => _cpnDeliverableRowHtml(d, deliverables, contentDrafts)).join('')
     : '<div class="cpn-dlv-empty">No deliverables yet.</div>';
 
   const dependsOnOptions = deliverables
@@ -441,6 +476,32 @@ async function cpnDeleteDeliverable(id) {
   } catch (err) {
     console.error('[Campaigns] Failed to delete deliverable:', err);
     _cpnShowToast('Failed to delete deliverable', 'error');
+  }
+}
+
+// Human path to attach a deliverable's result to a content draft (roadmap
+// item 10, requirement 3) — the picker built in _cpnDeliverableRowHtml,
+// wired to the linkContentDraft IPC (src/main/ipc/campaign-ipc.ts). Doesn't
+// change the deliverable's status; a human still moves it to 'done'/'review'
+// explicitly via the status select next to it.
+async function cpnLinkContentDraft(deliverableId) {
+  const select = document.getElementById(`cpn-dlv-link-${deliverableId}`);
+  const contentDraftId = select && select.value ? parseInt(select.value, 10) : null;
+  if (!contentDraftId) {
+    _cpnShowToast('Pick a content draft first', 'error');
+    return;
+  }
+  try {
+    const res = await window.pocketAgent.campaigns.linkContentDraft(deliverableId, contentDraftId);
+    if (!res || !res.success) {
+      _cpnShowToast((res && res.error) || 'Failed to link content draft', 'error');
+      return;
+    }
+    _cpnShowToast('Linked to content draft', 'success');
+    if (_cpnCurrentCampaignId) await cpnShowDetail(_cpnCurrentCampaignId);
+  } catch (err) {
+    console.error('[Campaigns] Failed to link content draft:', err);
+    _cpnShowToast('Failed to link content draft', 'error');
   }
 }
 

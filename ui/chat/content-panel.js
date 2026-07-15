@@ -259,6 +259,14 @@ async function _cntRenderDetail(draft) {
   }
 
   const actions = [];
+  // A draft created by hand here (not via the agent's save_draft +
+  // submit_for_approval tools) previously had no way to enter the approval
+  // pipeline at all — Edit/Delete were the only actions offered for status
+  // 'draft', a dead end. Mirrors submit_for_approval's own transition
+  // (draft -> pending_approval only), so this only appears in that state.
+  if (draft.status === 'draft') {
+    actions.push(`<button class="btn-cinamon" onclick="playNormalClick(); cntSubmitForApproval(${draft.id})">Submit for approval</button>`);
+  }
   if (draft.status === 'pending_approval') {
     actions.push(`<button class="btn-cinamon" onclick="playNormalClick(); cntApprove(${draft.id})">Approve</button>`);
     actions.push(`<button class="btn-danger" onclick="playNormalClick(); cntReject(${draft.id})">Reject</button>`);
@@ -266,6 +274,26 @@ async function _cntRenderDetail(draft) {
   if (draft.status === 'approved') {
     actions.push(`<button class="btn-cinamon" onclick="playNormalClick(); cntPostNow(${draft.id})">Post now</button>`);
     actions.push(`<button class="btn-shell" onclick="playNormalClick(); cntShowScheduleForm(${draft.id})">Schedule…</button>`);
+  }
+  // 'scheduled' previously had no actions but Delete — a dead end for
+  // anyone who wants to stop or change a queued post before its cron job
+  // fires. Both reuse existing human-only transitions already allowed by
+  // content-drafts.ts's TRANSITIONS table (scheduled -> approved/draft);
+  // setContentDraftStatus also cancels the underlying cron job on the way
+  // out of 'scheduled', so canceling here can't leave a stray job behind.
+  if (draft.status === 'scheduled') {
+    actions.push(`<button class="btn-cinamon" onclick="playNormalClick(); cntApprove(${draft.id})">Cancel schedule</button>`);
+    actions.push(`<button class="btn-shell" onclick="playNormalClick(); cntSetStatus(${draft.id}, 'draft')">Back to draft</button>`);
+  }
+  // 'failed' (a real post attempt errored) also previously had no actions
+  // but Delete, even though content-drafts.ts's TRANSITIONS explicitly
+  // allows failed -> draft/approved for exactly this "fix it and retry"
+  // case. "Retry" re-approves without editing (transient failure, e.g. an
+  // MCP tool hiccup); "Back to draft" is for when the content itself needs
+  // fixing before trying again.
+  if (draft.status === 'failed') {
+    actions.push(`<button class="btn-cinamon" onclick="playNormalClick(); cntApprove(${draft.id})">Retry</button>`);
+    actions.push(`<button class="btn-shell" onclick="playNormalClick(); cntSetStatus(${draft.id}, 'draft')">Back to draft</button>`);
   }
   if (draft.status === 'draft' || draft.status === 'rejected') {
     actions.push(`<button class="btn-shell" onclick="playNormalClick(); cntEditDraft(${draft.id})">Edit</button>`);
@@ -310,6 +338,26 @@ async function _cntRenderDetail(draft) {
   `;
 }
 
+// ---- Submit for approval (human path — same transition the agent's
+// submit_for_approval tool uses, just triggerable from the UI for drafts
+// a human wrote directly instead of asking the agent to save+submit) ----
+
+async function cntSubmitForApproval(id) {
+  try {
+    const res = await window.pocketAgent.content.submitForApproval(id);
+    if (!res || !res.success) {
+      _cntShowToast((res && res.error) || 'Failed to submit for approval', 'error');
+      return;
+    }
+    _cntShowToast('Submitted for approval', 'success');
+    await cntShowDetail(id);
+    _cntLoadDrafts();
+  } catch (err) {
+    console.error('[Content] Failed to submit draft for approval:', err);
+    _cntShowToast('Failed to submit for approval', 'error');
+  }
+}
+
 // ---- Approve / Reject (human-only) ----
 
 async function cntApprove(id) {
@@ -339,6 +387,27 @@ async function cntReject(id) {
   } catch (err) {
     console.error('[Content] Failed to reject draft:', err);
     _cntShowToast('Failed to reject', 'error');
+  }
+}
+
+// Generic escape hatch for the edges that don't have a dedicated verb yet
+// ('scheduled' -> 'draft', 'failed' -> 'draft' — see _cntRenderDetail's
+// action list). Server-enforced by the same canTransition state machine as
+// every other transition here, just reached through content:setStatus
+// instead of a named IPC action.
+async function cntSetStatus(id, status) {
+  try {
+    const res = await window.pocketAgent.content.setStatus(id, status);
+    if (!res || !res.success) {
+      _cntShowToast((res && res.error) || 'Failed to update status', 'error');
+      return;
+    }
+    _cntShowToast('Moved back to draft', 'success');
+    await cntShowDetail(id);
+    _cntLoadDrafts();
+  } catch (err) {
+    console.error('[Content] Failed to update draft status:', err);
+    _cntShowToast('Failed to update status', 'error');
   }
 }
 
