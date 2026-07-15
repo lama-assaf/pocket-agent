@@ -425,7 +425,13 @@ async function antDeleteRow(id) {
 
 // ---- Record a new snapshot (manual entry — the zero-config default path) ----
 
-function antShowRecordForm() {
+// `prefill` (optional) is `{ channel, externalRef, title }` — passed by
+// content-panel.js's cntRecordAnalyticsForDraft when a human jumps here from
+// a posted draft, so the join key (channel + external_ref) matches exactly
+// instead of relying on a human retyping it. Channel/ref lock read-only in
+// that case — they're the join key; a human "correcting" them here would
+// silently break filterAnalyticsForContentPosts's match back to the draft.
+function antShowRecordForm(prefill) {
   const listView = document.getElementById('ant-list-view');
   const detailView = document.getElementById('ant-detail-view');
   const body = document.getElementById('ant-detail-body');
@@ -434,15 +440,25 @@ function antShowRecordForm() {
   if (listView) listView.classList.add('hidden');
   if (detailView) detailView.classList.remove('hidden');
 
+  const locked = Boolean(prefill && prefill.externalRef);
+  const channelVal = prefill && prefill.channel ? _antEscapeHtml(prefill.channel) : '';
+  const refVal = prefill && prefill.externalRef ? _antEscapeHtml(prefill.externalRef) : '';
+  const titleVal = prefill && prefill.title ? _antEscapeHtml(prefill.title) : '';
+  const lockedAttrs = locked ? 'readonly' : '';
+  const lockedNote = locked
+    ? '<div class="ant-detail-note">Linked to a posted content draft — channel and post URL/ID are locked so this snapshot joins back to it.</div>'
+    : '';
+
   body.innerHTML = `
     <div class="ant-detail-head"><span class="ant-detail-title">Record a snapshot</span></div>
     <div class="ant-detail-note">Paste numbers straight from X/LinkedIn's own analytics dashboard — no API key needed.</div>
+    ${lockedNote}
     <label class="ant-edit-label" for="ant-new-channel">Channel</label>
-    <input class="ant-edit-input" id="ant-new-channel" placeholder="twitter, linkedin…" />
+    <input class="ant-edit-input" id="ant-new-channel" placeholder="twitter, linkedin…" value="${channelVal}" ${lockedAttrs} />
     <label class="ant-edit-label" for="ant-new-ref">Post URL / ID</label>
-    <input class="ant-edit-input" id="ant-new-ref" placeholder="https://x.com/you/status/…" />
+    <input class="ant-edit-input" id="ant-new-ref" placeholder="https://x.com/you/status/…" value="${refVal}" ${lockedAttrs} />
     <label class="ant-edit-label" for="ant-new-title">Title (optional)</label>
-    <input class="ant-edit-input" id="ant-new-title" />
+    <input class="ant-edit-input" id="ant-new-title" value="${titleVal}" />
     <div class="ant-edit-grid">
       <div><label class="ant-edit-label" for="ant-new-impressions">Impressions</label><input class="ant-edit-input" type="number" min="0" id="ant-new-impressions" /></div>
       <div><label class="ant-edit-label" for="ant-new-likes">Likes</label><input class="ant-edit-input" type="number" min="0" id="ant-new-likes" /></div>

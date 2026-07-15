@@ -298,6 +298,17 @@ async function _cntRenderDetail(draft) {
   if (draft.status === 'draft' || draft.status === 'rejected') {
     actions.push(`<button class="btn-shell" onclick="playNormalClick(); cntEditDraft(${draft.id})">Edit</button>`);
   }
+  // A posted draft previously dead-ended here — the human had to remember
+  // the exact channel/external_ref by hand over in the Analytics panel to
+  // record a snapshot, and a typo there silently breaks the campaign ->
+  // content -> analytics join (analytics.ts's filterAnalyticsForContentPosts
+  // falls back to matching on scope+channel+external_ref when content_post_id
+  // isn't set). Only offered once the draft actually has an external_ref to
+  // hand off — a 'posted' row without one (e.g. a manually-marked post) has
+  // nothing reliable to prefill.
+  if (draft.status === 'posted' && draft.external_ref) {
+    actions.push(`<button class="btn-shell" onclick="playNormalClick(); cntRecordAnalyticsForDraft(${draft.id})">Record analytics</button>`);
+  }
   actions.push(`<button class="btn-shell" onclick="playNormalClick(); cntDeleteDraft(${draft.id})">Delete</button>`);
 
   const scheduledNote = draft.status === 'scheduled' && draft.scheduled_for
@@ -590,5 +601,31 @@ async function cntSaveEdit(id) {
   } catch (err) {
     console.error('[Content] Failed to save draft edits:', err);
     _cntShowToast('Failed to save edits', 'error');
+  }
+}
+
+// ---- Analytics hand-off ----
+//
+// Jump from a posted draft straight into the Analytics panel's "record a
+// snapshot" form, prefilled with this post's channel/external_ref/title —
+// mirrors campaign-panel.js's cpnOpenContentDraft (switch panels, reuse the
+// target panel's own detail/form renderer) but in the other direction. The
+// prefill is the point: it's what makes the recorded snapshot actually join
+// back to this draft (see analytics.ts's filterAnalyticsForContentPosts),
+// instead of relying on a human retyping the exact external_ref by hand.
+async function cntRecordAnalyticsForDraft(id) {
+  const draft = await window.pocketAgent.content.get(id);
+  if (!draft) {
+    _cntShowToast('Draft not found', 'error');
+    return;
+  }
+  hideContentPanel();
+  if (typeof showAnalyticsPanel === 'function') showAnalyticsPanel();
+  if (typeof antShowRecordForm === 'function') {
+    antShowRecordForm({
+      channel: draft.channel,
+      externalRef: draft.external_ref,
+      title: draft.title,
+    });
   }
 }

@@ -513,6 +513,12 @@ async function cvCreateClient() {
     }
     _cvToast(`Added ${name}`, 'success');
     await renderClientPicker();
+    // A brand-new client's brain (Facts / How to act) is empty, so the agent
+    // would start drafting in that brand's voice with nothing to go on.
+    // Route straight into The Brain, scoped to this client's "How to act"
+    // tab — reuses the same deep-link cvOpenMemory already offers from each
+    // workspace card, just triggered right after creation instead of a click.
+    cvOpenMemory('client', id);
   } catch (err) {
     console.error('[ClientPicker] Failed to create client:', err);
     _cvToast('Failed to create client', 'error');
