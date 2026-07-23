@@ -47,6 +47,7 @@ import {
   registerAnalyticsIPC,
   registerLinkedInIPC,
   registerXIPC,
+  registerClientsImportIPC,
 } from './ipc';
 import type { IPCDependencies } from './ipc';
 
@@ -529,6 +530,7 @@ function setupIPC(): void {
   registerAnalyticsIPC(deps);
   registerLinkedInIPC(deps);
   registerXIPC(deps);
+  registerClientsImportIPC(deps);
   // No IPCDependencies needed — the marketplace module has no electron/memory
   // dependency of its own.
   registerMarketplaceIPC();

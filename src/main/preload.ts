@@ -67,6 +67,13 @@ contextBridge.exposeInMainWorld('pocketAgent', {
     getSetupString: (id: string) => ipcRenderer.invoke('clients:getSetupString', id),
     previewSetupString: (raw: string) => ipcRenderer.invoke('clients:previewSetupString', raw),
     join: (raw: string) => ipcRenderer.invoke('clients:join', raw),
+    selectImportDir: () => ipcRenderer.invoke('clients:selectImportDir'),
+    importDocs: (input: {
+      clientId: string;
+      sourceDir: string;
+      subtree?: string;
+      ingestToMemory?: boolean;
+    }) => ipcRenderer.invoke('clients:importDocs', input),
   },
   projects: {
     list: (clientId: string) => ipcRenderer.invoke('projects:list', clientId),
@@ -876,6 +883,24 @@ declare global {
           pulled?: boolean;
           pullError?: string;
           error?: string;
+        }>;
+        selectImportDir: () => Promise<{ canceled: boolean; path: string | null }>;
+        importDocs: (input: {
+          clientId: string;
+          sourceDir: string;
+          subtree?: string;
+          ingestToMemory?: boolean;
+        }) => Promise<{
+          success: boolean;
+          vault?: { gitignoreWritten: boolean; obsidianFilesWritten: string[] };
+          result?: {
+            copiedFiles: string[];
+            skippedReservedPaths: string[];
+            ingestedFiles: number;
+          };
+          error?: string;
+          secretScan?: { offending: Array<{ path: string; rule: string }> };
+          canceled?: boolean;
         }>;
       };
 

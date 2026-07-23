@@ -364,6 +364,59 @@
   background: var(--accent-hover);
 }
 
+/* ---- Import docs / open as vault results modal ---- */
+.cv-import-result .modal-body {
+  max-width: 420px;
+}
+
+.cv-import-summary {
+  font-size: 13px;
+  color: var(--text-primary);
+  margin: 0 0 10px;
+}
+
+.cv-import-summary--error {
+  color: var(--danger, #f87171);
+}
+
+.cv-import-summary code,
+.cv-import-list code {
+  font-size: 12px;
+  background: var(--surface-control);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+.cv-import-stats {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cv-import-list {
+  max-height: 160px;
+  overflow-y: auto;
+  margin: 0 0 10px;
+  padding-left: 18px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.cv-import-list--error li {
+  color: var(--danger, #f87171);
+}
+
+.cv-import-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 0;
+}
+
 /* ---- Sidebar active-workspace header ---- */
 
 .active-client-header {

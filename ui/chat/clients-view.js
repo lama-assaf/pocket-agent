@@ -200,6 +200,11 @@ async function renderClientPicker() {
   // One card per client, each with its projects as selectable chips.
   const linkIcon =
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 8c0-.575 0-.822.045-1.075A2.98 2.98 0 0 1 9.833 4.7c.24-.1.523-.165 1.09-.294l2.728-.623c3.39-.774 5.084-1.161 6.217-.27C21 4.405 21 6.126 21 9.568v4.864c0 3.442 0 5.164-1.132 6.055c-1.133.891-2.827.504-6.217-.27l-2.728-.623c-.567-.13-.85-.194-1.09-.294a2.98 2.98 0 0 1-1.788-2.225C8 16.822 8 16.575 8 16"/><path d="M13 9s3 2.21 3 3s-3 3-3 3m2.5-3H3"/></g></svg>';
+  // "Import docs / open as vault" — see cvImportDocs. Folder-plus glyph so it
+  // reads distinctly from the book ("Memory & voice") and link ("Copy setup
+  // link") icons already on this footer.
+  const importIcon =
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M12 12v5m-2.5-2.5H14.5"/></g></svg>';
   for (const c of clients) {
     const projects = projectsByClient[c.id] || [];
     const clientActive = isActive('client', c.id, null);
@@ -216,6 +221,7 @@ async function renderClientPicker() {
     const shareBtn = c.repo_url
       ? `<button class="cv-card-memory" data-share="${cvEscape(c.id)}">${linkIcon}<span>Copy setup link</span></button>`
       : '';
+    const importBtn = `<button class="cv-card-memory" data-import="${cvEscape(c.id)}">${importIcon}<span>Import docs / open as vault</span></button>`;
     cards.push(`
       <div class="cv-card ${clientActive ? 'active' : ''}" data-kind="client">
         <div class="cv-card-main" data-select="client" data-client="${cvEscape(c.id)}">
@@ -229,7 +235,7 @@ async function renderClientPicker() {
           ${chips}
           <button class="cv-project-chip cv-project-chip--new" data-new-project="${cvEscape(c.id)}">+ Project</button>
         </div>
-        <div class="cv-card-foot">${memoryLink('client', c.id)}${shareBtn}</div>
+        <div class="cv-card-foot">${memoryLink('client', c.id)}${shareBtn}${importBtn}</div>
       </div>`);
   }
 
@@ -301,6 +307,13 @@ function _cvBindGrid(grid) {
       e.stopPropagation();
       playNormalClick();
       cvCopySetupString(el.dataset.share);
+    });
+  });
+  grid.querySelectorAll('[data-import]').forEach((el) => {
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      playNormalClick();
+      cvImportDocs(el.dataset.import);
     });
   });
 }
@@ -449,11 +462,14 @@ function cvTextPrompt(title, placeholder, options = {}) {
   return new Promise((resolve) => {
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay cv-prompt-overlay';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.setAttribute('aria-labelledby', 'cv-prompt-title');
     overlay.innerHTML = `
       <div class="modal cv-prompt">
-        <div class="modal-header"><div class="modal-title"><h2>${cvEscape(title)}</h2></div></div>
+        <div class="modal-header"><div class="modal-title"><h2 id="cv-prompt-title">${cvEscape(title)}</h2></div></div>
         <div class="modal-body">
-          <input class="cv-prompt-input" type="text" placeholder="${cvEscape(placeholder || '')}" value="${cvEscape(initialValue)}" maxlength="120" />
+          <input class="cv-prompt-input" type="text" aria-label="${cvEscape(title)}" placeholder="${cvEscape(placeholder || '')}" value="${cvEscape(initialValue)}" maxlength="120" />
           <div class="cv-prompt-actions">
             <button class="cv-prompt-cancel">Cancel</button>
             <button class="cv-prompt-ok">${cvEscape(okLabel)}</button>
@@ -466,6 +482,7 @@ function cvTextPrompt(title, placeholder, options = {}) {
     const done = (value) => {
       if (settled) return;
       settled = true;
+      focusTrapDeactivate();
       overlay.remove();
       resolve(value);
     };
@@ -478,14 +495,15 @@ function cvTextPrompt(title, placeholder, options = {}) {
       if (e.key === 'Enter') {
         e.preventDefault();
         done(input.value.trim());
-      } else if (e.key === 'Escape') {
-        e.preventDefault();
-        done(null);
       }
+      // Escape is handled by the shared focus trap's onEscape below.
     });
     requestAnimationFrame(() => {
       overlay.classList.add('show');
-      input.focus();
+      // focusTrapActivate moves focus to the input (the first focusable
+      // element) itself; select() afterward is the pre-existing "select the
+      // placeholder/initial text for a quick overwrite" convenience.
+      focusTrapActivate(overlay, { onEscape: () => done(null) });
       input.select();
     });
   });
@@ -554,6 +572,100 @@ async function cvCreateProject(clientId) {
   }
 }
 
+// ---- Import docs / open as vault ----
+//
+// Onboards an existing folder of docs into a client's brain: makes the
+// client repo double as an Obsidian vault (ensureObsidianVault) and copies +
+// secret-scans the chosen folder into it (importDocsIntoClient), mirroring
+// imported markdown into recallable agent memory. Both run server-side via
+// clients:importDocs (src/main/ipc/clients-import-ipc.ts) — this just picks
+// the source directory and renders the result.
+async function cvImportDocs(clientId) {
+  if (!clientId) return;
+  try {
+    const dirRes = await window.pocketAgent.clients.selectImportDir();
+    if (!dirRes || dirRes.canceled || !dirRes.path) return;
+
+    const res = await window.pocketAgent.clients.importDocs({
+      clientId,
+      sourceDir: dirRes.path,
+      ingestToMemory: true,
+    });
+    cvShowImportResult(clientId, dirRes.path, res);
+    if (res && res.success) await renderClientPicker();
+  } catch (err) {
+    console.error('[ClientPicker] Failed to import docs:', err);
+    _cvToast('Failed to import docs', 'error');
+  }
+}
+
+// Read-only results modal (reuses the .modal-overlay/.modal convention from
+// cvTextPrompt/cvSetupStringPrompt) — surfaces exactly what importDocsIntoClient
+// reported: counts on success, or every secret-scan offending path on refusal,
+// so a hit can be found and cleaned up without digging through logs.
+function cvShowImportResult(clientId, sourceDir, res) {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay cv-prompt-overlay';
+  overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-modal', 'true');
+  overlay.setAttribute('aria-labelledby', 'cv-import-title');
+
+  let bodyHtml;
+  if (res && res.success) {
+    const r = res.result || { copiedFiles: [], skippedReservedPaths: [], ingestedFiles: 0 };
+    const skippedList = r.skippedReservedPaths.length
+      ? `<ul class="cv-import-list">${r.skippedReservedPaths.map((p) => `<li>${cvEscape(p)}</li>`).join('')}</ul>`
+      : '';
+    bodyHtml = `
+      <p class="cv-import-summary">Imported from <code>${cvEscape(sourceDir)}</code>:</p>
+      <ul class="cv-import-stats">
+        <li><strong>${r.copiedFiles.length}</strong> file${r.copiedFiles.length === 1 ? '' : 's'} copied</li>
+        <li><strong>${r.skippedReservedPaths.length}</strong> skipped (reserved export path)</li>
+        <li><strong>${r.ingestedFiles}</strong> file${r.ingestedFiles === 1 ? '' : 's'} ingested into memory</li>
+      </ul>
+      ${skippedList}
+      <p class="cv-import-hint">The client repo now opens as an Obsidian vault too.</p>`;
+    _cvToast(`Imported ${r.copiedFiles.length} file${r.copiedFiles.length === 1 ? '' : 's'}`, 'success');
+  } else if (res && res.secretScan) {
+    const offending = res.secretScan.offending || [];
+    bodyHtml = `
+      <p class="cv-import-summary cv-import-summary--error">Import refused — ${offending.length} file${offending.length === 1 ? '' : 's'} matched a secret pattern. Nothing was written.</p>
+      <ul class="cv-import-list cv-import-list--error">
+        ${offending.map((o) => `<li><code>${cvEscape(o.path)}</code> — ${cvEscape(o.rule)}</li>`).join('')}
+      </ul>
+      <p class="cv-import-hint">Remove or redact these files, then try again.</p>`;
+    _cvToast('Import refused — possible secret detected', 'error');
+  } else {
+    bodyHtml = `<p class="cv-import-summary cv-import-summary--error">${cvEscape((res && res.error) || 'Import failed')}</p>`;
+    _cvToast((res && res.error) || 'Import failed', 'error');
+  }
+
+  overlay.innerHTML = `
+    <div class="modal cv-prompt cv-import-result">
+      <div class="modal-header"><div class="modal-title"><h2 id="cv-import-title">Import docs</h2></div></div>
+      <div class="modal-body">
+        ${bodyHtml}
+        <div class="cv-prompt-actions">
+          <button class="cv-prompt-ok">Close</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  const close = () => {
+    focusTrapDeactivate();
+    overlay.remove();
+  };
+  overlay.querySelector('.cv-prompt-ok').addEventListener('click', close);
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) close();
+  });
+  requestAnimationFrame(() => {
+    overlay.classList.add('show');
+    focusTrapActivate(overlay, { onEscape: close });
+  });
+}
+
 // ---- Shareable setup strings (roadmap item 9 — join your team's brains) ----
 //
 // A "setup string" is base64(JSON) of { id, name, repoUrl, syncMode } —
@@ -584,12 +696,15 @@ function cvSetupStringPrompt() {
   return new Promise((resolve) => {
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay cv-prompt-overlay';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.setAttribute('aria-labelledby', 'cv-join-title');
     overlay.innerHTML = `
       <div class="modal cv-prompt">
-        <div class="modal-header"><div class="modal-title"><h2>Join a client</h2></div></div>
+        <div class="modal-header"><div class="modal-title"><h2 id="cv-join-title">Join a client</h2></div></div>
         <div class="modal-body">
           <p class="cv-join-hint">Paste the setup link a teammate shared with you. Make sure your GitHub token is set in Settings first so the initial pull can authenticate.</p>
-          <textarea class="cv-prompt-input cv-join-textarea" rows="3" placeholder="pocketagent://join?..."></textarea>
+          <textarea class="cv-prompt-input cv-join-textarea" rows="3" placeholder="pocketagent://join?..." aria-label="Client setup link"></textarea>
           <div class="cv-prompt-actions">
             <button class="cv-prompt-cancel">Cancel</button>
             <button class="cv-prompt-ok">Join</button>
@@ -602,6 +717,7 @@ function cvSetupStringPrompt() {
     const done = (value) => {
       if (settled) return;
       settled = true;
+      focusTrapDeactivate();
       overlay.remove();
       resolve(value);
     };
@@ -610,15 +726,12 @@ function cvSetupStringPrompt() {
     overlay.addEventListener('click', (e) => {
       if (e.target === overlay) done(null);
     });
-    input.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        done(null);
-      }
-    });
+    // Escape is handled by the shared focus trap's onEscape below.
     requestAnimationFrame(() => {
       overlay.classList.add('show');
-      input.focus();
+      // focusTrapActivate moves focus to the textarea itself (the first
+      // focusable element).
+      focusTrapActivate(overlay, { onEscape: () => done(null) });
     });
   });
 }
@@ -702,9 +815,11 @@ function initClientsView() {
 }
 
 // Decide the launch destination (called after sessions load):
-//   - zero clients  → default to Personal, no dead-end picker.
-//   - resume last   → a valid saved workspace + prior launch → straight to chat.
-//   - otherwise     → the picker (the front door).
+//   - zero clients   → default to Personal, no dead-end picker.
+//   - true first run → default to the bundled Zilliqa client (zero-setup out
+//                       of the box), if it exists.
+//   - resume last    → a valid saved workspace + prior launch → straight to chat.
+//   - otherwise      → the picker (the front door).
 async function cvLaunch() {
   let clients = [];
   try {
@@ -723,13 +838,29 @@ async function cvLaunch() {
     return;
   }
 
+  const hasLaunched = localStorage.getItem('cvHasLaunched') === '1';
+
+  // True first run for this workspace picker (never explicitly picked or
+  // defaulted before on this install): land straight in the bundled Zilliqa
+  // client instead of the picker, so the app opens pre-configured with zero
+  // setup. cvSelectWorkspace() marks 'cvHasLaunched' itself, so this branch
+  // can only ever fire once per install — every later launch falls through
+  // to the resume-last-workspace check below, honoring whatever the user
+  // picked (Zilliqa, LTIN, Personal, or Agency) since.
+  if (!hasLaunched) {
+    const defaultClient = clients.find((c) => c.id === 'zilliqa');
+    if (defaultClient) {
+      await cvSelectWorkspace({ contextType: 'client', clientId: defaultClient.id, projectKey: null });
+      return;
+    }
+  }
+
   const ws = getActiveWorkspace();
   const validClient =
     ws.contextType === 'personal' ||
     ws.contextType === 'world' ||
     ((ws.contextType === 'client' || ws.contextType === 'project') &&
       clients.some((c) => c.id === ws.clientId));
-  const hasLaunched = localStorage.getItem('cvHasLaunched') === '1';
 
   if (hasLaunched && validClient) {
     // Resume the last workspace without forcing the picker.

@@ -12,3 +12,5 @@ export { registerContentIPC } from './content-ipc';
 export { registerCampaignIPC } from './campaign-ipc';
 export { registerAnalyticsIPC } from './analytics-ipc';
 export { registerLinkedInIPC } from './linkedin-ipc';
+export { registerXIPC } from './x-ipc';
+export { registerClientsImportIPC } from './clients-import-ipc';
