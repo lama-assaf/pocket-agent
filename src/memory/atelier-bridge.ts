@@ -8,7 +8,12 @@ import { scopeRootsForSelection } from '../clients/registry';
 
 const CATEGORY = 'atelier-memory';
 
-interface MemoryLike {
+/**
+ * Minimal memory-store surface this bridge needs — exported so other modules
+ * (docs-import.ts's onboarding pipeline, tests) can construct a bridge
+ * without depending on the full MemoryManager class type.
+ */
+export interface AtelierBridgeMemory {
   saveFact(
     category: string,
     subject: string,
@@ -21,7 +26,7 @@ interface MemoryLike {
 }
 
 export class AtelierMemoryBridge {
-  constructor(private memory: MemoryLike | MemoryManager) {}
+  constructor(private memory: AtelierBridgeMemory | MemoryManager) {}
 
   private memDir(projectDir: string): string {
     return path.join(projectDir, '.atelier', 'memory');
@@ -52,7 +57,7 @@ export class AtelierMemoryBridge {
    * `subjectPrefix` disambiguates multiple dirs sharing one scope (legacy 'user').
    */
   private mirrorMemoryDir(memoryRoot: string, scope: string, subjectPrefix = ''): number {
-    const mem = this.memory as MemoryLike;
+    const mem = this.memory as AtelierBridgeMemory;
     // delete existing mirror rows for this scope (+ prefix) — idempotent re-sync
     for (const f of mem.getFactsByCategory(CATEGORY)) {
       const inScope = (f.scope ?? 'user') === scope;
@@ -85,6 +90,23 @@ export class AtelierMemoryBridge {
    */
   async syncScopeRoot(root: ScopeRoot): Promise<{ files: number }> {
     const files = this.mirrorMemoryDir(root.memoryDir, root.scope);
+    return { files };
+  }
+
+  /**
+   * Mirror an arbitrary markdown directory — e.g. docs-import.ts's imported
+   * `docs/` subtree — into recallable memory, using the exact same
+   * idempotent "clear rows under this scope+prefix, then re-save" mechanism
+   * as syncScopeRoot. `subjectPrefix` MUST be distinct from the `.atelier/memory`
+   * mirror's own prefix (bare relative paths, no prefix) so re-syncing one
+   * never clears rows the other wrote — callers should pass something like
+   * `'docs/'` (the subtree name + '/'), never `''`.
+   */
+  async mirrorDocsDir(docsRoot: string, scope: string, subjectPrefix: string): Promise<{ files: number }> {
+    if (!subjectPrefix) {
+      throw new Error('mirrorDocsDir: subjectPrefix must be non-empty to avoid colliding with the .atelier/memory mirror');
+    }
+    const files = this.mirrorMemoryDir(docsRoot, scope, subjectPrefix);
     return { files };
   }
 

@@ -25,6 +25,51 @@ export interface ExportableFact {
 /** The mirror category written by atelier-bridge on pull — never re-exported. */
 const MIRROR_CATEGORY = 'atelier-memory';
 
+/**
+ * Every rootDir-relative path (or, with a trailing slash, whole subtree)
+ * that this module PLUS analytics-export.ts and content-export.ts own and
+ * overwrite wholesale on every Publish. Centralized here (rather than each
+ * exporter keeping its own list) so other code — in particular
+ * docs-import.ts's onboarding pipeline — has exactly one canonical "never
+ * write here" list to import instead of reconstructing a copy that can
+ * silently drift out of sync as new exporters are added.
+ *
+ * Update this list whenever export.ts / analytics-export.ts / content-export.ts
+ * starts owning a new path.
+ */
+export const RESERVED_EXPORT_PATHS: readonly string[] = [
+  // export.ts (buildScopeFiles)
+  '.atelier/memory/voice.md',
+  '.atelier/memory/lessons.md',
+  '.atelier/memory/facts.md',
+  '.atelier/memory/enabled-agents.md',
+  '.atelier/memory/enabled-mcp.md',
+  // analytics-export.ts (buildAnalyticsExportFiles)
+  '.atelier/memory/analytics-summary.md',
+  '.atelier/memory/analytics-posts.md',
+  '.atelier/memory/analytics-posts.json',
+  // content-export.ts (buildContentDraftsExportFiles / buildCampaignsExportFiles)
+  '.atelier/memory/content-drafts.md',
+  '.atelier/memory/content-drafts.json',
+  '.atelier/memory/campaigns.md',
+  '.atelier/memory/campaigns.json',
+  // Whole subtree, not just banned-words.md — any future guardrail file too.
+  'guardrails/',
+];
+
+/**
+ * True when `relPath` (rootDir-relative, '/'-separated or OS-separated) IS a
+ * reserved exporter-owned path, or falls under one reserved as a whole
+ * subtree (trailing slash in RESERVED_EXPORT_PATHS). Used by docs-import.ts
+ * to refuse to write into a path the app's own Publish flow owns.
+ */
+export function isReservedExportPath(relPath: string): boolean {
+  const norm = relPath.split(path.sep).join('/');
+  return RESERVED_EXPORT_PATHS.some((reserved) =>
+    reserved.endsWith('/') ? norm === reserved.slice(0, -1) || norm.startsWith(reserved) : norm === reserved
+  );
+}
+
 const VOICE_HEADER = '# Brand voice\n\n_Managed in-app via the Memory Workbench._\n';
 const LESSONS_HEADER = '# Lessons\n\n_Append-only learnings. Managed in-app._\n';
 const FACTS_HEADER = '# Facts\n\n_Brand knowledge. Managed in-app._\n';
@@ -79,9 +124,13 @@ export function buildScopeFiles(facts: ExportableFact[]): Record<string, string>
     } else if (f.category === 'lesson') {
       lessons.push(factLine(f.subject, f.content));
     } else if (f.category === 'enabled-agents') {
-      enabledAgents.push(factLine(f.subject, f.content.trim().toLowerCase() === 'false' ? 'disabled' : 'enabled'));
+      enabledAgents.push(
+        factLine(f.subject, f.content.trim().toLowerCase() === 'false' ? 'disabled' : 'enabled')
+      );
     } else if (f.category === 'enabled-mcp') {
-      enabledMcp.push(factLine(f.subject, f.content.trim().toLowerCase() === 'false' ? 'disabled' : 'enabled'));
+      enabledMcp.push(
+        factLine(f.subject, f.content.trim().toLowerCase() === 'false' ? 'disabled' : 'enabled')
+      );
     } else {
       knowledge.push(factLine(f.subject, f.content));
     }
