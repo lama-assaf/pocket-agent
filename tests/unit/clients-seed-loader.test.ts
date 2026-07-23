@@ -163,9 +163,9 @@ describe('loadClientSeeds', () => {
     expect(seeds[0]?.name).toBe('Zilliqa');
   });
 
-  it('is a real fixture check: the bundled src/clients/seeds dir loads celica + electron + ltin + zilliqa', () => {
+  it('is a real fixture check: the bundled src/clients/seeds dir loads zilliqa + ltin', () => {
     const seeds = loadClientSeeds();
-    expect(seeds.map((s) => s.id).sort()).toEqual(['celica', 'electron', 'ltin', 'zilliqa']);
+    expect(seeds.map((s) => s.id).sort()).toEqual(['ltin', 'zilliqa']);
   });
 
   it("the bundled ltin.json carries its live repo_url (LTIN-comms-brain), validated + camelCased by the loader", () => {

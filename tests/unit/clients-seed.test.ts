@@ -69,11 +69,11 @@ class FakeMemory implements SeedMemory {
 }
 
 describe('DEFAULT_CLIENT_SEEDS', () => {
-  it('bundles celica, electron, ltin, and zilliqa (loaded from bundled JSON, see src/clients/seeds/*.json)', () => {
+  it('bundles zilliqa and ltin (loaded from bundled JSON, see src/clients/seeds/*.json)', () => {
     // Order is deterministic (loadClientSeeds sorts by id) but not
     // meaningful here — assert membership, not array order.
     const ids = DEFAULT_CLIENT_SEEDS.map((s) => s.id).sort();
-    expect(ids).toEqual(['celica', 'electron', 'ltin', 'zilliqa']);
+    expect(ids).toEqual(['ltin', 'zilliqa']);
   });
 
   it('every seed carries the full voice fact set (voice/tone/instincts/banned_words) and at least one agent', () => {
@@ -134,9 +134,9 @@ describe('seedDefaultClients', () => {
 
   it('creates every bundled client on a fresh store', () => {
     const created = seedDefaultClients(memory, ensureScaffold);
-    expect(created.sort()).toEqual(['celica', 'electron', 'ltin', 'zilliqa']);
-    expect(memory.clients.map((c) => c.id).sort()).toEqual(['celica', 'electron', 'ltin', 'zilliqa']);
-    expect(scaffolded.sort()).toEqual(['celica', 'electron', 'ltin', 'zilliqa']);
+    expect(created.sort()).toEqual(['ltin', 'zilliqa']);
+    expect(memory.clients.map((c) => c.id).sort()).toEqual(['ltin', 'zilliqa']);
+    expect(scaffolded.sort()).toEqual(['ltin', 'zilliqa']);
   });
 
   it("ltin's bundled repo_url + live sync_mode (src/clients/seeds/ltin.json) reach the created client row", () => {
@@ -193,7 +193,7 @@ describe('seedDefaultClients', () => {
     memory.createClient({ id: 'zilliqa', name: 'Zilliqa' });
     memory.saveFact(HOW_TO_ACT_CATEGORY, 'voice', 'Operator-authored voice', false, clientScope('zilliqa'));
     const created = seedDefaultClients(memory, ensureScaffold);
-    expect(created.sort()).toEqual(['celica', 'electron', 'ltin']);
+    expect(created).toEqual(['ltin']);
     const zilliqaVoiceFacts = memory.facts.filter(
       (f) => f.scope === clientScope('zilliqa') && f.category === HOW_TO_ACT_CATEGORY && f.subject === 'voice'
     );
@@ -208,7 +208,7 @@ describe('seedDefaultClients', () => {
     memory.createClient({ id: 'zilliqa', name: 'Zilliqa' });
     memory.createClient({ id: 'ltin', name: 'LTIN' });
     const created = seedDefaultClients(memory, ensureScaffold);
-    expect(created.sort()).toEqual(['celica', 'electron', 'ltin', 'zilliqa']);
+    expect(created.sort()).toEqual(['ltin', 'zilliqa']);
     const zilliqaScope = clientScope('zilliqa');
     expect(
       memory.facts.some((f) => f.scope === zilliqaScope && f.category === HOW_TO_ACT_CATEGORY && f.subject === 'voice')
