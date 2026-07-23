@@ -22,6 +22,9 @@ jobs:
           node-version: '22'
           cache: 'npm'
 
+      # See the build-mac job's equivalent step (below) for why `cache: 'npm'`
+      # above is enough to make better-sqlite3's prebuilt-binary fetch a
+      # cache hit instead of a network download on repeat runs.
       - name: Install dependencies
         run: npm install
 
@@ -50,29 +53,30 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: '22'
+          cache: 'npm'
 
+      # better-sqlite3's own `install` script tries prebuild-install before
+      # ever falling back to a from-source node-gyp compile (see CLAUDE.md's
+      # native module note / docs/dev-setup.md); prebuild-install's
+      # downloaded tarballs land in npm's cache dir, which `cache: 'npm'`
+      # above already persists across runs keyed on package-lock.json — so a
+      # matching prebuilt binary is a cache hit + local unpack, not a
+      # network fetch, on every run after the first.
       - name: Install dependencies
         run: npm install
 
-      - name: Import certificates
-        env:
-          CERTIFICATE_P12: ${{ secrets.CERTIFICATE_P12 }}
-          CERTIFICATE_PASSWORD: ${{ secrets.CERTIFICATE_PASSWORD }}
-        run: |
-          echo "$CERTIFICATE_P12" | base64 --decode > certificate.p12
-          security create-keychain -p "" build.keychain
-          security default-keychain -s build.keychain
-          security unlock-keychain -p "" build.keychain
-          security set-keychain-settings build.keychain
-          security import certificate.p12 -k build.keychain -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
-          security set-key-partition-list -S apple-tool:,apple: -s -k "" build.keychain
-
-      - name: Build and notarize
-        env:
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: npm run build && npx electron-builder --mac --arm64 --x64 -p never
+      # No Apple Developer account/certificates in this project — mac builds
+      # ship unsigned and un-notarized. This mirrors `npm run dist:local`
+      # exactly (see package.json's `dist:local` script) rather than
+      # `dist`/plain `--mac`, so CI and local builds behave identically.
+      # Gatekeeper will show "unidentified developer" on first launch; see
+      # docs/updating-unsigned.md for the tester workaround (right-click →
+      # Open). electron-builder skips notarization automatically once
+      # signing itself is skipped (`identity=null`), regardless of the
+      # `mac.notarize: true` setting in package.json, so no APPLE_* env vars
+      # are needed or read here.
+      - name: Build (unsigned)
+        run: npm run build && npx electron-builder --mac --arm64 --x64 --config.mac.identity=null -p never
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v6
@@ -93,7 +97,12 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: '22'
+          cache: 'npm'
 
+      # See the build-mac job's equivalent step: caches prebuild-install's
+      # downloaded better-sqlite3 binaries (and npm's own package cache)
+      # keyed on package-lock.json, so this doesn't refetch from the network
+      # on every run.
       - name: Install dependencies
         run: npm install
 
@@ -155,10 +164,13 @@ jobs:
 
             ### Installation
 
-            **macOS:**
+            **macOS** (unsigned build — no Apple Developer account):
             1. Download the DMG for your Mac
-            2. Open the DMG and drag Pocket Agent to Applications
-            3. Launch and enter your Anthropic API key
+            2. Open the DMG and drag r3to.os to Applications
+            3. Gatekeeper will block a normal double-click launch ("unidentified developer"). In Applications, **right-click r3to.os → Open → Open** once to approve it; later launches work normally
+            4. Launch and enter your Anthropic API key
+
+            See `docs/updating-unsigned.md` for the full update path.
 
             **Windows:**
             1. Download the setup .exe for your architecture

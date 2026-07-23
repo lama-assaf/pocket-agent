@@ -24,19 +24,36 @@ interface FakeFact extends SeedFactRow {
   content: string;
 }
 
+interface FakeClient {
+  id: string;
+  name: string;
+  syncMode?: string;
+  repoUrl?: string | null;
+}
+
 class FakeMemory implements SeedMemory {
-  clients: { id: string; name: string }[] = [];
+  clients: FakeClient[] = [];
   facts: FakeFact[] = [];
 
   getClients(): { id: string }[] {
     return this.clients;
   }
 
-  createClient(input: { id: string; name: string }): { id: string; name: string } {
+  createClient(input: {
+    id: string;
+    name: string;
+    syncMode?: string;
+    repoUrl?: string | null;
+  }): FakeClient {
     if (this.clients.some((c) => c.id === input.id)) {
       throw new Error(`Client "${input.id}" already exists`);
     }
-    const client = { id: input.id, name: input.name };
+    const client: FakeClient = {
+      id: input.id,
+      name: input.name,
+      syncMode: input.syncMode,
+      repoUrl: input.repoUrl,
+    };
     this.clients.push(client);
     return client;
   }
@@ -52,9 +69,11 @@ class FakeMemory implements SeedMemory {
 }
 
 describe('DEFAULT_CLIENT_SEEDS', () => {
-  it('bundles zilliqa and ltin', () => {
-    const ids = DEFAULT_CLIENT_SEEDS.map((s) => s.id);
-    expect(ids).toEqual(['zilliqa', 'ltin']);
+  it('bundles celica, electron, ltin, and zilliqa (loaded from bundled JSON, see src/clients/seeds/*.json)', () => {
+    // Order is deterministic (loadClientSeeds sorts by id) but not
+    // meaningful here — assert membership, not array order.
+    const ids = DEFAULT_CLIENT_SEEDS.map((s) => s.id).sort();
+    expect(ids).toEqual(['celica', 'electron', 'ltin', 'zilliqa']);
   });
 
   it('every seed carries the full voice fact set (voice/tone/instincts/banned_words) and at least one agent', () => {
@@ -115,9 +134,23 @@ describe('seedDefaultClients', () => {
 
   it('creates every bundled client on a fresh store', () => {
     const created = seedDefaultClients(memory, ensureScaffold);
-    expect(created).toEqual(['zilliqa', 'ltin']);
-    expect(memory.clients.map((c) => c.id).sort()).toEqual(['ltin', 'zilliqa']);
-    expect(scaffolded.sort()).toEqual(['ltin', 'zilliqa']);
+    expect(created.sort()).toEqual(['celica', 'electron', 'ltin', 'zilliqa']);
+    expect(memory.clients.map((c) => c.id).sort()).toEqual(['celica', 'electron', 'ltin', 'zilliqa']);
+    expect(scaffolded.sort()).toEqual(['celica', 'electron', 'ltin', 'zilliqa']);
+  });
+
+  it("ltin's bundled repo_url + live sync_mode (src/clients/seeds/ltin.json) reach the created client row", () => {
+    seedDefaultClients(memory, ensureScaffold);
+    const ltin = memory.clients.find((c) => c.id === 'ltin');
+    expect(ltin?.repoUrl).toBe('https://github.com/r3toAI/LTIN-comms-brain');
+    expect(ltin?.syncMode).toBe('live');
+  });
+
+  it("zilliqa's bundled repo_url + live sync_mode (src/clients/seeds/zilliqa.json) reach the created client row", () => {
+    seedDefaultClients(memory, ensureScaffold);
+    const zilliqa = memory.clients.find((c) => c.id === 'zilliqa');
+    expect(zilliqa?.repoUrl).toBe('https://github.com/r3toAI/Zilliqa-comms-brain');
+    expect(zilliqa?.syncMode).toBe('live');
   });
 
   it('seeds how_to_act facts scoped to client:<id>, matching the seed content', () => {
@@ -160,7 +193,7 @@ describe('seedDefaultClients', () => {
     memory.createClient({ id: 'zilliqa', name: 'Zilliqa' });
     memory.saveFact(HOW_TO_ACT_CATEGORY, 'voice', 'Operator-authored voice', false, clientScope('zilliqa'));
     const created = seedDefaultClients(memory, ensureScaffold);
-    expect(created).toEqual(['ltin']);
+    expect(created.sort()).toEqual(['celica', 'electron', 'ltin']);
     const zilliqaVoiceFacts = memory.facts.filter(
       (f) => f.scope === clientScope('zilliqa') && f.category === HOW_TO_ACT_CATEGORY && f.subject === 'voice'
     );
@@ -175,7 +208,7 @@ describe('seedDefaultClients', () => {
     memory.createClient({ id: 'zilliqa', name: 'Zilliqa' });
     memory.createClient({ id: 'ltin', name: 'LTIN' });
     const created = seedDefaultClients(memory, ensureScaffold);
-    expect(created.sort()).toEqual(['ltin', 'zilliqa']);
+    expect(created.sort()).toEqual(['celica', 'electron', 'ltin', 'zilliqa']);
     const zilliqaScope = clientScope('zilliqa');
     expect(
       memory.facts.some((f) => f.scope === zilliqaScope && f.category === HOW_TO_ACT_CATEGORY && f.subject === 'voice')
@@ -196,5 +229,57 @@ describe('seedDefaultClients', () => {
     const created = seedDefaultClients(memory, ensureScaffold, custom);
     expect(created).toEqual(['acme']);
     expect(memory.clients.map((c) => c.id)).toEqual(['acme']);
+  });
+
+  it('threads a seed-provided repo_url onto the newly created client row', () => {
+    const custom: ClientSeed[] = [
+      {
+        id: 'acme',
+        name: 'Acme',
+        syncMode: 'live',
+        repoUrl: 'https://github.com/acme/brain.git',
+        facts: [{ subject: 'voice', content: 'Bold and brief' }],
+        lessons: [{ subject: 'test lesson', content: 'Keep it short.' }],
+        agents: [{ packId: 'atelier', agentName: 'copywriter' }],
+      },
+    ];
+    seedDefaultClients(memory, ensureScaffold, custom);
+    const acme = memory.clients.find((c) => c.id === 'acme');
+    expect(acme?.repoUrl).toBe('https://github.com/acme/brain.git');
+    expect(acme?.syncMode).toBe('live');
+  });
+
+  it('never sets repo_url on a client row that already existed before seeding', () => {
+    memory.createClient({ id: 'acme', name: 'Acme' });
+    const custom: ClientSeed[] = [
+      {
+        id: 'acme',
+        name: 'Acme',
+        repoUrl: 'https://github.com/acme/brain.git',
+        facts: [{ subject: 'voice', content: 'Bold and brief' }],
+        lessons: [],
+        agents: [],
+      },
+    ];
+    seedDefaultClients(memory, ensureScaffold, custom);
+    const acme = memory.clients.find((c) => c.id === 'acme');
+    expect(acme?.repoUrl).toBeUndefined();
+  });
+
+  it('is idempotent for a loader-fed seed list too — re-seeding adds nothing', () => {
+    const custom: ClientSeed[] = [
+      {
+        id: 'acme',
+        name: 'Acme',
+        facts: [{ subject: 'voice', content: 'Bold and brief' }],
+        lessons: [{ subject: 'test lesson', content: 'Keep it short.' }],
+        agents: [{ packId: 'atelier', agentName: 'copywriter' }],
+      },
+    ];
+    seedDefaultClients(memory, ensureScaffold, custom);
+    const factCountAfterFirstRun = memory.facts.length;
+    const created = seedDefaultClients(memory, ensureScaffold, custom);
+    expect(created).toEqual([]);
+    expect(memory.facts.length).toBe(factCountAfterFirstRun);
   });
 });
