@@ -156,12 +156,28 @@ export interface AutoPullResult {
  */
 export async function autoPullLiveClients(
   memory: MemoryManager,
-  token: string
+  token: string,
+  options?: {
+    /**
+     * Return true to exclude a client from this pull sweep — used by the
+     * periodic background-pull timer (src/main/index.ts) to skip a repo with
+     * a debounced auto-push still pending/in-flight, so a pull never lands
+     * on top of a not-yet-pushed local commit.
+     */
+    skip?: (clientId: string) => boolean;
+  }
 ): Promise<AutoPullResult[]> {
-  const clients = memory.getClients().filter((c) => c.sync_mode === 'live' && c.repo_url);
+  const clients = memory
+    .getClients()
+    .filter((c) => c.sync_mode === 'live' && c.repo_url)
+    .filter((c) => !options?.skip?.(c.id));
   const results: AutoPullResult[] = [];
   for (const client of clients) {
-    const repo: BrainRepo = { dir: clientPaths(client.id).rootDir, url: client.repo_url || '', token };
+    const repo: BrainRepo = {
+      dir: clientPaths(client.id).rootDir,
+      url: client.repo_url || '',
+      token,
+    };
     const result = await pullBrainRepo(repo);
     if (result.ok) memory.touchClientPulled(client.id);
     results.push({ id: client.id, name: client.name, ...result });

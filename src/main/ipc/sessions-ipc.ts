@@ -4,6 +4,12 @@ import fs from 'fs';
 import { app } from 'electron';
 import { AgentManager } from '../../agent';
 import { sanitizeSessionName } from '../../utils/session-name';
+import {
+  resolveBrainRepo,
+  remirrorScope,
+  importAnalyticsForScope,
+  importContentForScope,
+} from '../../clients/live-sync';
 import type { IPCDependencies } from './types';
 
 // ============ Session Directory Helpers ============
@@ -174,6 +180,35 @@ export function registerSessionsIPC(deps: IPCDependencies): void {
         clientId: context.clientId ?? null,
         projectKey: context.projectKey ?? null,
       });
+
+      // Fire-and-forget live-sync pull on switching into a 'live'-mode client
+      // scope, so a teammate's latest pushed changes are visible before this
+      // operator starts editing — same resolve→pull→remirror→import bundle as
+      // the manual Pull button (sync:pull in settings-ipc.ts). MUST NOT block
+      // the context switch on network I/O, so this is never awaited.
+      if (success && context.contextType === 'client' && context.clientId) {
+        const clientId = context.clientId;
+        const client = memory.getClient(clientId);
+        if (client?.sync_mode === 'live' && client.repo_url) {
+          void (async () => {
+            try {
+              const repo = await resolveBrainRepo(memory, clientId);
+              if (!repo || !repo.token) return;
+              const { pullBrainRepo } = await import('../../clients/sync-manager');
+              const result = await pullBrainRepo(repo);
+              if (result.ok) {
+                await remirrorScope(memory, clientId);
+                await importAnalyticsForScope(memory, clientId);
+                await importContentForScope(memory, clientId);
+                memory.touchClientPulled(clientId);
+              }
+            } catch (e) {
+              console.error(`[clients] Pull-on-switch failed for ${clientId}:`, e);
+            }
+          })();
+        }
+      }
+
       return { success };
     }
   );
