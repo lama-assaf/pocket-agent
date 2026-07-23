@@ -8,6 +8,12 @@ import { THEMES } from '../../settings/themes';
 import { createTelegramBot } from '../../channels/telegram';
 import { getWindow, getAllWindows } from '../windows';
 import { setupBirthdayCronJobs } from '../birthday';
+import {
+  resolveBrainRepo,
+  remirrorScope,
+  importAnalyticsForScope,
+  importContentForScope,
+} from '../../clients/live-sync';
 import type { IPCDependencies } from './types';
 
 /**
@@ -69,7 +75,8 @@ const PROVIDER_CREDENTIAL_KEYS = new Set([
 ]);
 
 export function registerSettingsIPC(deps: IPCDependencies): void {
-  const { getScheduler, setTelegramBot, getTelegramBot, getMemory, WIN } = deps;
+  const { getScheduler, setTelegramBot, getTelegramBot, getMemory, isLiveSyncPushPending, WIN } =
+    deps;
 
   // Keys that are encrypted but must be accessible from the renderer
   const RENDERER_ALLOWED_ENCRYPTED_KEYS = new Set(['chat.adminKey']);
@@ -81,39 +88,22 @@ export function registerSettingsIPC(deps: IPCDependencies): void {
   });
 
   // ============ Scoped-memory sync (world + client brains) ============
-
-  // Resolve the on-disk repo + remote for a scope ('world' or a client id).
-  const resolveBrainRepo = async (
-    scope: string
-  ): Promise<{ dir: string; url: string; token: string } | null> => {
-    const token = SettingsManager.get('github.token') || '';
-    const { getWorldRoot, clientPaths } = await import('../../clients/paths');
-    if (scope === 'world') {
-      return { dir: getWorldRoot(), url: SettingsManager.get('sync.world.repoUrl') || '', token };
-    }
-    const client = getMemory()?.getClient(scope);
-    if (!client) return null;
-    return { dir: clientPaths(scope).rootDir, url: client.repo_url || '', token };
-  };
-
-  // Re-mirror a freshly synced scope's files into SQLite so recall sees them.
-  const remirrorScope = async (scope: string): Promise<void> => {
-    const memory = getMemory();
-    if (!memory) return;
-    const { AtelierMemoryBridge } = await import('../../memory/atelier-bridge');
-    const { worldScopeRoot, clientScopeRoot } = await import('../../clients/paths');
-    const root = scope === 'world' ? worldScopeRoot() : clientScopeRoot(scope);
-    await new AtelierMemoryBridge(memory).syncScopeRoot(root);
-  };
+  // resolveBrainRepo / remirrorScope / importAnalyticsForScope /
+  // importContentForScope live in src/clients/live-sync.ts so the periodic
+  // background-pull timer and pull-on-client-switch (src/main/index.ts,
+  // src/main/ipc/sessions-ipc.ts) share this exact behavior instead of a
+  // second copy.
 
   // Pull a scope's brain (clone on first use, else append-mostly reconcile).
   ipcMain.handle('sync:pull', async (_, scope: string) => {
-    const repo = await resolveBrainRepo(scope);
+    const repo = await resolveBrainRepo(getMemory(), scope);
     if (!repo) return { ok: false, error: 'Unknown scope' };
     const { pullBrainRepo } = await import('../../clients/sync-manager');
     const result = await pullBrainRepo(repo);
     if (result.ok) {
-      await remirrorScope(scope);
+      await remirrorScope(getMemory(), scope);
+      await importAnalyticsForScope(getMemory(), scope);
+      await importContentForScope(getMemory(), scope);
       // World has no client row to stamp — only real clients track sync status.
       if (scope !== 'world') getMemory()?.touchClientPulled(scope);
     }
@@ -128,16 +118,25 @@ export function registerSettingsIPC(deps: IPCDependencies): void {
     if (!memory) return [];
     const { pullBrainRepo } = await import('../../clients/sync-manager');
     const clients = memory.getClients().filter((c) => c.sync_mode === 'live' && c.repo_url);
-    const results: Array<{ id: string; name: string; ok: boolean; cloned?: boolean; merged?: boolean; error?: string }> = [];
+    const results: Array<{
+      id: string;
+      name: string;
+      ok: boolean;
+      cloned?: boolean;
+      merged?: boolean;
+      error?: string;
+    }> = [];
     for (const client of clients) {
-      const repo = await resolveBrainRepo(client.id);
+      const repo = await resolveBrainRepo(memory, client.id);
       if (!repo) {
         results.push({ id: client.id, name: client.name, ok: false, error: 'Unknown scope' });
         continue;
       }
       const result = await pullBrainRepo(repo);
       if (result.ok) {
-        await remirrorScope(client.id);
+        await remirrorScope(memory, client.id);
+        await importAnalyticsForScope(memory, client.id);
+        await importContentForScope(memory, client.id);
         memory.touchClientPulled(client.id);
       }
       results.push({ id: client.id, name: client.name, ...result });
@@ -149,7 +148,7 @@ export function registerSettingsIPC(deps: IPCDependencies): void {
   // First materialize the scope's in-app edits (facts → .atelier/memory/*.md +
   // guardrails) so authored facts are what gets committed and pushed.
   ipcMain.handle('sync:publish', async (_, scope: string, message?: string) => {
-    const repo = await resolveBrainRepo(scope);
+    const repo = await resolveBrainRepo(getMemory(), scope);
     if (!repo) return { ok: false, error: 'Unknown scope' };
     const memory = getMemory();
     if (memory) {
@@ -162,6 +161,11 @@ export function registerSettingsIPC(deps: IPCDependencies): void {
       // voice/lessons, so a teammate pulling the repo sees the numbers too.
       const { exportAnalyticsToDisk } = await import('../../clients/analytics-export');
       exportAnalyticsToDisk(memory, memoryScope);
+      // Team-shareable content drafts/posts + campaigns/deliverables, same
+      // pattern as analytics above — a teammate pulling the repo sees drafts
+      // and campaigns this operator created, not just voice/lessons/analytics.
+      const { exportContentToDisk } = await import('../../clients/content-export');
+      exportContentToDisk(memory, memoryScope);
     }
     const { publishBrainRepo } = await import('../../clients/sync-manager');
     const result = await publishBrainRepo(repo, message || `Update ${scope} memory`);
@@ -175,14 +179,23 @@ export function registerSettingsIPC(deps: IPCDependencies): void {
   // last-pulled/pushed timestamps + a stale flag (roadmap item 9) for real
   // clients — world has no client row, so its freshness fields stay null.
   ipcMain.handle('sync:status', async (_, scope: string) => {
-    const repo = await resolveBrainRepo(scope);
-    if (!repo) return { configured: false, cloned: false };
+    const repo = await resolveBrainRepo(getMemory(), scope);
+    if (!repo) return { configured: false, cloned: false, pushPending: false };
     const { isRepo } = await import('../../clients/sync');
     const configured = !!repo.url && !!repo.token;
     const cloned = await isRepo(repo.dir);
 
     if (scope === 'world') {
-      return { configured, cloned, lastPulledAt: null, lastPushedAt: null, freshness: 'unconfigured' as const };
+      // World never has a live-sync auto-push scheduled (scheduleLiveSyncPush
+      // only fires for client: scopes) — always false here.
+      return {
+        configured,
+        cloned,
+        pushPending: false,
+        lastPulledAt: null,
+        lastPushedAt: null,
+        freshness: 'unconfigured' as const,
+      };
     }
     const client = getMemory()?.getClient(scope);
     const { computeSyncStatus } = await import('../../clients/sync-status');
@@ -191,7 +204,11 @@ export function registerSettingsIPC(deps: IPCDependencies): void {
       lastPulledAt: client?.last_pulled_at ?? null,
       lastPushedAt: client?.last_pushed_at ?? null,
     });
-    return { configured, cloned, ...status };
+    // Live-sync "changes pending" indicator: a debounced auto-push is queued
+    // but hasn't fired yet (src/main/index.ts's DebouncedPusher). Only
+    // meaningful for 'live'-mode clients — a 'manual' client never has one
+    // scheduled, so this is naturally false for them.
+    return { configured, cloned, pushPending: isLiveSyncPushPending(scope), ...status };
   });
 
   // Update a client's sync mode (live | manual) — per-brand blast-radius control.
@@ -262,7 +279,7 @@ export function registerSettingsIPC(deps: IPCDependencies): void {
 
     // Pull immediately — the whole point of joining is to get the shared
     // brain right away, not on the next manual/auto pull.
-    const repo = await resolveBrainRepo(id);
+    const repo = await resolveBrainRepo(memory, id);
     if (!repo || !repo.token) {
       // Client row is created either way; the caller can pull once a token is set.
       return {
@@ -275,7 +292,9 @@ export function registerSettingsIPC(deps: IPCDependencies): void {
     const { pullBrainRepo } = await import('../../clients/sync-manager');
     const pullResult = await pullBrainRepo(repo);
     if (pullResult.ok) {
-      await remirrorScope(id);
+      await remirrorScope(memory, id);
+      await importAnalyticsForScope(memory, id);
+      await importContentForScope(memory, id);
       memory.touchClientPulled(id);
     }
     return { success: true, client, pulled: pullResult.ok, pullError: pullResult.error };

@@ -19,9 +19,12 @@ import { getBrowserManager } from '../browser';
 import { setPluginsRoot } from '../marketplace/paths';
 import { PackSyncManager } from '../marketplace/sync';
 import { PACK_SOURCES } from '../marketplace/registry';
-import { setClientsRoot, setWorldRoot } from '../clients/paths';
+import { setClientsRoot, setWorldRoot, clientPaths } from '../clients/paths';
 import { ensureWorldScaffold, ensureClientScaffold } from '../clients/registry';
 import { seedDefaultClients } from '../clients/seed';
+import { loadClientSeeds } from '../clients/seed-loader';
+import { DebouncedPusher, autoPullLiveClients } from '../clients/sync-manager';
+import { remirrorScope, importAnalyticsForScope, importContentForScope } from '../clients/live-sync';
 import { setAuditLogRoot } from '../utils/audit-log';
 import { getMcpServerManager } from '../mcp/manager';
 import { initializeUpdater, setupUpdaterIPC, setSettingsWindow, setChatWindow } from './updater';
@@ -43,6 +46,7 @@ import {
   registerCampaignIPC,
   registerAnalyticsIPC,
   registerLinkedInIPC,
+  registerXIPC,
 } from './ipc';
 import type { IPCDependencies } from './ipc';
 
@@ -69,6 +73,73 @@ let scheduler: CronScheduler | null = null;
 let telegramBot: TelegramBot | null = null;
 // tray menu updates are event-driven via IPC handlers
 let modelChangedHandler: ((model: string) => void) | null = null;
+// Periodic background-pull timer for 'live'-mode clients (set once memory is
+// ready, in whenReady below); cleared in before-quit so no pull fires after
+// memory.close().
+let liveSyncPullTimer: ReturnType<typeof setInterval> | null = null;
+
+/**
+ * Notify the chat window of a BACKGROUND live-sync failure (periodic pull or
+ * debounced auto-push) — never for the manual Pull/Publish buttons, which
+ * already surface their own result inline via sync:pull/sync:publish's
+ * return value. Silent background failure is the real risk here, so this is
+ * the one thing worth an unprompted toast; success stays quiet (the sync bar's
+ * last-synced timestamp is enough). A no-op before the chat window exists.
+ */
+function notifyBackgroundSyncError(clientId: string, action: 'pull' | 'push', error: string): void {
+  getWindow(WIN.CHAT)?.webContents.send('sync:backgroundError', { clientId, action, error });
+}
+
+// === Live sync: auto-commit+push on client-brain edits ===
+// Module-level (one instance for the app's single MemoryManager), wired into
+// MemoryManager as its onScopeChanged callback below. Debounced so bursts of
+// fact writes (e.g. onboarding writing several voice facts back to back)
+// coalesce into one commit+push per repo, not one push per edit.
+const LIVE_SYNC_PUSH_DEBOUNCE_MS = 30_000; // 30s quiet period before pushing.
+const liveSyncPusher = new DebouncedPusher(LIVE_SYNC_PUSH_DEBOUNCE_MS, async (repo, message) => {
+  const clientId = path.basename(repo.dir);
+  // Materialize this client's latest in-app edits (facts → .atelier/memory/*.md
+  // + guardrails, plus shareable analytics/content) right before publishing —
+  // same export the manual Publish button does (src/main/ipc/settings-ipc.ts's
+  // sync:publish) — otherwise commitAll would see a clean working tree and
+  // never actually push the new facts.
+  if (memory) {
+    const memoryScope = `client:${clientId}`;
+    const { exportScopeToDisk } = await import('../clients/export');
+    exportScopeToDisk(memory, memoryScope);
+    const { exportAnalyticsToDisk } = await import('../clients/analytics-export');
+    exportAnalyticsToDisk(memory, memoryScope);
+    const { exportContentToDisk } = await import('../clients/content-export');
+    exportContentToDisk(memory, memoryScope);
+  }
+  const { publishBrainRepo } = await import('../clients/sync-manager');
+  const result = await publishBrainRepo(repo, message);
+  if (result.ok && result.pushed) {
+    memory?.touchClientPushed(clientId);
+  } else if (!result.ok) {
+    notifyBackgroundSyncError(clientId, 'push', result.error || 'Auto-push failed');
+  }
+  return result;
+});
+
+/**
+ * Schedule a debounced auto-commit+push for a client-scoped fact write.
+ * Passed as MemoryManager's onScopeChanged, so every client-scoped
+ * saveFact/updateFact/deleteFact/setFactSensitive call reaches this. Skips
+ * repo-less or 'manual'-mode clients entirely (never touches their working
+ * tree) and skips silently when no GitHub token is configured yet.
+ */
+function scheduleLiveSyncPush(scope: string): void {
+  if (!memory) return;
+  if (!scope.startsWith('client:')) return;
+  const clientId = scope.slice('client:'.length);
+  const client = memory.getClient(clientId);
+  if (!client || client.sync_mode !== 'live' || !client.repo_url) return;
+  const token = SettingsManager.get('github.token') || '';
+  if (!token) return;
+  const dir = clientPaths(clientId).rootDir;
+  liveSyncPusher.schedule({ dir, url: client.repo_url, token }, `Update ${clientId} memory (live sync)`);
+}
 
 // Window IDs for the registry
 const WIN = {
@@ -333,7 +404,7 @@ function ensureAgentWorkspace(): string {
 function openChatWindow(): void {
   const win = createWindow({
     id: WIN.CHAT,
-    title: `Pocket Agent v${app.getVersion()}`,
+    title: `r3to.os v${app.getVersion()}`,
     htmlFile: 'chat.html',
     width: 1020,
     height: 720,
@@ -346,7 +417,7 @@ function openChatWindow(): void {
 function openCronWindow(): void {
   createWindow({
     id: WIN.CRON,
-    title: 'My Routines - Pocket Agent',
+    title: 'My Routines - r3to.os',
     htmlFile: 'cron.html',
     width: 700,
     height: 500,
@@ -369,7 +440,7 @@ function openSettingsWindow(tab?: string): void {
 function openCustomizeWindow(): void {
   createWindow({
     id: WIN.CUSTOMIZE,
-    title: 'Make It Yours - Pocket Agent',
+    title: 'Make It Yours - r3to.os',
     htmlFile: 'customize.html',
     width: 800,
     height: 650,
@@ -380,7 +451,7 @@ function openCustomizeWindow(): void {
 function openFactsWindow(): void {
   createWindow({
     id: WIN.FACTS,
-    title: 'My Brain - Pocket Agent',
+    title: 'My Brain - r3to.os',
     htmlFile: 'facts.html',
     width: 700,
     height: 550,
@@ -391,7 +462,7 @@ function openFactsWindow(): void {
 function openDailyLogsWindow(): void {
   createWindow({
     id: WIN.DAILY_LOGS,
-    title: 'Daily Logs - Pocket Agent',
+    title: 'Daily Logs - r3to.os',
     htmlFile: 'daily-logs.html',
     width: 700,
     height: 550,
@@ -402,7 +473,7 @@ function openDailyLogsWindow(): void {
 function openSoulWindow(): void {
   createWindow({
     id: WIN.SOUL,
-    title: 'My Approach - Pocket Agent',
+    title: 'My Approach - r3to.os',
     htmlFile: 'soul.html',
     width: 700,
     height: 550,
@@ -440,6 +511,7 @@ function buildIPCDeps(): IPCDependencies {
     openFactsWindow,
     openDailyLogsWindow,
     openSoulWindow,
+    isLiveSyncPushPending: (clientId) => liveSyncPusher.isPending(clientPaths(clientId).rootDir),
     WIN,
   };
 }
@@ -456,6 +528,7 @@ function setupIPC(): void {
   registerCampaignIPC(deps);
   registerAnalyticsIPC(deps);
   registerLinkedInIPC(deps);
+  registerXIPC(deps);
   // No IPCDependencies needed — the marketplace module has no electron/memory
   // dependency of its own.
   registerMarketplaceIPC();
@@ -485,7 +558,7 @@ async function initializeAgent(): Promise<void> {
 
   // Initialize memory (if not already done)
   if (!memory) {
-    memory = new MemoryManager(dbPath);
+    memory = new MemoryManager(dbPath, { onScopeChanged: scheduleLiveSyncPush });
   }
 
   // Build tools config from settings. mcpServers merges in every marketplace
@@ -639,7 +712,7 @@ async function initializeAgent(): Promise<void> {
     }
   }
 
-  console.log('[Main] Pocket Agent initialized');
+  console.log('[Main] r3to.os initialized');
   updateTrayMenu();
 }
 
@@ -765,7 +838,7 @@ app.whenReady().then(async () => {
 
     // Initialize memory (shared with settings)
     console.log('[Main] Initializing memory...');
-    memory = new MemoryManager(dbPath);
+    memory = new MemoryManager(dbPath, { onScopeChanged: scheduleLiveSyncPush });
     console.log('[Main] Memory initialized');
 
     // === Scoped-memory brains (world + client checkouts) ===
@@ -780,9 +853,13 @@ app.whenReady().then(async () => {
       setWorldRoot(path.join(app.getPath('userData'), 'world'));
       setClientsRoot(path.join(app.getPath('userData'), 'clients'));
       ensureWorldScaffold();
-      // Bundled brands (Zilliqa, LTIN) show up already voiced and agent-wired on
-      // first launch — idempotent no-op once each client id exists.
-      if (memory) seedDefaultClients(memory, ensureClientScaffold);
+      // Bundled brands (Zilliqa, LTIN, plus anything ops add via a JSON file —
+      // see src/clients/seed-loader.ts) show up already voiced and agent-wired
+      // on first launch — idempotent no-op once each client id exists.
+      // Loaded + schema-validated here (not just relying on seed.ts's default)
+      // so a missing/malformed bundle is visibly logged at the exact point it
+      // would otherwise silently seed nothing, without ever blocking launch.
+      if (memory) seedDefaultClients(memory, ensureClientScaffold, loadClientSeeds());
       for (const client of memory?.getClients() ?? []) {
         ensureClientScaffold(client.id);
       }
@@ -812,11 +889,29 @@ app.whenReady().then(async () => {
           // recall reflects the freshly pulled memory without a manual Pull.
           const { AtelierMemoryBridge } = await import('../memory/atelier-bridge');
           const { clientScopeRoot } = await import('../clients/paths');
+          const { importAnalyticsFromBrain } = await import('../clients/analytics-import');
+          const { importContentFromBrain } = await import('../clients/content-import');
           const bridge = new AtelierMemoryBridge(capturedMemory);
           for (const r of pulled) {
             await bridge
               .syncScopeRoot(clientScopeRoot(r.id))
               .catch((e) => console.error(`[clients] Re-mirror failed for ${r.id}:`, e));
+            // Re-import the client's shared analytics-posts.json into
+            // post_analytics too, so a fresh install (or anyone who hasn't
+            // run their own capture) sees the team's numbers immediately —
+            // no live re-fetch needed (importAnalyticsFromBrain dedupes
+            // internally, so this is safe to run on every auto-pull).
+            try {
+              importAnalyticsFromBrain(capturedMemory, `client:${r.id}`);
+            } catch (e) {
+              console.error(`[clients] Analytics import failed for ${r.id}:`, e);
+            }
+            // Same for shared content drafts/posts + campaigns/deliverables.
+            try {
+              importContentFromBrain(capturedMemory, `client:${r.id}`);
+            } catch (e) {
+              console.error(`[clients] Content import failed for ${r.id}:`, e);
+            }
           }
         } catch (e) {
           console.error('[clients] Auto-pull on launch failed; continuing', e);
@@ -838,7 +933,8 @@ app.whenReady().then(async () => {
           if (!LinkedInOAuth.hasAppCredentials()) return;
           const accessToken = await LinkedInOAuth.getAccessToken();
           if (!accessToken) return;
-          const { autoSyncAllConfiguredLinkedInScopes } = await import('../integrations/linkedin/sync');
+          const { autoSyncAllConfiguredLinkedInScopes } =
+            await import('../integrations/linkedin/sync');
           const results = await autoSyncAllConfiguredLinkedInScopes(capturedMemory, accessToken);
           const succeeded = results.filter((r) => r.result.ok);
           if (succeeded.length > 0) {
@@ -857,6 +953,85 @@ app.whenReady().then(async () => {
       void runLinkedInSync();
       const linkedInSyncInterval = setInterval(runLinkedInSync, 6 * 60 * 60 * 1000);
       if (typeof linkedInSyncInterval.unref === 'function') linkedInSyncInterval.unref();
+    }
+
+    // X/Twitter analytics: sync on launch, then every 6 hours — same
+    // fire-and-forget, self-gating shape as the LinkedIn sweep above.
+    // autoSyncAllConfiguredXScopes is a silent no-op when no scope has a
+    // handle configured; a scope with a handle but no bridged X-capable MCP
+    // server just reports one non-fatal `result.ok: false` per scope (logged
+    // below), same fallback story ("Sync now" button, clear error surfaces).
+    if (memory) {
+      const capturedMemory = memory;
+      const runXSync = async (): Promise<void> => {
+        try {
+          const { autoSyncAllConfiguredXScopes } = await import('../integrations/x/sync');
+          const results = await autoSyncAllConfiguredXScopes(capturedMemory);
+          const succeeded = results.filter((r) => r.result.ok);
+          if (succeeded.length > 0) {
+            const totalPosts = succeeded.reduce((sum, r) => sum + r.result.postsWritten, 0);
+            console.log(
+              `[X] Synced ${succeeded.length}/${results.length} configured scope(s), ${totalPosts} post row(s) recorded`
+            );
+          }
+          for (const r of results.filter((r) => !r.result.ok)) {
+            console.error(`[X] Sync failed for scope ${r.scope}:`, r.result.error);
+          }
+        } catch (e) {
+          console.error('[X] Auto-sync failed; continuing', e);
+        }
+      };
+      void runXSync();
+      const xSyncInterval = setInterval(runXSync, 6 * 60 * 60 * 1000);
+      if (typeof xSyncInterval.unref === 'function') xSyncInterval.unref();
+    }
+
+    // Periodic background pull for 'live'-mode client brains: catches a
+    // teammate's pushed changes without requiring a relaunch. Same 6h cadence
+    // as the LinkedIn/X sweeps above (not the on-launch auto-pull's one-shot,
+    // and not sync-status.ts's 24h STALE_THRESHOLD_MS — that constant only
+    // classifies staleness for display, a much longer window than we want to
+    // actually wait before re-pulling). Does NOT fire immediately on launch
+    // (unlike the LinkedIn/X sweeps) — the on-launch auto-pull block above
+    // already covers startup; this only needs to run periodically after that.
+    // Skips any client with a debounced auto-push still pending/in-flight
+    // (liveSyncPusher.isPending) so a pull can never fetch onto a working
+    // tree that's about to get a local commit pushed on top of it — the next
+    // tick picks it up once the push settles.
+    if (memory) {
+      const capturedMemory = memory;
+      const runLiveSyncPull = async (): Promise<void> => {
+        try {
+          const token = SettingsManager.get('github.token') || '';
+          if (!token) return;
+          const results = await autoPullLiveClients(capturedMemory, token, {
+            skip: (clientId) => liveSyncPusher.isPending(clientPaths(clientId).rootDir),
+          });
+          const pulled = results.filter((r) => r.ok);
+          // Every client here already has a repo_url + a token was confirmed
+          // above, so a failure is a real network/auth/git error — not the
+          // "sync not configured" soft no-op — worth an error toast (the one
+          // exception to "background sync stays quiet").
+          for (const r of results.filter((r) => !r.ok)) {
+            notifyBackgroundSyncError(r.id, 'pull', r.error || 'Background pull failed');
+          }
+          if (pulled.length === 0) return;
+          console.log(
+            `[clients] Live-synced ${pulled.length}/${results.length} client brain(s) (periodic pull)`
+          );
+          for (const r of pulled) {
+            await remirrorScope(capturedMemory, r.id).catch((e) =>
+              console.error(`[clients] Re-mirror failed for ${r.id}:`, e)
+            );
+            await importAnalyticsForScope(capturedMemory, r.id);
+            await importContentForScope(capturedMemory, r.id);
+          }
+        } catch (e) {
+          console.error('[clients] Periodic live-sync pull failed; continuing', e);
+        }
+      };
+      liveSyncPullTimer = setInterval(runLiveSyncPull, 6 * 60 * 60 * 1000);
+      if (typeof liveSyncPullTimer.unref === 'function') liveSyncPullTimer.unref();
     }
 
     setupIPC();
@@ -933,7 +1108,17 @@ app.on('before-quit', async () => {
   await getMcpServerManager()
     .shutdownAll()
     .catch((e) => console.error('[MCP] shutdownAll failed:', e));
+  // Live sync cleanup: stop the periodic background-pull timer and cancel
+  // every client's pending debounced auto-push BEFORE closing memory, so no
+  // scheduled push callback fires (and tries to touch the DB) after close().
+  if (liveSyncPullTimer) {
+    clearInterval(liveSyncPullTimer);
+    liveSyncPullTimer = null;
+  }
   if (memory) {
+    for (const client of memory.getClients()) {
+      liveSyncPusher.cancel(clientPaths(client.id).rootDir);
+    }
     memory.close();
   }
   SettingsManager.close();

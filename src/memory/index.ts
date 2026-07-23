@@ -148,6 +148,7 @@ import {
   type UpdateContentDraftFields,
   type SetStatusOptions,
   type RecordContentPostInput,
+  type ImportContentDraftInput,
   createContentDraft as _createContentDraft,
   getContentDraft as _getContentDraft,
   getContentDraftsForScopes as _getContentDraftsForScopes,
@@ -157,6 +158,7 @@ import {
   recordContentPost as _recordContentPost,
   getContentPostsForDraft as _getContentPostsForDraft,
   getContentPostsForScopes as _getContentPostsForScopes,
+  importContentDraft as _importContentDraft,
 } from './content-drafts';
 import {
   type Campaign,
@@ -168,6 +170,8 @@ import {
   type AddDeliverableInput,
   type AddDeliverableResult,
   type SetDeliverableStatusResult,
+  type ImportCampaignInput,
+  type ImportDeliverableInput,
   createCampaign as _createCampaign,
   getCampaign as _getCampaign,
   getCampaignsForScopes as _getCampaignsForScopes,
@@ -181,6 +185,8 @@ import {
   deleteDeliverable as _deleteDeliverable,
   getNextUnblockedDeliverable as _getNextUnblockedDeliverable,
   contentDraftIdFromResultRef as _contentDraftIdFromResultRef,
+  importCampaign as _importCampaign,
+  importCampaignDeliverable as _importCampaignDeliverable,
 } from './campaigns';
 import {
   type PostAnalytics,
@@ -216,11 +222,25 @@ export type {
   TransitionActor,
 } from './content-drafts';
 export type { Campaign, CampaignStatus, CampaignDeliverable, DeliverableStatus } from './campaigns';
-export type { PostAnalytics, PostAnalyticsSource, RecordPostAnalyticsInput, AnalyticsSummary, ChannelSummary, ContentPostRef } from './analytics';
+export type {
+  PostAnalytics,
+  PostAnalyticsSource,
+  RecordPostAnalyticsInput,
+  AnalyticsSummary,
+  ChannelSummary,
+  ContentPostRef,
+} from './analytics';
 
 export class MemoryManager {
   private db: Database.Database;
   private summarizer?: SummarizerFn;
+  // Fired after a client-scoped fact write settles (save/update/delete/
+  // setSensitive) so a caller (main process live-sync wiring) can schedule a
+  // debounced auto-commit+push for that brand's brain. Never fired for
+  // non-client scopes (user/world/project/chat) or for the 'atelier-memory'
+  // mirror category written by a just-completed pull (src/memory/atelier-bridge.ts)
+  // — re-pushing a pull's own mirror write would be a wasted round trip.
+  private onScopeChanged?: (scope: string) => void;
 
   // Cache for facts context + embeddings state — owned by FactsRepository
   private factsCache: FactsCache = createFactsCache();
@@ -228,9 +248,10 @@ export class MemoryManager {
   // Cache for soul context (invalidated on soul changes) — owned by SoulRepository
   private soulCache: SoulCache = createSoulCache();
 
-  constructor(dbPath: string) {
+  constructor(dbPath: string, options?: { onScopeChanged?: (scope: string) => void }) {
     this.db = new Database(dbPath);
     this.db.pragma('journal_mode = WAL');
+    this.onScopeChanged = options?.onScopeChanged;
     this.initialize();
 
     // Run importance decay on startup (reduces importance for stale facts)
@@ -765,12 +786,43 @@ export class MemoryManager {
         video_views INTEGER NOT NULL DEFAULT 0,
         source TEXT NOT NULL DEFAULT 'manual' CHECK(source IN ('manual', 'mcp')),
         raw_json TEXT,
+        post_url TEXT,
+        thread_text TEXT NOT NULL DEFAULT '',
+        top_comments TEXT,
+        media_urls TEXT,
         captured_at TEXT NOT NULL DEFAULT ((strftime('%Y-%m-%dT%H:%M:%fZ'))),
         created_at TEXT DEFAULT ((strftime('%Y-%m-%dT%H:%M:%fZ')))
       );
       CREATE INDEX IF NOT EXISTS idx_post_analytics_scope ON post_analytics(scope, channel, captured_at);
       CREATE INDEX IF NOT EXISTS idx_post_analytics_ref ON post_analytics(scope, channel, external_ref, captured_at);
     `);
+
+    // Migration: add post_url, thread_text, top_comments, media_urls to
+    // post_analytics (lead content, direct link, notable replies, and shared
+    // asset URLs for a post). Idempotent, same pragma-check pattern as the
+    // cron_jobs migrations below — existing rows (e.g. the zilliqa analytics
+    // already recorded) are untouched and simply read back with
+    // post_url=NULL, thread_text='', top_comments=NULL, media_urls=NULL
+    // until re-ingested.
+    const postAnalyticsColumns = this.db.pragma('table_info(post_analytics)') as Array<{
+      name: string;
+    }>;
+    if (!postAnalyticsColumns.some((c) => c.name === 'post_url')) {
+      this.db.exec('ALTER TABLE post_analytics ADD COLUMN post_url TEXT');
+      console.log('[Memory] Migrated post_analytics table: added post_url column');
+    }
+    if (!postAnalyticsColumns.some((c) => c.name === 'thread_text')) {
+      this.db.exec(`ALTER TABLE post_analytics ADD COLUMN thread_text TEXT NOT NULL DEFAULT ''`);
+      console.log('[Memory] Migrated post_analytics table: added thread_text column');
+    }
+    if (!postAnalyticsColumns.some((c) => c.name === 'top_comments')) {
+      this.db.exec('ALTER TABLE post_analytics ADD COLUMN top_comments TEXT');
+      console.log('[Memory] Migrated post_analytics table: added top_comments column');
+    }
+    if (!postAnalyticsColumns.some((c) => c.name === 'media_urls')) {
+      this.db.exec('ALTER TABLE post_analytics ADD COLUMN media_urls TEXT');
+      console.log('[Memory] Migrated post_analytics table: added media_urls column');
+    }
 
     // Migration: add content_draft_id to cron_jobs (links a scheduled cron job
     // back to the draft it will post — see checkDueJobs's 'content_post' branch
@@ -1265,6 +1317,18 @@ export class MemoryManager {
 
   // ============ FACT METHODS ============
 
+  /**
+   * Notify onScopeChanged for a client-scoped, non-mirror fact write. Shared
+   * by every fact-write method below so the live-sync debounce trigger has
+   * exactly one definition of "this write counts".
+   */
+  private notifyScopeChanged(scope: string, category: string): void {
+    if (!this.onScopeChanged) return;
+    if (!scope.startsWith('client:')) return;
+    if (category === 'atelier-memory') return;
+    this.onScopeChanged(scope);
+  }
+
   saveFact(
     category: string,
     subject: string,
@@ -1283,6 +1347,7 @@ export class MemoryManager {
       target: `${scope}:${category}/${subject || '(no subject)'}`,
       digest: digestContent(content),
     });
+    this.notifyScopeChanged(scope, category);
     return id;
   }
 
@@ -1358,7 +1423,11 @@ export class MemoryManager {
   }
 
   deleteFact(id: number): boolean {
-    return _deleteFact(this.db, id, this.factsCache);
+    // Look up scope/category before deleting — the row is gone afterward.
+    const fact = _getFact(this.db, id);
+    const ok = _deleteFact(this.db, id, this.factsCache);
+    if (ok && fact) this.notifyScopeChanged(fact.scope, fact.category);
+    return ok;
   }
 
   updateFact(
@@ -1386,17 +1455,37 @@ export class MemoryManager {
           : `fact#${id}`,
         digest: digestContent(fields.content ?? JSON.stringify(fields)),
       });
+      if (fact) this.notifyScopeChanged(fact.scope, fact.category);
     }
     return ok;
   }
 
   setFactSensitive(id: number, sensitive: boolean): boolean {
-    return _setFactSensitive(this.db, id, sensitive, this.factsCache);
+    const ok = _setFactSensitive(this.db, id, sensitive, this.factsCache);
+    if (ok) {
+      const fact = _getFact(this.db, id);
+      if (fact) this.notifyScopeChanged(fact.scope, fact.category);
+    }
+    return ok;
   }
 
   /** Promote a fact to a broader scope (chat → project → client → world). */
   promoteFact(id: number, targetScope: string): { ok: boolean; id: number | null } {
-    return _promoteFact(this.db, id, targetScope, this.factsCache);
+    // Read the source scope first so a same-scope no-op promote (source already
+    // at targetScope — see _promoteFact's early return) never falsely triggers
+    // a live-sync push below.
+    const wasAlreadyAtTarget = _getFact(this.db, id)?.scope === targetScope;
+    const result = _promoteFact(this.db, id, targetScope, this.factsCache);
+    // Live-sync trigger: a promote can land a fact IN a client scope (e.g.
+    // project → client, or merged into an existing client-scope fact) just as
+    // much as a direct saveFact/updateFact can — notify for the resulting
+    // fact's actual scope/category (not the raw targetScope param, since a
+    // merge keeps the pre-existing target fact's id/category).
+    if (result.ok && result.id !== null && !wasAlreadyAtTarget) {
+      const fact = _getFact(this.db, result.id);
+      if (fact) this.notifyScopeChanged(fact.scope, fact.category);
+    }
+    return result;
   }
 
   deleteFactBySubject(category: string, subject: string): boolean {
@@ -1490,6 +1579,11 @@ export class MemoryManager {
     return _getContentPostsForScopes(this.db, visibleScopes, limit);
   }
 
+  /** Brain-import primitive (src/clients/content-import.ts) — see content-drafts.ts's importContentDraft doc. */
+  importContentDraft(input: ImportContentDraftInput): number {
+    return _importContentDraft(this.db, input);
+  }
+
   // ============ CAMPAIGN METHODS (roadmap item 10) ============
 
   createCampaign(input: CreateCampaignInput): number {
@@ -1530,6 +1624,16 @@ export class MemoryManager {
     resultRef?: string | null
   ): SetDeliverableStatusResult {
     return _setDeliverableStatus(this.db, id, to, resultRef);
+  }
+
+  /** Brain-import primitive (src/clients/content-import.ts) — see campaigns.ts's importCampaign doc. */
+  importCampaign(input: ImportCampaignInput): number {
+    return _importCampaign(this.db, input);
+  }
+
+  /** Brain-import primitive (src/clients/content-import.ts) — see campaigns.ts's importCampaignDeliverable doc. */
+  importCampaignDeliverable(input: ImportDeliverableInput): number {
+    return _importCampaignDeliverable(this.db, input);
   }
 
   /** Link a deliverable's result to a content-workflow draft (roadmap item 10, requirement 3). */
@@ -1602,7 +1706,12 @@ export class MemoryManager {
     const scopes = new Set<string>();
     for (const draftId of draftIds) {
       for (const post of this.getContentPostsForDraft(draftId)) {
-        refs.push({ id: post.id, scope: post.scope, channel: post.channel, externalRef: post.external_ref });
+        refs.push({
+          id: post.id,
+          scope: post.scope,
+          channel: post.channel,
+          externalRef: post.external_ref,
+        });
         scopes.add(post.scope);
       }
     }

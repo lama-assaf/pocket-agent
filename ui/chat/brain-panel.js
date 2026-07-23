@@ -129,6 +129,20 @@ function toggleBrainPanel() {
 
 // ---- Toast ----
 
+// Background live-sync failures (periodic pull / debounced auto-push) are the
+// one thing worth an unprompted toast — registered once at script load (not
+// gated on the Brain panel having been opened yet) so a failure is never
+// silently lost. Successes stay quiet by design (sync bar timestamp only).
+if (window.pocketAgent && window.pocketAgent.sync && window.pocketAgent.sync.onError) {
+  window.pocketAgent.sync.onError(({ clientId, action, error }) => {
+    const verb = action === 'push' ? 'push' : 'pull';
+    _brainShowToast(`Live sync ${verb} failed for ${clientId}: ${error}`, 'error');
+    // If the errored client is the one currently shown in the sync bar,
+    // refresh its status right away instead of waiting for the next poll.
+    if (_brainSyncScope() === clientId) _brainRefreshSyncStatus(clientId);
+  });
+}
+
 function _brainShowToast(message, type) {
   if (!_brainNotyf) {
     _brainNotyf = new Notyf({
@@ -681,6 +695,7 @@ async function _brainRefreshSyncStatus(scope) {
     if (!s.cloned) {
       el.textContent = 'not cloned';
       el.classList.remove('brain-sync-stale');
+      _brainSetPendingBadge(false);
       return;
     }
     if (s.freshness === 'stale' && typeof s.msSincePull === 'number') {
@@ -693,11 +708,25 @@ async function _brainRefreshSyncStatus(scope) {
       el.textContent = 'synced';
       el.classList.remove('brain-sync-stale');
     }
+    // "changes pending" badge: a debounced live-sync auto-push is queued for
+    // this client but hasn't fired yet (30s quiet period, src/main/index.ts).
+    // Subtle by design — no toast, just a quiet visual cue next to the status
+    // text so it doesn't compete with the pull/stale text above.
+    _brainSetPendingBadge(!!s.pushPending);
   } catch {
     el.textContent = '';
     el.classList.remove('brain-sync-stale');
+    _brainSetPendingBadge(false);
     _brainSetSyncButtonsEnabled(false, 'Sync status unavailable.');
   }
+}
+
+// Show/hide the small "changes pending" dot next to the sync status text.
+function _brainSetPendingBadge(pending) {
+  const badge = document.getElementById('brain-sync-pending');
+  if (!badge) return;
+  badge.hidden = !pending;
+  badge.title = pending ? 'Local changes queued to push' : '';
 }
 
 async function brainPullActive() {

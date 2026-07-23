@@ -351,6 +351,25 @@
   font-weight: 600;
 }
 
+/* "Changes pending" dot: a debounced live-sync auto-push is queued but
+   hasn't fired yet. Deliberately quiet — a small dot, not text or a toast,
+   since this is an expected transient state, not something to alarm on. */
+#brain-view .brain-sync-pending-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent, #6b8afd);
+  animation: brain-sync-pending-pulse 1.6s ease-in-out infinite;
+}
+#brain-view .brain-sync-pending-dot[hidden] {
+  display: none;
+}
+@keyframes brain-sync-pending-pulse {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
+}
+
 /* Spaces tab — cards for each shared memory space + sync actions */
 #brain-view .brain-spaces-actions {
   display: flex;

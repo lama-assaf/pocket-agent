@@ -18,6 +18,13 @@ export interface IPCDependencies {
   updateTrayMenu: () => void;
   initializeAgent: () => Promise<void>;
   restartAgent: () => Promise<void>;
+  /**
+   * True when a debounced live-sync auto-push is queued (not yet fired) for
+   * a client id's repo dir. Backed by the module-level DebouncedPusher in
+   * src/main/index.ts; used by sync:status (settings-ipc.ts) to surface a
+   * "changes pending" indicator in the Brain panel's sync bar.
+   */
+  isLiveSyncPushPending: (clientId: string) => boolean;
   openChatWindow: () => void;
   openSettingsWindow: (tab?: string) => void;
   openCronWindow: () => void;

@@ -88,6 +88,20 @@ contextBridge.exposeInMainWorld('pocketAgent', {
     status: (scope: string) => ipcRenderer.invoke('sync:status', scope),
     setClientMode: (id: string, mode: 'live' | 'manual') =>
       ipcRenderer.invoke('sync:setClientMode', id, mode),
+    // Fired only for a BACKGROUND live-sync failure (periodic pull or
+    // debounced auto-push) — never for the manual Pull/Publish buttons,
+    // which already surface their own result inline. Silent background
+    // failure is the real risk (roadmap live-sync UI follow-up), so this is
+    // the one thing worth an unprompted toast; success stays quiet (status
+    // bar timestamp only).
+    onError: (callback: (info: { clientId: string; action: 'pull' | 'push'; error: string }) => void) => {
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        info: { clientId: string; action: 'pull' | 'push'; error: string }
+      ) => callback(info);
+      ipcRenderer.on('sync:backgroundError', listener);
+      return () => ipcRenderer.removeListener('sync:backgroundError', listener);
+    },
   },
   sessions: {
     list: () => ipcRenderer.invoke('sessions:list'),
@@ -425,6 +439,10 @@ contextBridge.exposeInMainWorld('pocketAgent', {
         videoViews?: number;
         source?: 'manual' | 'mcp';
         rawJson?: string | null;
+        postUrl?: string | null;
+        threadText?: string;
+        topComments?: Array<{ author: string; text: string; likes: number }> | null;
+        mediaUrls?: string[] | null;
         capturedAt?: string;
       },
       context: {
@@ -462,6 +480,28 @@ contextBridge.exposeInMainWorld('pocketAgent', {
       clientId?: string | null;
       projectKey?: string | null;
     }) => ipcRenderer.invoke('linkedin:syncNow', context),
+  },
+
+  // ─── X/Twitter (analytics auto-sync via a bridged marketplace MCP server) ───
+  x: {
+    getHandle: (context: {
+      contextType: 'personal' | 'world' | 'client' | 'project';
+      clientId?: string | null;
+      projectKey?: string | null;
+    }) => ipcRenderer.invoke('x:getHandle', context),
+    setHandle: (
+      handle: string,
+      context: {
+        contextType: 'personal' | 'world' | 'client' | 'project';
+        clientId?: string | null;
+        projectKey?: string | null;
+      }
+    ) => ipcRenderer.invoke('x:setHandle', handle, context),
+    syncNow: (context: {
+      contextType: 'personal' | 'world' | 'client' | 'project';
+      clientId?: string | null;
+      projectKey?: string | null;
+    }) => ipcRenderer.invoke('x:syncNow', context),
   },
 
   // ─── Location & Timezone ───────────────────────────
@@ -521,6 +561,16 @@ contextBridge.exposeInMainWorld('pocketAgent', {
     },
   },
 
+  plans: {
+    propose: (sessionId: string, content: string) =>
+      ipcRenderer.invoke('plan:propose', sessionId, content),
+    getCurrent: (sessionId: string) => ipcRenderer.invoke('plan:getCurrent', sessionId),
+    approve: (sessionId: string, planId: string) =>
+      ipcRenderer.invoke('plan:approve', sessionId, planId),
+    reject: (sessionId: string, planId: string, feedback?: string) =>
+      ipcRenderer.invoke('plan:reject', sessionId, planId, feedback),
+  },
+
   // ─── OpenAI OAuth ──────────────────────────────────────────────────
   openaiAuth: {
     startOAuth: () => ipcRenderer.invoke('openai:startOAuth'),
@@ -536,6 +586,14 @@ contextBridge.exposeInMainWorld('pocketAgent', {
     cancelOAuth: () => ipcRenderer.invoke('kimi:cancelOAuth'),
     validateOAuth: () => ipcRenderer.invoke('kimi:validateOAuth'),
     logoutOAuth: () => ipcRenderer.invoke('kimi:logoutOAuth'),
+  },
+
+  githubAuth: {
+    startOAuth: () => ipcRenderer.invoke('github:startOAuth'),
+    isOAuthPending: () => ipcRenderer.invoke('github:isOAuthPending'),
+    getAuthStatus: () => ipcRenderer.invoke('github:getAuthStatus'),
+    cancelOAuth: () => ipcRenderer.invoke('github:cancelOAuth'),
+    disconnect: () => ipcRenderer.invoke('github:disconnect'),
   },
 
   // ─── Themes ──────────────────────────────────────────────────────────
@@ -841,7 +899,14 @@ declare global {
           scope: string
         ) => Promise<{ ok: boolean; cloned?: boolean; merged?: boolean; error?: string }>;
         pullAll: () => Promise<
-          Array<{ id: string; name: string; ok: boolean; cloned?: boolean; merged?: boolean; error?: string }>
+          Array<{
+            id: string;
+            name: string;
+            ok: boolean;
+            cloned?: boolean;
+            merged?: boolean;
+            error?: string;
+          }>
         >;
         publish: (
           scope: string,
@@ -850,12 +915,16 @@ declare global {
         status: (scope: string) => Promise<{
           configured: boolean;
           cloned: boolean;
+          pushPending?: boolean;
           lastPulledAt?: string | null;
           lastPushedAt?: string | null;
           freshness?: 'unconfigured' | 'never_pulled' | 'fresh' | 'stale';
           msSincePull?: number | null;
         }>;
         setClientMode: (id: string, mode: 'live' | 'manual') => Promise<{ success: boolean }>;
+        onError: (
+          callback: (info: { clientId: string; action: 'pull' | 'push'; error: string }) => void
+        ) => () => void;
       };
 
       facts: {
@@ -1519,6 +1588,27 @@ declare global {
         }) => Promise<{ ok: boolean; postsWritten: number; error?: string }>;
       };
 
+      x: {
+        getHandle: (context: {
+          contextType: 'personal' | 'world' | 'client' | 'project';
+          clientId?: string | null;
+          projectKey?: string | null;
+        }) => Promise<string | null>;
+        setHandle: (
+          handle: string,
+          context: {
+            contextType: 'personal' | 'world' | 'client' | 'project';
+            clientId?: string | null;
+            projectKey?: string | null;
+          }
+        ) => Promise<{ success: boolean; error?: string }>;
+        syncNow: (context: {
+          contextType: 'personal' | 'world' | 'client' | 'project';
+          clientId?: string | null;
+          projectKey?: string | null;
+        }) => Promise<{ ok: boolean; postsWritten: number; error?: string }>;
+      };
+
       location: {
         lookup: (query: string) => Promise<
           Array<{
@@ -1613,6 +1703,29 @@ declare global {
         onExpired: (callback: () => void) => () => void;
       };
 
+      plans: {
+        propose: (
+          sessionId: string,
+          content: string
+        ) => Promise<{
+          success: boolean;
+          plan?: { id: string; content: string; status: string };
+          error?: string;
+        }>;
+        getCurrent: (
+          sessionId: string
+        ) => Promise<{ id: string; content: string; status: string } | null>;
+        approve: (
+          sessionId: string,
+          planId: string
+        ) => Promise<{ success: boolean; result?: unknown; error?: string }>;
+        reject: (
+          sessionId: string,
+          planId: string,
+          feedback?: string
+        ) => Promise<{ success: boolean; error?: string }>;
+      };
+
       openaiAuth: {
         startOAuth: () => Promise<{ success: boolean; error?: string }>;
         completeOAuth: () => Promise<{ success: boolean; error?: string }>;
@@ -1631,6 +1744,24 @@ declare global {
         cancelOAuth: () => Promise<{ success: boolean }>;
         validateOAuth: () => Promise<{ valid: boolean; error?: string }>;
         logoutOAuth: () => Promise<{ success: boolean }>;
+      };
+
+      githubAuth: {
+        startOAuth: () => Promise<{
+          success: boolean;
+          userCode?: string;
+          verificationUri?: string;
+          error?: string;
+        }>;
+        isOAuthPending: () => Promise<boolean>;
+        getAuthStatus: () => Promise<{
+          connected: boolean;
+          user: { login: string; avatarUrl: string } | null;
+          method: 'oauth' | 'pat' | '';
+          hasClientId: boolean;
+        }>;
+        cancelOAuth: () => Promise<{ success: boolean }>;
+        disconnect: () => Promise<{ success: boolean }>;
       };
 
       themes: {
