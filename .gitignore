@@ -17,3 +17,7 @@ release/
 app.json
 filterAndSort.js
 blurb/
+
+# Generated/scratch output
+test-results/
+ui/_deckshots/

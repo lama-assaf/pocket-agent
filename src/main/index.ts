@@ -1,5 +1,5 @@
 import '../../gg-pixel.main.mjs';
-import { app, Notification, globalShortcut, powerMonitor } from 'electron';
+import { app, dialog, Notification, globalShortcut, powerMonitor } from 'electron';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
@@ -1084,6 +1084,17 @@ app.whenReady().then(async () => {
     // No polling needed — updateTrayMenu() is called directly by IPC handlers
   } catch (error) {
     console.error('[Main] FATAL ERROR during initialization:', error);
+    // A packaged app has no attached console — without this dialog, a fatal
+    // failure here (e.g. a native-module ABI mismatch breaking Settings/
+    // Memory; see build/afterPack.cjs's verifyNativeModules) is invisible:
+    // setupIPC() never ran, so every IPC-backed feature (default clients,
+    // GitHub connect/pull, chat) fails downstream with an unrelated-looking
+    // "no handler registered" error instead of this actual cause.
+    const message = error instanceof Error ? error.message : String(error);
+    dialog.showErrorBox(
+      'r3to.os failed to start',
+      `A core service failed to initialize, so most features (default clients, GitHub sync, chat) will be unavailable this session.\n\n${message}\n\nTry restarting the app. If this keeps happening, reinstall it.`
+    );
   }
 });
 
