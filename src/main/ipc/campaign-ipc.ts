@@ -23,15 +23,12 @@ const CAMPAIGN_UI_SESSION_ID = 'ipc:campaign-ui';
 export function registerCampaignIPC(deps: IPCDependencies): void {
   const { getMemory } = deps;
 
-  ipcMain.handle(
-    'campaigns:list',
-    async (_, context: SessionContext, status?: CampaignStatus) => {
-      const memory = getMemory();
-      if (!memory) return [];
-      const visible = resolveVisibleScopes(context, CAMPAIGN_UI_SESSION_ID);
-      return memory.getCampaignsForScopes(visible, status);
-    }
-  );
+  ipcMain.handle('campaigns:list', async (_, context: SessionContext, status?: CampaignStatus) => {
+    const memory = getMemory();
+    if (!memory) return [];
+    const visible = resolveVisibleScopes(context, CAMPAIGN_UI_SESSION_ID);
+    return memory.getCampaignsForScopes(visible, status);
+  });
 
   ipcMain.handle('campaigns:get', async (_, id: number) => {
     const memory = getMemory();
@@ -140,11 +137,14 @@ export function registerCampaignIPC(deps: IPCDependencies): void {
     }
   );
 
-  ipcMain.handle('campaigns:deleteDeliverable', async (_, id: number): Promise<{ success: boolean }> => {
-    const memory = getMemory();
-    if (!memory) return { success: false };
-    return { success: memory.deleteDeliverable(id) };
-  });
+  ipcMain.handle(
+    'campaigns:deleteDeliverable',
+    async (_, id: number): Promise<{ success: boolean }> => {
+      const memory = getMemory();
+      if (!memory) return { success: false };
+      return { success: memory.deleteDeliverable(id) };
+    }
+  );
 
   // Human path to attach a deliverable's result to a content-workflow draft
   // (roadmap item 10, requirement 3). memory.linkDeliverableToContentDraft
@@ -174,7 +174,10 @@ export function registerCampaignIPC(deps: IPCDependencies): void {
   // resolution so the prompt text always matches what's actually next.
   ipcMain.handle(
     'campaigns:nudgePrompt',
-    async (_, campaignId: number): Promise<{ success: boolean; prompt?: string; error?: string }> => {
+    async (
+      _,
+      campaignId: number
+    ): Promise<{ success: boolean; prompt?: string; error?: string }> => {
       const memory = getMemory();
       if (!memory) return { success: false, error: 'Memory not initialized' };
       const campaign = memory.getCampaign(campaignId);
@@ -184,7 +187,8 @@ export function registerCampaignIPC(deps: IPCDependencies): void {
       if (!next) {
         return {
           success: false,
-          error: 'No unblocked deliverable to advance — everything is done, in progress, or blocked on something else.',
+          error:
+            'No unblocked deliverable to advance — everything is done, in progress, or blocked on something else.',
         };
       }
 

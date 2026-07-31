@@ -1,4 +1,4 @@
-/* Pocket Agent variables — original Dracula baseline.
+/* r3to.os variables — original Dracula baseline.
    The skin loader (theme-loader.js) overrides the canonical vars below
    when a non-null skin is active. Fresh installs default to the
    "cream" skin (see src/settings/themes.ts), which provides the
@@ -44,6 +44,24 @@
   --link-hover: #a4f0ff;
   --telegram: #229ed9;
   --cyan: #8be9fd;
+
+  /* Operator lanes (design/product/brand/social) — each gets its own hue so
+     the lane switcher reads at a glance, distinct from workspace identity
+     (--accent = Personal/default, --accent-secondary = Agency/World). */
+  --lane-design: #5b9dff;
+  --lane-product: #ffb86c;
+  --lane-brand: #f0608a;
+  --lane-social: #2dd4bf;
+
+  /* Contrast-safe variants: theme-loader.js recomputes these per skin,
+     falling back to the theme's readable heading color on surfaces where the
+     raw hue above can't clear ~3:1 (e.g. --lane-product on light skins).
+     These static defaults only apply before that JS runs (matches the
+     dark/dracula baseline, where the raw hues already pass). */
+  --lane-design-readable: var(--lane-design);
+  --lane-product-readable: var(--lane-product);
+  --lane-brand-readable: var(--lane-brand);
+  --lane-social-readable: var(--lane-social);
 
   /* Radii */
   --radius: 16px;

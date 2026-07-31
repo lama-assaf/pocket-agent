@@ -10,6 +10,8 @@
 // settings values are passed in by the caller rather than imported globally,
 // so this stays unit-testable.
 
+import fs from 'fs';
+import path from 'path';
 import { SettingsManager } from '../settings';
 import type { MemoryManager } from '../memory/index';
 
@@ -41,6 +43,37 @@ export async function remirrorScope(memory: MemoryManager | null, scope: string)
   const { worldScopeRoot, clientScopeRoot } = await import('./paths');
   const root = scope === 'world' ? worldScopeRoot() : clientScopeRoot(scope);
   await new AtelierMemoryBridge(memory).syncScopeRoot(root);
+}
+
+/**
+ * Re-mirror a freshly pulled client's imported-docs subtree (docs-import.ts's
+ * docs/ tree, imported via the Import-docs button) into recallable memory,
+ * same moment remirrorScope refreshes .atelier/memory.
+ *
+ * Closes the propagation gap docs-import.ts's own prune only solves on the
+ * NEXT manual import: mirrorDocsDir's full delete-then-readd sweep of the
+ * scope's docs/-prefixed facts means a file a teammate deleted at the source
+ * (and removed from the git tree before pushing) stops being recallable the
+ * moment THIS pull brings that deletion down, with no manual re-import.
+ *
+ * scope is the bare sync-scope key ('world' | a client id), matching every
+ * other function here. World has no docs/ subtree (docs-import is
+ * client-only) so this is a no-op there. Also a no-op for a client with no
+ * docs/ dir on disk yet (never imported) — otherwise mirrorDocsDir's
+ * delete-then-readd would run a pointless DB sweep on every pull for every
+ * client, including ones that will never have imported docs.
+ */
+export async function remirrorImportedDocsForScope(
+  memory: MemoryManager | null,
+  scope: string
+): Promise<void> {
+  if (!memory || scope === 'world') return;
+  const { clientPaths } = await import('./paths');
+  const { clientScope } = await import('../memory/scope');
+  const docsRoot = path.join(clientPaths(scope).rootDir, 'docs');
+  if (!fs.existsSync(docsRoot)) return;
+  const { AtelierMemoryBridge } = await import('../memory/atelier-bridge');
+  await new AtelierMemoryBridge(memory).mirrorDocsDir(docsRoot, clientScope(scope), 'docs/');
 }
 
 /**

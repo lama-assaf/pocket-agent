@@ -55,7 +55,13 @@ export class McpServerManager {
     }
 
     const client = buildClient(spec);
-    const managed: ManagedServer = { client, status: 'starting', tools: [], lastError: null, connecting: null };
+    const managed: ManagedServer = {
+      client,
+      status: 'starting',
+      tools: [],
+      lastError: null,
+      connecting: null,
+    };
     this.servers.set(id, managed);
 
     client.onCrash((reason) => {
@@ -190,7 +196,11 @@ export class McpServerManager {
           ? 'the reauth command timed out'
           : `the reauth command exited with code ${clearResult.code ?? 'unknown'}`;
       const tail = clearResult.stderrTail ? ` — ${clearResult.stderrTail}` : '';
-      return { success: false, cleared: false, message: `Failed to clear cached credentials: ${reason}${tail}` };
+      return {
+        success: false,
+        cleared: false,
+        message: `Failed to clear cached credentials: ${reason}${tail}`,
+      };
     }
 
     if (!respawnSpec) {
@@ -211,7 +221,8 @@ export class McpServerManager {
       return {
         success: true,
         cleared: true,
-        message: 'Cleared cached credentials and started a fresh sign-in — check your browser to complete the login.',
+        message:
+          'Cleared cached credentials and started a fresh sign-in — check your browser to complete the login.',
       };
     }
     if (/address already in use/i.test(err) || /listenererror/i.test(err)) {

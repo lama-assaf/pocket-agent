@@ -34,7 +34,12 @@ export interface SyncStatus {
  */
 export function computeSyncStatus(input: SyncStatusInput, now: Date = new Date()): SyncStatus {
   if (!input.configured) {
-    return { freshness: 'unconfigured', lastPulledAt: null, lastPushedAt: input.lastPushedAt, msSincePull: null };
+    return {
+      freshness: 'unconfigured',
+      lastPulledAt: null,
+      lastPushedAt: input.lastPushedAt,
+      msSincePull: null,
+    };
   }
   if (!input.lastPulledAt) {
     return {

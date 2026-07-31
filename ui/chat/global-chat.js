@@ -840,7 +840,7 @@ const CHAT_ALLOWED_LINKS = [
   /https?:\/\/(www\.)?instagram\.com(\/\S*)?/i,
   /https?:\/\/(www\.)?(tiktok\.com|vm\.tiktok\.com)(\/\S*)?/i,
   /https?:\/\/(www\.)?(x\.com|twitter\.com)(\/\S*)?/i,
-  /https?:\/\/(www\.)?skool\.com\/kenkai(\/\S*|$)?(?![a-z0-9-])/i,
+  /https?:\/\/(www\.)?skool\.com\/zilliqa(\/\S*|$)?(?![a-z0-9-])/i,
 ];
 const CHAT_URL_REGEX = /https?:\/\/\S+|www\.\S+/gi;
 
@@ -1211,7 +1211,7 @@ function updateChatCounts(online, inChat) {
   const el = document.getElementById('chat-online-stats');
   if (el) el.textContent = `${online} online · ${inChat} in chat`;
   if (globalChatMode) {
-    const prefix = _appVersion ? `Pocket Agent v${_appVersion}` : 'Pocket Agent';
+    const prefix = _appVersion ? `r3to.os v${_appVersion}` : 'r3to.os';
     document.title = `${prefix} — ${online} online · ${inChat} in chat`;
   }
 }
@@ -1257,6 +1257,7 @@ async function toggleGlobalChat() {
     if (workflowBadge) workflowBadge.classList.add('hidden');
     document.querySelector('.input-toolbar-btns').classList.add('hidden');
     document.getElementById('mode-select').classList.add('hidden');
+    document.getElementById('lane-switcher').classList.add('hidden');
     if (scrollTopBtn) scrollTopBtn.classList.add('hidden');
     if (scrollBottomBtn) scrollBottomBtn.classList.add('hidden');
     if (freshStartBtn) freshStartBtn.classList.add('hidden');
@@ -1280,7 +1281,7 @@ async function toggleGlobalChat() {
     // Update title bar for global chat
     const chatStatsEl = document.getElementById('chat-online-stats');
     if (chatStatsEl && chatStatsEl.textContent) {
-      const prefix = _appVersion ? `Pocket Agent v${_appVersion}` : 'Pocket Agent';
+      const prefix = _appVersion ? `r3to.os v${_appVersion}` : 'r3to.os';
       document.title = `${prefix} — ${chatStatsEl.textContent}`;
     }
 
@@ -1310,6 +1311,7 @@ async function toggleGlobalChat() {
     if (workflowBadge) workflowBadge.classList.remove('hidden');
     document.querySelector('.input-toolbar-btns').classList.remove('hidden');
     document.getElementById('mode-select').classList.remove('hidden');
+    document.getElementById('lane-switcher').classList.remove('hidden');
     if (scrollTopBtn) scrollTopBtn.classList.remove('hidden');
     if (scrollBottomBtn) scrollBottomBtn.classList.remove('hidden');
     if (freshStartBtn) freshStartBtn.classList.remove('hidden');

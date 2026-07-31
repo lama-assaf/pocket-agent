@@ -3,6 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import { app } from 'electron';
 import { AgentManager, ImageContent } from '../../agent';
+import { PlanApprovals } from '../../agent/plan-approval';
 import { SettingsManager } from '../../settings';
 import { getWindow } from '../windows';
 import type { IPCDependencies } from './types';
@@ -105,6 +106,40 @@ export function registerAgentIPC(deps: IPCDependencies): void {
       }
     }
   );
+
+  ipcMain.handle('plan:propose', async (_, sessionId: string, content: string) => {
+    try {
+      return { success: true, plan: PlanApprovals.propose(sessionId, content) };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('plan:getCurrent', async (_, sessionId: string) =>
+    PlanApprovals.getCurrent(sessionId)
+  );
+
+  ipcMain.handle('plan:approve', async (_, sessionId: string, planId: string) => {
+    const approval = PlanApprovals.approve(sessionId, planId);
+    if (!approval.ok) return { success: false, error: approval.error };
+    const execution = await PlanApprovals.executeOnce(sessionId, planId, async (plan) =>
+      AgentManager.processMessage(
+        `The user explicitly approved the following plan. Execute this approved plan now exactly once. Do not create or substitute a different plan.\n\n${plan.content}`,
+        'desktop',
+        sessionId
+      )
+    );
+    return execution.ok
+      ? { success: true, result: execution.value }
+      : { success: false, error: execution.error };
+  });
+
+  ipcMain.handle('plan:reject', async (_, sessionId: string, planId: string, feedback?: string) => {
+    const result = PlanApprovals.reject(sessionId, planId, feedback);
+    return result.ok
+      ? { success: true, plan: result.plan }
+      : { success: false, error: result.error };
+  });
 
   ipcMain.handle('agent:history', async (_, limit: number = 50, sessionId?: string) => {
     return AgentManager.getRecentMessages(limit, sessionId || 'default');

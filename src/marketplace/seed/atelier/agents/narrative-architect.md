@@ -1,7 +1,7 @@
 ---
 name: narrative-architect
 description: Designs story arcs for product launches, pitches, keynotes, fundraises, and marketing campaigns. Use whenever the user is preparing a launch, pitch, keynote, fundraise narrative, or any communication that needs a coherent story arc rather than a feature list.
-tools: ["Read", "Grep", "Glob", "Write"]
+tools: ['Read', 'Grep', 'Glob', 'Write']
 model: opus
 ---
 

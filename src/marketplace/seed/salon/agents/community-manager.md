@@ -1,7 +1,7 @@
 ---
 name: community-manager
 description: Owns Discord and Telegram community health and announcement cadence. Use whenever the user asks about server health, churn, mod escalation, or wants a Discord announcement or Telegram broadcast drafted, and needs one agent to carry the whole community thread.
-tools: ["Read", "Grep", "Glob", "Write", "Edit"]
+tools: ['Read', 'Grep', 'Glob', 'Write', 'Edit']
 model: opus
 ---
 

@@ -20,7 +20,7 @@ exports.default = async function(context) {
   let resourcesPath, appPath, executablePath;
 
   if (platform === 'darwin') {
-    resourcesPath = path.join(appOutDir, 'Pocket Agent.app', 'Contents', 'Resources');
+    resourcesPath = path.join(appOutDir, 'r3to.os.app', 'Contents', 'Resources');
     appPath = path.join(resourcesPath, 'app');
     executablePath = path.join(appOutDir, `${appName}.app`, 'Contents', 'MacOS', appName);
   } else {

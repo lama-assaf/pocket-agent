@@ -1,7 +1,7 @@
 ---
 name: campaign-strategist
 description: Owns campaign strategy end to end, from brief and calendar through retro and turning trends into content plans. Use whenever the user wants to start a campaign, plan a content calendar, run a retro, or figure out what to do with a trend, and needs one agent to carry the whole strategy thread rather than invoking skills one at a time.
-tools: ["Read", "Grep", "Glob", "Write", "Edit"]
+tools: ['Read', 'Grep', 'Glob', 'Write', 'Edit']
 model: opus
 ---
 

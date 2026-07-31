@@ -16,6 +16,7 @@ import {
   resolveVisibleScopes,
   resolveNearestScope,
   nextBroaderScope,
+  scopeSpecificity,
   clientScope,
   chatScope,
 } from '../../src/memory/scope';
@@ -78,6 +79,72 @@ describe('resolveVisibleScopes', () => {
     expect(
       resolveNearestScope(ctx({ contextType: 'project', clientId: 'acme', projectKey: 'site' }))
     ).toBe('project:site');
+  });
+});
+
+describe('resolveVisibleScopes / resolveNearestScope — malformed selection degradation', () => {
+  const ctx = (over: Partial<SessionContext>): SessionContext => ({
+    contextType: 'personal',
+    clientId: null,
+    projectKey: null,
+    ...over,
+  });
+
+  it('a client context with no clientId degrades to chat+world (never throws, never leaks user)', () => {
+    const scopes = resolveVisibleScopes(ctx({ contextType: 'client', clientId: null }), 'S');
+    expect(scopes).toEqual(['chat:S', 'world']);
+    expect(scopes).not.toContain('user');
+  });
+
+  it('a project context with clientId but no projectKey omits the project scope, still includes client+world', () => {
+    const scopes = resolveVisibleScopes(
+      ctx({ contextType: 'project', clientId: 'acme', projectKey: null }),
+      'S'
+    );
+    expect(scopes).toEqual(['chat:S', 'client:acme', 'world']);
+  });
+
+  it('a project context with projectKey but no clientId omits the client scope, still includes project+world', () => {
+    const scopes = resolveVisibleScopes(
+      ctx({ contextType: 'project', clientId: null, projectKey: 'site' }),
+      'S'
+    );
+    expect(scopes).toEqual(['chat:S', 'project:site', 'world']);
+    expect(scopes).not.toContain('user');
+  });
+
+  it('a project context with neither clientId nor projectKey degrades to chat+world only', () => {
+    const scopes = resolveVisibleScopes(
+      ctx({ contextType: 'project', clientId: null, projectKey: null }),
+      'S'
+    );
+    expect(scopes).toEqual(['chat:S', 'world']);
+  });
+
+  it('resolveNearestScope falls back to world for a client selection with no clientId', () => {
+    expect(resolveNearestScope(ctx({ contextType: 'client', clientId: null }))).toBe('world');
+  });
+
+  it('resolveNearestScope falls back client -> world as projectKey/clientId go missing', () => {
+    expect(
+      resolveNearestScope(ctx({ contextType: 'project', clientId: 'acme', projectKey: null }))
+    ).toBe('client:acme');
+    expect(
+      resolveNearestScope(ctx({ contextType: 'project', clientId: null, projectKey: null }))
+    ).toBe('world');
+  });
+});
+
+describe('scopeSpecificity', () => {
+  it('ranks nearest to broadest: chat > project > client > world > user/unknown', () => {
+    expect(scopeSpecificity('chat:S')).toBeGreaterThan(scopeSpecificity('project:P'));
+    expect(scopeSpecificity('project:P')).toBeGreaterThan(scopeSpecificity('client:C'));
+    expect(scopeSpecificity('client:C')).toBeGreaterThan(scopeSpecificity('world'));
+    expect(scopeSpecificity('world')).toBeGreaterThan(scopeSpecificity('user'));
+  });
+
+  it('an unrecognized scope string ranks the same as user (lowest, never crashes)', () => {
+    expect(scopeSpecificity('garbage-scope')).toBe(scopeSpecificity('user'));
   });
 });
 

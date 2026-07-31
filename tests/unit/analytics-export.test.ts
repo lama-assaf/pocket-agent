@@ -38,6 +38,10 @@ function row(over: Partial<PostAnalytics>): PostAnalytics {
     video_views: 0,
     source: 'manual',
     raw_json: null,
+    post_url: null,
+    thread_text: '',
+    top_comments: null,
+    media_urls: [],
     captured_at: '2026-01-01T00:00:00.000Z',
     created_at: '2026-01-01T00:00:00.000Z',
     ...over,
@@ -92,6 +96,94 @@ describe('buildAnalyticsExportFiles', () => {
     const files = buildAnalyticsExportFiles([row({ title: '', external_ref: 'https://x.com/p/1' })], EXPORTED_AT);
     expect(files['.atelier/memory/analytics-posts.md']).toContain('https://x.com/p/1');
   });
+
+  it('includes a media sub-line listing shared asset URLs when a post has media_urls', () => {
+    const files = buildAnalyticsExportFiles(
+      [
+        row({
+          title: 'Launch post',
+          media_urls: ['https://cdn.example.com/a.png', 'https://cdn.example.com/b.mp4'],
+        }),
+      ],
+      EXPORTED_AT
+    );
+    const posts = files['.atelier/memory/analytics-posts.md'];
+    expect(posts).toContain('media: https://cdn.example.com/a.png, https://cdn.example.com/b.mp4');
+  });
+
+  it('omits the media sub-line entirely when a post has no media_urls', () => {
+    const files = buildAnalyticsExportFiles([row({ title: 'No media post' })], EXPORTED_AT);
+    expect(files['.atelier/memory/analytics-posts.md']).not.toContain('media:');
+  });
+
+  it('also emits a lossless analytics-posts.json alongside the markdown files', () => {
+    const files = buildAnalyticsExportFiles(
+      [
+        row({
+          channel: 'twitter',
+          external_ref: 'post-1',
+          title: 'Launch post',
+          impressions: 100,
+          likes: 10,
+          comments: 2,
+          shares: 1,
+          clicks: 5,
+          video_views: 20,
+          source: 'mcp',
+          post_url: 'https://x.com/acme/status/1',
+          thread_text: 'Opening tweet',
+          top_comments: JSON.stringify([{ author: '@a', text: 'nice', likes: 3 }]),
+          media_urls: ['https://cdn.example.com/a.png'],
+          captured_at: '2026-07-01T00:00:00.000Z',
+        }),
+      ],
+      EXPORTED_AT
+    );
+    const json = files['.atelier/memory/analytics-posts.json'];
+    expect(json).toBeDefined();
+    const parsed = JSON.parse(json);
+    expect(parsed).toEqual([
+      {
+        channel: 'twitter',
+        externalRef: 'post-1',
+        title: 'Launch post',
+        impressions: 100,
+        likes: 10,
+        comments: 2,
+        shares: 1,
+        clicks: 5,
+        videoViews: 20,
+        source: 'mcp',
+        rawJson: null,
+        postUrl: 'https://x.com/acme/status/1',
+        threadText: 'Opening tweet',
+        topComments: [{ author: '@a', text: 'nice', likes: 3 }],
+        mediaUrls: ['https://cdn.example.com/a.png'],
+        capturedAt: '2026-07-01T00:00:00.000Z',
+      },
+    ]);
+  });
+
+  it('never includes content_post_id or scope in the JSON export (not portable across installs)', () => {
+    const files = buildAnalyticsExportFiles(
+      [row({ content_post_id: 42, scope: 'client:acme' })],
+      EXPORTED_AT
+    );
+    const json = files['.atelier/memory/analytics-posts.json'];
+    expect(json).not.toContain('content_post_id');
+    expect(json).not.toContain('contentPostId');
+    expect(json).not.toMatch(/"scope"/);
+  });
+
+  it('JSON export is deterministic — same rows in any order produce byte-identical output', () => {
+    const rows = [
+      row({ id: 1, channel: 'twitter', title: 'Beta post', external_ref: 'b' }),
+      row({ id: 2, channel: 'twitter', title: 'Alpha post', external_ref: 'a' }),
+    ];
+    const one = buildAnalyticsExportFiles(rows, EXPORTED_AT);
+    const two = buildAnalyticsExportFiles([...rows].reverse(), EXPORTED_AT);
+    expect(one['.atelier/memory/analytics-posts.json']).toBe(two['.atelier/memory/analytics-posts.json']);
+  });
 });
 
 describe('exportAnalyticsToDisk (round-trips to a real client repo dir)', () => {
@@ -122,11 +214,16 @@ describe('exportAnalyticsToDisk (round-trips to a real client repo dir)', () => 
     const written = exportAnalyticsToDisk(memory, 'client:acme');
     expect(written).toContain('.atelier/memory/analytics-summary.md');
     expect(written).toContain('.atelier/memory/analytics-posts.md');
+    expect(written).toContain('.atelier/memory/analytics-posts.json');
 
     const p = clientPaths('acme');
     const postsFile = fs.readFileSync(path.join(p.memoryDir, 'analytics-posts.md'), 'utf-8');
     expect(postsFile).toContain('Acme post');
     expect(postsFile).not.toContain('Other post');
+
+    const postsJson = JSON.parse(fs.readFileSync(path.join(p.memoryDir, 'analytics-posts.json'), 'utf-8'));
+    expect(postsJson).toHaveLength(1);
+    expect(postsJson[0]).toMatchObject({ title: 'Acme post', impressions: 100 });
   });
 
   it('is a no-op for scopes without a repo (project/personal)', () => {

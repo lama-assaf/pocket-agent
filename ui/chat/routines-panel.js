@@ -183,7 +183,14 @@ async function _rtnLoadJobs() {
         </div>`;
     }).join('');
   } catch (err) {
-    jobsList.innerHTML = `<div class="rtn-empty"><p>Error: ${_rtnEscapeHtml(err.message)}</p></div>`;
+    console.error('[Routines] Failed to load jobs:', err);
+    jobsList.innerHTML = `
+      <div class="wb-state wb-state--error">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 8v5"/><path d="M12 16h.01"/></g></svg>
+        <p>Couldn't load this</p>
+        <small>${_rtnEscapeHtml(err.message || 'Unknown error')}</small>
+        <button type="button" class="wb-state-retry is-cinamon" onclick="playNormalClick(); _rtnLoadJobs()">Retry</button>
+      </div>`;
   }
 }
 

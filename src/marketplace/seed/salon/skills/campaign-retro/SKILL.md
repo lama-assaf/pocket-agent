@@ -32,12 +32,12 @@ Exclude paid amplification from this calculation entirely when scoring against o
 
 ## flop discipline
 
-| metric | missed band? |
-|---|---|
-| click-rate | |
-| follower-ratio | |
-| engagement-rate | |
-| conversion | |
+| metric          | missed band? |
+| --------------- | ------------ |
+| click-rate      |              |
+| follower-ratio  |              |
+| engagement-rate |              |
+| conversion      |              |
 
 A post is a flop only when all four boxes are checked. Three misses and one hit is a post worth a closer look, not a verdict — name what the surviving metric suggests before writing the post off.
 

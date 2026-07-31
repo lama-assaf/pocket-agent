@@ -52,14 +52,19 @@ vi.mock('child_process', () => ({
 
 // ── Imports (after mocks) ───────────────────────────────────────────────────
 
+// Import through the real cross-platform dispatch layer (src/permissions/index.ts)
+// rather than macos.ts directly — this is what the actual IPC handler
+// (src/main/ipc/misc-ipc.ts) calls, so the win32 assertions below exercise
+// the real routing to src/permissions/windows.ts instead of macos.ts's own
+// (now no-op) non-macOS fallback.
 import {
   isMacOS,
   getPermissionsStatus,
   openPermissionSettings,
   checkPermission,
   getPermissionStatus,
-} from '../../src/permissions/macos';
-import type { PermissionType, PermissionStatus } from '../../src/permissions/macos';
+} from '../../src/permissions';
+import type { PermissionType, PermissionStatus } from '../../src/permissions';
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 

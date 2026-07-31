@@ -1,5 +1,5 @@
 /**
- * macOS-specific tools for Pocket Agent
+ * macOS-specific tools for r3to.os
  *
  * Provides:
  * - Native notifications via Electron

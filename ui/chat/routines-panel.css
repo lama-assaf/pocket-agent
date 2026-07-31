@@ -12,35 +12,9 @@
   display: flex;
 }
 
-/* Header */
-#routines-view .routines-header {
-  background: var(--surface-panel);
-  padding: 10px 16px;
- 
-  border-radius: var(--radius-control);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-shrink: 0;
-}
-
-#routines-view .routines-header h1 {
-  font-family: 'Cal Sans', sans-serif;
-  font-size: 14px;
-  font-weight: 700;
-  margin: 0;
-}
-
-#routines-view .routines-header h1 span {
-  color: var(--text-primary);
-}
-
-#routines-view .routines-header-actions {
-  display: flex;
-  gap: 8px;
-}
-
-/* Header buttons inherit the cinamon-pill look from shared/buttons.css. */
+/* Header — base look (.routines-header / .routines-header-actions) comes
+   from shared/panel-header.css. Header buttons inherit the cinamon-pill
+   look from shared/buttons.css. */
 
 /* Content */
 /* Content spans the full panel width so items align edge-to-edge with the header. */

@@ -34,17 +34,20 @@ Use when a user asks for an announcement, an event promo, an AMA plan, or a role
 ## runbooks
 
 **Event promo (T-7 / T-1 / T-0):**
+
 - T-7: full announcement (what, when, why it matters, how to prep or RSVP).
 - T-1: reminder (shorter, links to the same event, adds any last-minute detail like speaker confirmed, agenda finalized).
 - T-0: go-live ping (headline plus the direct join link, role-pinged to the relevant audience).
 
 **AMA:**
+
 - Announce the AMA with date, guest, and topic.
 - Open a dedicated thread to collect questions ahead of time.
 - Run the AMA live in its own thread, separate from the collection thread.
 - Post a recap afterward with the key answers and a link to the full transcript or replay.
 
 **Role-gated reveal:**
+
 - Confirm the target role has the correct channel permissions before drafting.
 - Write the reveal for that role's specific channel. Don't write a generic version and hope permissions handle the targeting.
 - Plan the wider-server follow-up separately once the gate lifts, rather than mirroring the gated text verbatim.

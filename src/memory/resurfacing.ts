@@ -76,7 +76,9 @@ export function selectResurfaceCandidate(
   // 2. High-importance fact not accessed in a while (excluding sensitive),
   //    restricted to the target session's visible scopes.
   const staleCutoff = new Date(now.getTime() - STALE_FACT_DAYS * 86_400_000).toISOString();
-  const scopeClause = visibleScopes ? `AND scope IN (${visibleScopes.map(() => '?').join(', ')})` : '';
+  const scopeClause = visibleScopes
+    ? `AND scope IN (${visibleScopes.map(() => '?').join(', ')})`
+    : '';
   const scopeParams = visibleScopes ?? [];
   const facts = db
     .prepare(

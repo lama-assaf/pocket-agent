@@ -104,9 +104,33 @@ h6 {
   box-shadow: var(--shadow-card);
 }
 
-:focus-visible {
-  outline: none;
-  box-shadow: none;
+/* Single global focus-visible rule — the one source of truth for keyboard
+   focus rings app-wide (replaces the old blanket `outline: none` suppression
+   that used to live here + a redundant duplicate in ui/chat/base.css, and
+   the piecemeal per-element restorations that grew up around them).
+   :focus-visible (never plain :focus) means mouse clicks stay ring-free —
+   this only fires for keyboard/programmatic focus. Picks up the active
+   workspace's client-identity accent where set (client-accent.js), falling
+   back to the skin's own accent-readable/accent for Personal or any
+   context with no client accent active.
+   Element-specific offset/radius/color overrides (inset rings for dense
+   sidebar rows, lane-tinted rings for lane controls, a neutral ring for the
+   multi-client picker, form controls whose base reset needs a companion
+   override) live next to their component and only touch the property they
+   need to change — see ui/chat/sidebar.css, ui/shared/nav.css,
+   ui/shared/forms.css, ui/chat/input.css, ui/chat/layout.css,
+   ui/chat/workspace-home.css, ui/chat/clients-view.css,
+   ui/chat/personalize-panel.css. */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[role="button"]:focus-visible,
+[role="tab"]:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--client-accent-readable, var(--accent-readable, var(--accent)));
+  outline-offset: 2px;
 }
 
 @media (prefers-reduced-motion: reduce) {

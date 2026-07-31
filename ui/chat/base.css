@@ -23,13 +23,7 @@ body.animations-paused *::after {
   }
 }
 
-/* No visible focus rings in the app chrome. */
-button:focus-visible,
-select:focus-visible,
-[role="button"]:focus-visible,
-a:focus-visible,
-textarea:focus-visible,
-input:focus-visible {
-  outline: none;
-  box-shadow: none;
-}
+/* The single global :focus-visible rule lives in ui/shared/ui.css (imported
+   by every page via shared/base.css) — this used to duplicate it here with
+   the opposite (suppressing) effect. Do not re-add a focus-visible reset
+   in this file; add a scoped override next to the component instead. */

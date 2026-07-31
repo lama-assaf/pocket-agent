@@ -330,6 +330,23 @@ describe('MemoryManager campaigns — getNextUnblockedDeliverable', () => {
     memory.setDeliverableStatus(d.id!, 'in_progress');
     expect(memory.getNextUnblockedDeliverable(campaignId)).toBeNull();
   });
+
+  it('a rejected (blocked) dependency never unblocks its dependent — the full propose→reject lifecycle', () => {
+    // "propose": two pending deliverables, one gated behind the other.
+    const dep = memory.addDeliverable({ campaignId, title: 'Draft copy' });
+    const dependent = memory.addDeliverable({ campaignId, title: 'Publish', dependsOn: dep.id });
+    expect(memory.getNextUnblockedDeliverable(campaignId)?.id).toBe(dep.id);
+
+    // "reject": the operator blocks the gating deliverable instead of approving it.
+    memory.setDeliverableStatus(dep.id!, 'in_progress');
+    memory.setDeliverableStatus(dep.id!, 'blocked');
+
+    // Rejected (blocked), not done — the dependent must stay gated forever,
+    // and since the dependency itself is no longer 'pending' either, nothing
+    // in this campaign is unblocked.
+    expect(memory.getNextUnblockedDeliverable(campaignId)).toBeNull();
+    expect(memory.getDeliverable(dependent.id!)?.status).toBe('pending');
+  });
 });
 
 describe('MemoryManager campaigns — scope isolation', () => {

@@ -64,6 +64,13 @@
   color: var(--text-heading);
 }
 
+/* The global :focus-visible ring (ui/shared/ui.css) covers color/width —
+   this only pulls it INSET (-2px) so it doesn't get clipped against the
+   sidebar's edge. */
+.sidebar-toggle:focus-visible {
+  outline-offset: -2px;
+}
+
 .sidebar-toggle svg {
   width: 18px;
   height: 18px;
@@ -108,6 +115,12 @@
   color: var(--text-heading);
 }
 
+/* Same rationale as .sidebar-toggle above — inset so the ring doesn't clip
+   against the sidebar's edge across the whole primary nav rail. */
+.sidebar-btn:focus-visible {
+  outline-offset: -2px;
+}
+
 .sidebar-btn svg {
   width: 14px;
   height: 14px;
@@ -136,6 +149,60 @@
   gap: 2px;
   flex-shrink: 0;
   padding: 4px 8px 8px;
+}
+
+/* Grouped sections (Brand Ops / Automate / You) — a small uppercase label
+   above each cluster of related nav buttons, so the sidebar reads as one
+   product's structure instead of ten equally-weighted flat items. */
+.sidebar-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 8px;
+}
+
+.sidebar-group-label {
+  padding: 4px 8px 2px;
+  font-family: var(--text-color--font-family--body);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  white-space: nowrap;
+  opacity: 1;
+  transition: opacity 0.15s ease;
+}
+
+.sidebar.collapsed .sidebar-group-label {
+  opacity: 0;
+  height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  overflow: hidden;
+}
+
+/* Brand-only tools (Campaigns, Analytics) dim when Personal is the active
+   workspace — still reachable and still show a real empty state, just not
+   given equal visual weight as when a client brand is active. */
+.workspace-personal .sidebar-btn--brand-only {
+  opacity: 0.45;
+}
+
+.workspace-personal .sidebar-btn--brand-only:hover {
+  opacity: 0.8;
+}
+
+/* App-chrome footer items (Docs, Who made me?) — quietest weight, smaller
+   type, so they read as app chrome rather than product surfaces. */
+.sidebar-btn-quiet {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.sidebar-btn-quiet svg {
+  width: 13px;
+  height: 13px;
 }
 
 /* Sidebar divider */
@@ -189,6 +256,12 @@
 .sidebar-session:hover {
   background: var(--surface-control-hover);
   color: var(--text-heading);
+}
+
+/* Same inset rationale as .sidebar-toggle/.sidebar-btn above, for the
+   scrollable session list. */
+.sidebar-session:focus-visible {
+  outline-offset: -2px;
 }
 
 .sidebar-session.dragging {
@@ -289,9 +362,23 @@
   opacity: 1;
 }
 
+/* Was hover-only — a keyboard user tabbing directly to the close button
+   (or landing on the session row via :focus-visible above) previously saw
+   an invisible (opacity: 0) target with no way to know it was there. */
+.sidebar-session:focus-within .sidebar-session-close,
+.sidebar-session-close:focus-visible {
+  opacity: 1;
+}
+
 .sidebar-session-close:hover {
   background: var(--error);
   color: var(--on-error);
+}
+
+/* Small (16px) target — the global default's 2px offset would push the
+   ring past the row's edge; 1px keeps it tight against the close button. */
+.sidebar-session-close:focus-visible {
+  outline-offset: 1px;
 }
 
 .sidebar.collapsed .sidebar-session-close {
@@ -327,6 +414,15 @@
   padding: 0;
   margin: 0;
   height: auto;
+  /* Deliberately no focus-visible ring override here (unlike every other
+     text input in the app): this input is only ever created and immediately
+     auto-focused via JS from a mouse double-click or right after creating a
+     new session (ui/chat/sessions.js's startRenameSession) — there's no
+     keyboard path onto it, so suppressing the ring doesn't stand a keyboard
+     user up. Doing so also lets the accent-colored text + caret be the only
+     edit affordance instead of adding a box around a row-height, borderless
+     inline input. The row itself still rings normally (:focus-visible on
+     .sidebar-session, global rule) any other time it's focused. */
   outline: none;
   box-shadow: none;
   appearance: none;

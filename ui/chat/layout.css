@@ -54,16 +54,23 @@ header h1 span {
   border-color: transparent;
 }
 
-/* Focus/active state intentionally inherits the default border (no extra ring).
-   Re-asserting border-radius prevents native macOS WebKit from squaring the
-   corners while the <select> is focused/open. */
+/* Mouse-focus/active state intentionally inherits the default border (no
+   extra ring) — re-asserting border-radius prevents native macOS WebKit from
+   squaring the corners while the <select> is focused/open. Keyboard focus
+   (:focus-visible below) still gets the standard ring; it's a later rule at
+   equal specificity so it wins the tie for the `outline` property. */
 .model-badge:focus,
-.model-badge:focus-visible,
 .model-badge:active {
   border-color: transparent;
   border-radius: var(--radius-control);
   box-shadow: none;
   outline: none;
+}
+
+.model-badge:focus-visible {
+  border-radius: var(--radius-control);
+  outline: 2px solid var(--client-accent-readable, var(--accent-readable, var(--accent)));
+  outline-offset: 2px;
 }
 
 .model-badge option {

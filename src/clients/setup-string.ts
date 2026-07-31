@@ -2,7 +2,7 @@
  * Shareable client setup strings (roadmap item 9). A compact, copy-pasteable
  * blob that encodes a client's { id, name, repoUrl, syncMode } so a teammate
  * can paste it — during onboarding or from the Clients picker — and have
- * Pocket Agent auto-create the client row and pull its brain. No server
+ * r3to.os auto-create the client row and pull its brain. No server
  * infra: this is base64(JSON), not a real URI scheme, so there's nothing to
  * register/host — paste-a-string works identically on every OS.
  *

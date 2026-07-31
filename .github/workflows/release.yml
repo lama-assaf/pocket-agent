@@ -1,0 +1,57 @@
+name: Release
+
+# Builds the macOS app and drafts a GitHub Release whenever a version tag
+# (vX.Y.Z) is pushed. The draft is NOT published automatically — a human
+# reviews it and clicks "Publish" in the GitHub Releases UI once artifacts
+# look right. See RELEASE.md for the full release process.
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write # required to create/update a draft GitHub Release
+
+jobs:
+  release-mac:
+    runs-on: macos-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0 # scripts/sync-version.cjs reads the tag via `git describe`
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+        # postinstall (npm rebuild better-sqlite3 for Electron's ABI) runs
+        # automatically here — see CLAUDE.md's native-module note.
+
+      - name: Verify
+        run: npm run verify
+        # npm test's pretest hook (scripts/check-native-node.cjs) rebuilds
+        # better-sqlite3 for the CI runner's plain-Node ABI so tests can open
+        # a database — that leaves the addon on the WRONG ABI for packaging,
+        # so it must be rebuilt back to Electron's ABI below before the build
+        # step runs (build/afterPack.cjs hard-fails the build otherwise).
+
+      - name: Rebuild native modules for Electron
+        run: npm run rebuild:native
+
+      # No Apple Developer signing/notarization — internal-only distribution.
+      # package.json's build.mac already sets identity:null + notarize:false
+      # so electron-builder never signs or notarizes. CSC_IDENTITY_AUTO_DISCOVERY
+      # is set to false as a belt-and-suspenders guard so electron-builder never
+      # scans the runner's keychain for a signing identity (which, for arm64
+      # targets, it would otherwise silently ad-hoc sign with if one existed).
+      # The build always produces an UNSIGNED dmg/zip — see RELEASE.md.
+      - name: Build + publish draft release (macOS)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+        run: npm run release

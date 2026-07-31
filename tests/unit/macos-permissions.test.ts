@@ -259,12 +259,12 @@ describe('macos-permissions', () => {
       );
     });
 
-    it('opens Windows settings URL on win32', async () => {
+    it('is a no-op on non-macOS platforms (Windows deep-linking lives in src/permissions/windows.ts)', async () => {
       mockPlatform.mockReturnValue('win32');
 
       await openPermissionSettings('camera');
 
-      expect(mockOpenExternal).toHaveBeenCalledWith('ms-settings:privacy-webcam');
+      expect(mockOpenExternal).not.toHaveBeenCalled();
     });
   });
 });

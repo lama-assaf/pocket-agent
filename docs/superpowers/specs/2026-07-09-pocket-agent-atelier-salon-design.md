@@ -1,8 +1,8 @@
-# Pocket Agent × Atelier + Salon — Design
+# r3to.os × Atelier + Salon — Design
 
 **Date:** 2026-07-09
 **Status:** Draft for review
-**Goal:** Ship Pocket Agent so it comes prebuilt with the Atelier (design/product/brand) and Salon (social/campaigns) operator systems — a non-technical user opens the native app and has the full operator experience without ever touching Claude Code.
+**Goal:** Ship r3to.os so it comes prebuilt with the Atelier (design/product/brand) and Salon (social/campaigns) operator systems — a non-technical user opens the native app and has the full operator experience without ever touching Claude Code.
 
 ---
 
@@ -25,11 +25,11 @@
 - **Atelier:** 15 agents, 33 skills, 32 commands, 23 rules (lanes: design, product, brand, copy, common).
 - **Salon:** 3 agents, 17 skills, 13 commands, social/brand/copy rules. Designed to co-install with Atelier: both read/write the **same** `<project>/.atelier/memory/` tree (Atelier owns `instincts.md`, `lessons.md`, `decisions/`, `glossary.md`; Salon adds `voice.md`, `campaigns/`). Salon's brand/copy rules are byte-identical copies of Atelier's, kept in sync.
 
-**Pocket Agent** is a 24/7 native app (Electron tray, Telegram, iOS, SQLite memory + embeddings, cron scheduler) running on **`@kenkaiiii/gg-agent` + `@kenkaiiii/ggcoder`** — NOT the official Claude Agent SDK, and NOT the Claude Code plugin runtime. So the plugins' content is reusable, but their *runtime wiring* (Claude Code hooks, subagent format, plugin discovery) must be re-mapped onto Pocket Agent's engine.
+**r3to.os** is a 24/7 native app (Electron tray, Telegram, iOS, SQLite memory + embeddings, cron scheduler) running on **`@kenkaiiii/gg-agent` + `@kenkaiiii/ggcoder`** — NOT the official Claude Agent SDK, and NOT the Claude Code plugin runtime. So the plugins' content is reusable, but their *runtime wiring* (Claude Code hooks, subagent format, plugin discovery) must be re-mapped onto r3to.os's engine.
 
 ### Runtime mapping (the whole design in one table)
 
-| Plugin concept | Pocket Agent home | Mechanism |
+| Plugin concept | r3to.os home | Mechanism |
 |---|---|---|
 | agents (`agents/*.md`) | dispatchable subagents inside a lane mode | extend `src/tools/subagent.ts` to load named agents |
 | skills (`skills/*/SKILL.md`) | ggcoder skills (currently **dormant**) | enable `discoverSkills()` + `createSkillTool()` |
@@ -119,7 +119,7 @@ Each lane mode:
 Today `src/tools/subagent.ts` spawns ONE generic clean-slate worker (`SUB_AGENT_SYSTEM_PROMPT`, fixed 4-tool allowlist). Generalize it:
 
 - Add a **named-agent registry** built from the active lane's `PackAgent[]`.
-- The `subagent` tool gains an optional `agent` param (enum of available specialist names for the current lane). When set, the worker's system prompt = that agent's markdown body, and its tool allowlist is derived from the agent's declared `tools` (mapped to Pocket Agent tool names; unmapped tools dropped with a log).
+- The `subagent` tool gains an optional `agent` param (enum of available specialist names for the current lane). When set, the worker's system prompt = that agent's markdown body, and its tool allowlist is derived from the agent's declared `tools` (mapped to r3to.os tool names; unmapped tools dropped with a log).
 - When `agent` is omitted, behavior is unchanged (generic worker) — backward compatible.
 - Only agents for the **currently active lane** are offered, keeping the enum small.
 
@@ -131,7 +131,7 @@ function getLaneAgents(lane: LaneId): PackAgent[];
 
 ### 2.4 Skills (enable the dormant pipeline)
 
-ggcoder already ships `discoverSkills()`, `formatSkillsForPrompt()`, `createSkillTool()`, `parseSkillFile()` — Pocket Agent just never calls them.
+ggcoder already ships `discoverSkills()`, `formatSkillsForPrompt()`, `createSkillTool()`, `parseSkillFile()` — r3to.os just never calls them.
 
 - **Chat lane modes** (`getChatAgentTools`, `src/agent/chat-tools.ts`): add the ggcoder `skill` tool via `createSkillTool(skills)`, where `skills` = active lane's skills from the pack loader.
 - **System prompt** (`buildSystemPrompt`, `src/agent/chat-engine.ts`): append `formatSkillsForPrompt(skills)` (names + descriptions only; bodies load on demand through the `skill` tool) into the **static** cacheable section, scoped to the active lane.
@@ -163,11 +163,11 @@ Two coexisting stores with clear ownership:
 - **Source of truth** for operator memory. Skills/commands/agents read and write these files directly (via the existing `read`/`write`/`edit` tools + a `memory-init` tool that seeds missing files from `memoryTemplates`). This preserves byte-compatibility and Atelier↔Salon interop.
 
 ### 3.2 Mirror: SQLite (for search + UI)
-- A new **`AtelierMemoryBridge`** (`src/memory/atelier-bridge.ts`) mirrors the file tree into Pocket Agent's SQLite so:
+- A new **`AtelierMemoryBridge`** (`src/memory/atelier-bridge.ts`) mirrors the file tree into r3to.os's SQLite so:
   - semantic recall (`recall_memory` / embeddings) can surface operator memory, and
   - the desktop/Telegram **facts UI** can display it.
 - **Sync direction:** file tree → SQLite (file tree is canonical). Triggers: (a) on session load / project switch, (b) after any write to a path under `.atelier/memory/` (detected in the post-write hook, §8.3), (c) on `memory-init`.
-- Mirrored rows are tagged (`source: 'atelier-memory'`, `project: <dir>`, `file: <relpath>`) so they're clearly distinct from — and never overwrite — Pocket Agent's **global** user facts/soul. Re-sync is idempotent (delete-by-tag + reinsert, then re-embed changed content).
+- Mirrored rows are tagged (`source: 'atelier-memory'`, `project: <dir>`, `file: <relpath>`) so they're clearly distinct from — and never overwrite — r3to.os's **global** user facts/soul. Re-sync is idempotent (delete-by-tag + reinsert, then re-embed changed content).
 - Global SQLite facts + soul remain the cross-project "who the user is" layer, untouched.
 
 **Interface:**

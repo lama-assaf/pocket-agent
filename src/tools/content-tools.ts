@@ -178,7 +178,9 @@ export async function postApprovedDraft(
       status: 'dry_run',
       detail,
     });
-    memory.setContentDraftStatus(draft.id, 'posted', 'agent', { postedAt: new Date().toISOString() });
+    memory.setContentDraftStatus(draft.id, 'posted', 'agent', {
+      postedAt: new Date().toISOString(),
+    });
     return { ok: true, status: 'posted', dryRun: true, detail, externalRef: null };
   }
 
@@ -198,7 +200,13 @@ export async function postApprovedDraft(
 
   try {
     const result = await postingTool.execute(
-      { text: draft.body, content: draft.body, body: draft.body, title: draft.title, message: draft.body },
+      {
+        text: draft.body,
+        content: draft.body,
+        body: draft.body,
+        title: draft.title,
+        message: draft.body,
+      },
       { signal: new AbortController().signal, toolCallId: `content-post-${draft.id}` }
     );
     const text = typeof result === 'string' ? result : JSON.stringify(result);
@@ -234,7 +242,14 @@ export async function postApprovedDraft(
       detail: message,
     });
     memory.setContentDraftStatus(draft.id, 'failed', 'agent');
-    return { ok: false, status: 'failed', dryRun: false, detail: message, externalRef: null, error: message };
+    return {
+      ok: false,
+      status: 'failed',
+      dryRun: false,
+      detail: message,
+      externalRef: null,
+      error: message,
+    };
   }
 }
 
@@ -326,7 +341,10 @@ export function scheduleApprovedDraft(
   sessionIdHint?: string
 ): ScheduleAttemptResult {
   if (draft.status !== 'approved') {
-    return { ok: false, error: `Draft #${draft.id} is not approved (status: "${draft.status}") — cannot schedule.` };
+    return {
+      ok: false,
+      error: `Draft #${draft.id} is not approved (status: "${draft.status}") — cannot schedule.`,
+    };
   }
 
   const runAt = new Date(scheduledForIso);
@@ -371,7 +389,13 @@ export async function handleScheduleContentDraftTool(input: unknown): Promise<st
   const draft = memory.getContentDraft(draft_id);
   if (!draft) return JSON.stringify({ error: `Draft #${draft_id} not found.` });
 
-  const result = scheduleApprovedDraft(memory, draft, scheduled_for, 'agent', getCurrentSessionId());
+  const result = scheduleApprovedDraft(
+    memory,
+    draft,
+    scheduled_for,
+    'agent',
+    getCurrentSessionId()
+  );
   if (!result.ok) return JSON.stringify({ error: result.error });
 
   return JSON.stringify({

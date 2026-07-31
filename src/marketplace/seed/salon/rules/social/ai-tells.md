@@ -25,7 +25,7 @@ Common in professional/business writing but often over-applied by models.
 
 ## Aesthetic Tier (Opt-in)
 
-Stylistic patterns that *can* be human but are statistically weighted toward models. Use context.
+Stylistic patterns that _can_ be human but are statistically weighted toward models. Use context.
 
 - **Single em dash:** Natural in some voices; LLM default in others
 - **Rule-of-three:** Lists of three items (human, but models cluster here)

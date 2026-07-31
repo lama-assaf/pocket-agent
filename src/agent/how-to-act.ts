@@ -42,10 +42,10 @@ export function howToActFacts(context?: SessionContext): Fact[] {
   } catch {
     return [];
   }
-  const scopeSet = new Set(scopes);
-  return memory
-    .getAllFacts()
-    .filter((f) => f.category === HOW_TO_ACT_CATEGORY && scopeSet.has(f.scope));
+  // Indexed category+scope lookup (facts.ts's getFactsByCategoryAndScopes)
+  // instead of getAllFacts() plus an in-memory filter over every fact — this
+  // runs on every chat turn for design/product/brand/social lanes.
+  return memory.getFactsByCategoryAndScopes(HOW_TO_ACT_CATEGORY, scopes);
 }
 
 /**

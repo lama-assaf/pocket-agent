@@ -181,7 +181,13 @@ export function seedDefaultClients(
       memory.saveFact('lesson', lesson.subject, lesson.content, false, scope);
     }
     for (const generalFact of seed.generalFacts ?? []) {
-      memory.saveFact(GENERAL_FACT_CATEGORY, generalFact.subject, generalFact.content, false, scope);
+      memory.saveFact(
+        GENERAL_FACT_CATEGORY,
+        generalFact.subject,
+        generalFact.content,
+        false,
+        scope
+      );
     }
     for (const agent of seed.agents) {
       memory.saveFact(

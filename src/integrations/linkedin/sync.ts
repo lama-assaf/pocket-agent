@@ -26,22 +26,38 @@ export function getLinkedInOrgUrnForScope(memory: MemoryManager, scope: string):
     .getAllFacts()
     .find(
       (f) =>
-        f.scope === scope && f.category === LINKEDIN_INTEGRATION_CATEGORY && f.subject === LINKEDIN_ORG_URN_SUBJECT
+        f.scope === scope &&
+        f.category === LINKEDIN_INTEGRATION_CATEGORY &&
+        f.subject === LINKEDIN_ORG_URN_SUBJECT
     );
   const urn = fact?.content?.trim();
   return urn ? urn : null;
 }
 
 /** Set (or clear, by passing '') the org URN a scope syncs against. */
-export function setLinkedInOrgUrnForScope(memory: MemoryManager, scope: string, orgUrn: string): void {
-  memory.saveFact(LINKEDIN_INTEGRATION_CATEGORY, LINKEDIN_ORG_URN_SUBJECT, orgUrn.trim(), false, scope);
+export function setLinkedInOrgUrnForScope(
+  memory: MemoryManager,
+  scope: string,
+  orgUrn: string
+): void {
+  memory.saveFact(
+    LINKEDIN_INTEGRATION_CATEGORY,
+    LINKEDIN_ORG_URN_SUBJECT,
+    orgUrn.trim(),
+    false,
+    scope
+  );
 }
 
 /** Every (scope, orgUrn) pair configured anywhere in the store, for the auto-sync sweep. */
-export function allConfiguredLinkedInScopes(memory: MemoryManager): Array<{ scope: string; orgUrn: string }> {
+export function allConfiguredLinkedInScopes(
+  memory: MemoryManager
+): Array<{ scope: string; orgUrn: string }> {
   return memory
     .getAllFacts()
-    .filter((f) => f.category === LINKEDIN_INTEGRATION_CATEGORY && f.subject === LINKEDIN_ORG_URN_SUBJECT)
+    .filter(
+      (f) => f.category === LINKEDIN_INTEGRATION_CATEGORY && f.subject === LINKEDIN_ORG_URN_SUBJECT
+    )
     .map((f) => ({ scope: f.scope, orgUrn: f.content.trim() }))
     .filter((r) => r.orgUrn.length > 0);
 }

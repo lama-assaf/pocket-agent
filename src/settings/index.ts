@@ -1,12 +1,16 @@
 /**
  * Settings Manager - SQLite-based configuration with encryption
  *
- * Uses Electron's safeStorage API to encrypt sensitive values like API keys.
+ * Uses Electron's safeStorage API to encrypt sensitive values like API keys,
+ * via an injectable EncryptionProvider (see ./encryption-provider) — never a
+ * direct `electron` import — so this module (and everything that
+ * transitively imports it, e.g. MemoryManager via src/memory/summarizer.ts)
+ * can be constructed in plain Node (scripts/CI/tests) with zero Electron shim.
  * All settings stored in SQLite for persistence and atomic updates.
  */
 
 import Database from 'better-sqlite3';
-import { safeStorage } from 'electron';
+import { getDefaultEncryptionProvider, type EncryptionProvider } from './encryption-provider';
 
 import { SETTINGS_SCHEMA } from './schema';
 import type { SettingDefinition } from './schema';
@@ -24,14 +28,36 @@ import {
 // Re-export types and schema so external consumers aren't broken
 export { SETTINGS_SCHEMA };
 export type { Setting, SettingDefinition } from './schema';
+export type { EncryptionProvider } from './encryption-provider';
+export {
+  createElectronEncryptionProvider,
+  getDefaultEncryptionProvider,
+  PlaintextEncryptionProvider,
+} from './encryption-provider';
 
 class SettingsManagerClass {
   private static instance: SettingsManagerClass | null = null;
   private db: Database.Database | null = null;
   private cache: Map<string, string> = new Map();
   private initialized: boolean = false;
+  // Defaults to auto-detected (real Electron safeStorage inside Electron,
+  // plaintext passthrough otherwise) — src/main/index.ts explicitly
+  // overrides this with the real Electron-backed provider before
+  // `initialize()`, but the default alone is already correct in both
+  // environments; see ./encryption-provider for the detection logic.
+  private encryptionProvider: EncryptionProvider = getDefaultEncryptionProvider();
 
   private constructor() {}
+
+  /**
+   * Override the encryption backend. Called explicitly by src/main/index.ts
+   * with the real Electron-backed provider, and by tests/headless scripts to
+   * inject a mock or a different passthrough. Safe to call before or after
+   * `initialize()` (only affects future encrypt/decrypt calls).
+   */
+  setEncryptionProvider(provider: EncryptionProvider): void {
+    this.encryptionProvider = provider;
+  }
 
   static getInstance(): SettingsManagerClass {
     if (!SettingsManagerClass.instance) {
@@ -170,11 +196,11 @@ class SettingsManagerClass {
    * Encrypt a value using safeStorage
    */
   private encrypt(value: string): string {
-    if (!safeStorage.isEncryptionAvailable()) {
+    if (!this.encryptionProvider.isEncryptionAvailable()) {
       console.warn('[Settings] Encryption not available, storing as plain text');
       return value;
     }
-    const encrypted = safeStorage.encryptString(value);
+    const encrypted = this.encryptionProvider.encryptString(value);
     return encrypted.toString('base64');
   }
 
@@ -182,11 +208,11 @@ class SettingsManagerClass {
    * Decrypt a value using safeStorage
    */
   private decrypt(encrypted: string): string {
-    if (!safeStorage.isEncryptionAvailable()) {
+    if (!this.encryptionProvider.isEncryptionAvailable()) {
       return encrypted;
     }
     const buffer = Buffer.from(encrypted, 'base64');
-    return safeStorage.decryptString(buffer);
+    return this.encryptionProvider.decryptString(buffer);
   }
 
   /**
@@ -396,13 +422,13 @@ class SettingsManagerClass {
    */
   initializeKeychain(): { available: boolean; error?: string } {
     try {
-      if (!safeStorage.isEncryptionAvailable()) {
+      if (!this.encryptionProvider.isEncryptionAvailable()) {
         return { available: false, error: 'Encryption not available on this system' };
       }
       // Trigger keychain access with a test encryption
       const testValue = 'keychain-init-test';
-      const encrypted = safeStorage.encryptString(testValue);
-      const decrypted = safeStorage.decryptString(encrypted);
+      const encrypted = this.encryptionProvider.encryptString(testValue);
+      const decrypted = this.encryptionProvider.decryptString(encrypted);
       if (decrypted !== testValue) {
         return { available: false, error: 'Encryption verification failed' };
       }

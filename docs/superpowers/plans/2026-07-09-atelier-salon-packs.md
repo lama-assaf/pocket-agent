@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Ship Pocket Agent prebuilt with the Atelier (design/product/brand) and Salon (social/campaigns) operator systems, surfaced as native lane modes, skills, commands, rules, hooks, and memory.
+**Goal:** Ship r3to.os prebuilt with the Atelier (design/product/brand) and Salon (social/campaigns) operator systems, surfaced as native lane modes, skills, commands, rules, hooks, and memory.
 
 **Architecture:** Sync both plugins' markdown from the og GitHub repos into `<userData>/plugins/` (bundled seed as offline fallback), read by a pure loader. Four new lane modes in `AGENT_MODES` compose their lane's rules (system prompt), skills (ggcoder `discoverSkills`/`createSkillTool`, currently dormant), and specialist agents (dispatchable subagents). Operator memory lives in a canonical `.atelier/memory/` file tree, mirrored one-way into SQLite for semantic recall + UI. Three Claude Code hooks are re-mapped onto native seams in `chat-engine.ts` / `chat-tools.ts`.
 

@@ -7,6 +7,7 @@ import { sanitizeSessionName } from '../../utils/session-name';
 import {
   resolveBrainRepo,
   remirrorScope,
+  remirrorImportedDocsForScope,
   importAnalyticsForScope,
   importContentForScope,
 } from '../../clients/live-sync';
@@ -198,6 +199,7 @@ export function registerSessionsIPC(deps: IPCDependencies): void {
               const result = await pullBrainRepo(repo);
               if (result.ok) {
                 await remirrorScope(memory, clientId);
+                await remirrorImportedDocsForScope(memory, clientId);
                 await importAnalyticsForScope(memory, clientId);
                 await importContentForScope(memory, clientId);
                 memory.touchClientPulled(clientId);
@@ -233,6 +235,30 @@ export function registerSessionsIPC(deps: IPCDependencies): void {
         const { ensureClientScaffold } = await import('../../clients/registry');
         ensureClientScaffold(client.id);
         return { success: true, client };
+      } catch (err) {
+        return { success: false, error: (err as Error).message };
+      }
+    }
+  );
+
+  // Client-identity accent override (Brain panel's "Brand color" picker).
+  ipcMain.handle(
+    'clients:update',
+    async (
+      _,
+      id: string,
+      fields: {
+        name?: string;
+        syncMode?: 'live' | 'manual';
+        repoUrl?: string | null;
+        accentColor?: string | null;
+      }
+    ) => {
+      try {
+        const memory = getMemory();
+        if (!memory) return { success: false, error: 'Memory not initialized' };
+        const success = memory.updateClient(id, fields);
+        return { success, client: success ? memory.getClient(id) : undefined };
       } catch (err) {
         return { success: false, error: (err as Error).message };
       }

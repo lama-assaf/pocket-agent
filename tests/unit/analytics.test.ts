@@ -59,6 +59,10 @@ function row(over: Partial<PostAnalytics>): PostAnalytics {
     video_views: 0,
     source: 'manual',
     raw_json: null,
+    post_url: null,
+    thread_text: '',
+    top_comments: null,
+    media_urls: [],
     captured_at: '2026-01-01T00:00:00.000Z',
     created_at: '2026-01-01T00:00:00.000Z',
     ...over,
@@ -250,6 +254,54 @@ describe('MemoryManager post analytics — append-only + latest-per-post resolut
     expect(rows.find((r) => r.id === manualId)!.source).toBe('manual');
     expect(rows.find((r) => r.id === mcpId)!.source).toBe('mcp');
   });
+
+  it('stores post_url, thread_text, and top_comments and reads them back (top_comments parses back to the array)', () => {
+    const topComments = [
+      { author: '@alice', text: 'great thread!', likes: 12 },
+      { author: '@bob', text: 'agreed', likes: 3 },
+    ];
+    const id = memory.recordPostAnalytics({
+      scope: 'user',
+      channel: 'twitter',
+      externalRef: 'post-rich',
+      impressions: 100,
+      postUrl: 'https://x.com/zilliqa/status/123',
+      threadText: 'Opening tweet of the thread',
+      topComments,
+    });
+    const visible = resolveVisibleScopes({ contextType: 'personal', clientId: null, projectKey: null }, 'S');
+    const rows = memory.getPostAnalyticsForScopes(visible);
+    const saved = rows.find((r) => r.id === id)!;
+    expect(saved.post_url).toBe('https://x.com/zilliqa/status/123');
+    expect(saved.thread_text).toBe('Opening tweet of the thread');
+    expect(JSON.parse(saved.top_comments!)).toEqual(topComments);
+  });
+
+  it('stores media_urls and reads them back parsed into an array', () => {
+    const mediaUrls = ['https://cdn.example.com/a.png', 'https://cdn.example.com/b.mp4'];
+    const id = memory.recordPostAnalytics({
+      scope: 'user',
+      channel: 'twitter',
+      externalRef: 'post-media',
+      impressions: 50,
+      mediaUrls,
+    });
+    const visible = resolveVisibleScopes({ contextType: 'personal', clientId: null, projectKey: null }, 'S');
+    const rows = memory.getPostAnalyticsForScopes(visible);
+    const saved = rows.find((r) => r.id === id)!;
+    expect(saved.media_urls).toEqual(mediaUrls);
+  });
+
+  it('defaults post_url/top_comments to null, thread_text to "", and media_urls to [] when omitted', () => {
+    const id = memory.recordPostAnalytics({ scope: 'user', channel: 'twitter', externalRef: 'post-plain', impressions: 1 });
+    const visible = resolveVisibleScopes({ contextType: 'personal', clientId: null, projectKey: null }, 'S');
+    const rows = memory.getPostAnalyticsForScopes(visible);
+    const saved = rows.find((r) => r.id === id)!;
+    expect(saved.post_url).toBeNull();
+    expect(saved.thread_text).toBe('');
+    expect(saved.top_comments).toBeNull();
+    expect(saved.media_urls).toEqual([]);
+  });
 });
 
 // ── Campaign -> content -> analytics linking (pure filter) ────────────────
@@ -270,6 +322,10 @@ describe('filterAnalyticsForContentPosts', () => {
       video_views: 0,
       source: 'manual',
       raw_json: null,
+      post_url: null,
+      thread_text: '',
+      top_comments: null,
+      media_urls: [],
       captured_at: '2026-01-01T00:00:00.000Z',
       created_at: '2026-01-01T00:00:00.000Z',
       ...over,

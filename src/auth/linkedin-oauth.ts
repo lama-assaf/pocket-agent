@@ -55,7 +55,9 @@ class LinkedInOAuthManager {
 
   /** True once both halves of the operator's own Developer app are configured. */
   hasAppCredentials(): boolean {
-    return !!SettingsManager.get('linkedin.clientId') && !!SettingsManager.get('linkedin.clientSecret');
+    return (
+      !!SettingsManager.get('linkedin.clientId') && !!SettingsManager.get('linkedin.clientSecret')
+    );
   }
 
   isPending(): boolean {
@@ -78,7 +80,8 @@ class LinkedInOAuthManager {
     if (!this.hasAppCredentials()) {
       return {
         success: false,
-        error: 'Enter your LinkedIn Client ID and Client Secret first (developer.linkedin.com/apps).',
+        error:
+          'Enter your LinkedIn Client ID and Client Secret first (developer.linkedin.com/apps).',
       };
     }
     if (this.pendingAuth) {
@@ -128,10 +131,13 @@ class LinkedInOAuthManager {
           return;
         }
 
-        const errorParam = url.searchParams.get('error_description') || url.searchParams.get('error');
+        const errorParam =
+          url.searchParams.get('error_description') || url.searchParams.get('error');
         if (errorParam) {
           res.writeHead(200, { 'Content-Type': 'text/html' });
-          res.end(`<html><body><h1>LinkedIn sign-in failed</h1><p>${errorParam}</p><p>You can close this tab.</p></body></html>`);
+          res.end(
+            `<html><body><h1>LinkedIn sign-in failed</h1><p>${errorParam}</p><p>You can close this tab.</p></body></html>`
+          );
           server.close();
           return;
         }
@@ -146,7 +152,7 @@ class LinkedInOAuthManager {
         receivedCode = url.searchParams.get('code');
         res.writeHead(200, { 'Content-Type': 'text/html' });
         res.end(
-          '<html><body><h1>LinkedIn connected!</h1><p>You can close this tab and go back to Pocket Agent.</p></body></html>'
+          '<html><body><h1>LinkedIn connected!</h1><p>You can close this tab and go back to r3to.os.</p></body></html>'
         );
         server.close();
       });
@@ -154,10 +160,15 @@ class LinkedInOAuthManager {
       server.on('error', (err) => {
         if (settled) return;
         settled = true;
-        const code = err instanceof Error && 'code' in err ? (err as Error & { code?: string }).code : undefined;
+        const code =
+          err instanceof Error && 'code' in err
+            ? (err as Error & { code?: string }).code
+            : undefined;
         reject(
           code === 'EADDRINUSE'
-            ? new Error(`Port ${CALLBACK_PORT} is already in use — close whatever else is using it and try again.`)
+            ? new Error(
+                `Port ${CALLBACK_PORT} is already in use — close whatever else is using it and try again.`
+              )
             : err
         );
       });
@@ -248,7 +259,8 @@ class LinkedInOAuthManager {
             client_secret: clientSecret,
           }),
         });
-        if (!response.ok) throw new Error(`Refresh failed (${response.status}): ${await response.text()}`);
+        if (!response.ok)
+          throw new Error(`Refresh failed (${response.status}): ${await response.text()}`);
         const data = (await response.json()) as {
           access_token: string;
           refresh_token?: string;
@@ -256,7 +268,10 @@ class LinkedInOAuthManager {
         };
         SettingsManager.set('linkedin.accessToken', data.access_token);
         if (data.refresh_token) SettingsManager.set('linkedin.refreshToken', data.refresh_token);
-        SettingsManager.set('linkedin.tokenExpiresAt', (Date.now() + data.expires_in * 1000).toString());
+        SettingsManager.set(
+          'linkedin.tokenExpiresAt',
+          (Date.now() + data.expires_in * 1000).toString()
+        );
         return true;
       } catch (error) {
         console.error('[LinkedIn OAuth] Token refresh failed:', error);

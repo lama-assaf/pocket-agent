@@ -1,0 +1,606 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>r3to.OS × Solstice — The per-client brain layer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --ink:#141c33;
+    --ink-2:#2a3352;
+    --slate:#5b6478;
+    --slate-2:#7b8397;
+    --blue:#2f4bff;
+    --blue-ink:#2036c9;
+    --r3-violet:#6a6af5;
+    --blue-soft:#eef1ff;
+    --blue-soft-2:#f5f7ff;
+    --panel:#f6f8ff;
+    --panel-2:#eef1fb;
+    --border:#e6e9f5;
+    --border-2:#dfe4f4;
+    --card:#ffffff;
+    --cyan:#35d0e0;
+    --grad: linear-gradient(135deg,#35d5e6 0%,#2f6bff 62%,#2f4bff 100%);
+    --grad-soft: linear-gradient(135deg,#e9fbfe 0%,#eef1ff 100%);
+    --shadow: 0 18px 40px -22px rgba(24,38,90,.35);
+    --shadow-sm: 0 8px 22px -14px rgba(24,38,90,.35);
+    --slide-w: 1280px;
+    --slide-h: 720px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    background:#0c1122;
+    color:var(--ink);
+    -webkit-font-smoothing:antialiased;
+    text-rendering:optimizeLegibility;
+  }
+  .deck{
+    display:flex;flex-direction:column;align-items:center;gap:28px;
+    padding:36px 20px 90px;
+  }
+  .slide{
+    position:relative;
+    width:var(--slide-w);height:var(--slide-h);
+    background:#fff;
+    border-radius:20px;
+    overflow:hidden;
+    box-shadow:0 30px 80px -30px rgba(0,0,0,.7);
+    padding:60px 64px 56px;
+    display:flex;flex-direction:column;
+  }
+  /* soft brand corner wash echoing the Solstice sheet */
+  .slide::after{
+    content:"";position:absolute;top:-160px;right:-160px;width:420px;height:420px;
+    background:radial-gradient(closest-side, rgba(53,208,224,.14), rgba(47,107,255,.05) 60%, transparent 75%);
+    pointer-events:none;
+  }
+  .eyebrow{
+    font-size:13px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--blue);margin:0 0 14px;
+    display:flex;align-items:center;gap:10px;
+  }
+  .eyebrow .dot{width:8px;height:8px;border-radius:50%;background:var(--grad)}
+  h1.title{font-size:52px;line-height:1.04;font-weight:900;letter-spacing:-.02em;color:var(--ink);margin:0}
+  h2.title{font-size:44px;line-height:1.06;font-weight:850;letter-spacing:-.02em;color:var(--ink);margin:0}
+  .lede{font-size:20px;line-height:1.5;color:var(--slate);font-weight:450;max-width:60ch;margin:16px 0 0}
+  .muted{color:var(--slate-2)}
+  .kicker{color:var(--blue-ink);font-weight:700}
+  .strong{color:var(--ink);font-weight:700}
+  .foot{
+    position:absolute;left:64px;right:64px;bottom:26px;
+    display:flex;justify-content:space-between;align-items:center;
+    font-size:12.5px;color:var(--slate-2);font-weight:600;letter-spacing:.02em;
+    border-top:1px solid var(--border);padding-top:14px;
+  }
+  .foot .pageno{font-variant-numeric:tabular-nums}
+  .grow{flex:1}
+  /* ---------- brand mark ---------- */
+  .brand{display:flex;align-items:center;gap:14px}
+  .wordmark{font-family:"Poppins","Inter",sans-serif;font-size:34px;font-weight:700;letter-spacing:-.01em;color:var(--ink)}
+  .wordmark .os{color:var(--r3-violet);font-weight:700}
+  /* ---------- cards / chips ---------- */
+  .cards{display:grid;gap:18px}
+  .card{
+    background:var(--card);border:1px solid var(--border);border-radius:18px;
+    padding:22px 22px;box-shadow:var(--shadow-sm);
+  }
+  .card h3{margin:0 0 6px;font-size:19px;font-weight:750;color:var(--ink);letter-spacing:-.01em}
+  .card p{margin:0;font-size:15px;line-height:1.5;color:var(--slate)}
+  .chip{
+    width:46px;height:46px;border-radius:13px;background:var(--blue-soft);
+    display:flex;align-items:center;justify-content:center;margin-bottom:14px;
+    color:var(--blue);
+  }
+  .chip.grad{background:var(--grad-soft);color:var(--blue-ink)}
+  .chip svg{width:24px;height:24px}
+  .num{
+    width:34px;height:34px;border-radius:10px;background:var(--ink);color:#fff;
+    font-weight:800;font-size:16px;display:flex;align-items:center;justify-content:center;
+    flex:none;
+  }
+  svg{display:block}
+  .icon{width:22px;height:22px;stroke:currentColor;stroke-width:1.9;fill:none;stroke-linecap:round;stroke-linejoin:round}
+  .icon-lg{width:26px;height:26px}
+  /* pill */
+  .pill{
+    display:inline-flex;align-items:center;gap:8px;
+    background:var(--panel);border:1px solid var(--border);border-radius:999px;
+    padding:8px 14px;font-size:13.5px;font-weight:650;color:var(--ink-2);
+  }
+  .pill .d{width:7px;height:7px;border-radius:50%;background:var(--grad)}
+  .pill.lock{background:#eefaf1;border-color:#d5efdd;color:#1f7a43}
+  .pill.lock .d{background:#28a05a}
+  /* ---------- diagram bits ---------- */
+  .perimeter{
+    border:2px dashed var(--blue);border-radius:20px;
+    padding:20px;position:relative;background:linear-gradient(180deg,#fbfcff, #f7f9ff);
+  }
+  .perimeter .plabel{
+    position:absolute;top:-13px;left:22px;background:#fff;padding:0 10px;
+    font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--blue);
+    display:flex;align-items:center;gap:8px;
+  }
+  .col-title{
+    font-size:12.5px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:var(--blue-ink);
+    margin:0 0 4px;
+  }
+  .col-sub{font-size:12.5px;color:var(--slate-2);margin:0 0 14px;font-weight:500}
+  .panel{
+    background:#fff;border:1px solid var(--border);border-radius:16px;padding:18px;
+    box-shadow:var(--shadow-sm);height:100%;
+  }
+  .panel.tint{background:var(--panel);box-shadow:none}
+  .flow-arrow{display:flex;align-items:center;justify-content:center;color:var(--blue)}
+  .flow-arrow svg{width:34px;height:34px}
+  /* core node */
+  .core{
+    background:var(--grad);border-radius:18px;color:#fff;padding:18px;text-align:center;
+    box-shadow:0 18px 36px -14px rgba(47,107,255,.6);position:relative;
+  }
+  .core .k{font-size:11.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;opacity:.85}
+  .core h4{margin:8px 0 4px;font-size:20px;font-weight:800}
+  .core p{margin:0;font-size:12.5px;opacity:.92;line-height:1.45}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;letter-spacing:-.01em}
+  .tag{display:inline-block;font-size:11px;font-weight:700;color:var(--blue-ink);background:var(--blue-soft);border-radius:6px;padding:3px 8px;margin:3px 4px 0 0}
+  .guard{
+    margin-top:16px;background:#0f1730;border-radius:14px;color:#fff;padding:14px 18px;
+    display:flex;align-items:center;gap:16px;flex-wrap:wrap;
+  }
+  .guard .g-t{font-size:12.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#9fb3ff;display:flex;align-items:center;gap:8px}
+  .guard .g-i{font-size:13.5px;color:#dfe6ff;font-weight:600}
+  .guard .sep{opacity:.35}
+  /* two-col split */
+  .split{display:grid;grid-template-columns:1fr 1fr;gap:22px;align-items:stretch}
+  .list-clean{list-style:none;margin:0;padding:0}
+  .list-clean li{display:flex;gap:12px;align-items:flex-start;padding:9px 0;font-size:15.5px;color:var(--ink-2);line-height:1.4}
+  .list-clean li .tick{color:var(--blue);flex:none;margin-top:1px}
+  .list-clean li .x{color:#c34b5a;flex:none;margin-top:1px}
+  /* client vault grid */
+  .vault{
+    background:#fff;border:1px solid var(--border);border-radius:15px;padding:14px 16px;
+    box-shadow:var(--shadow-sm);display:flex;flex-direction:column;gap:8px;position:relative;
+  }
+  .vault .vhead{display:flex;align-items:center;justify-content:space-between}
+  .vault .vname{font-size:16px;font-weight:800;color:var(--ink);letter-spacing:-.01em}
+  .vault .vlock{color:#28a05a}
+  .vault .vvoice{font-size:12px;color:var(--slate);line-height:1.35}
+  .vault .vmeta{font-size:11px;color:var(--slate-2);font-weight:600;display:flex;gap:6px;flex-wrap:wrap}
+  .vault .vmeta span{background:var(--panel);border-radius:6px;padding:2px 7px}
+  .vault.personal{background:linear-gradient(180deg,#fff, #fbfdff);border-style:dashed}
+  .vault.world{background:var(--panel)}
+  .vbar{height:5px;width:36px;border-radius:999px;background:var(--grad);margin-bottom:2px}
+  .vdiv{height:1px;background:var(--border);margin:2px 0}
+  /* stack (fit slide) */
+  .stack{display:flex;flex-direction:column;gap:12px}
+  .layer{
+    border-radius:16px;padding:16px 20px;display:flex;align-items:center;gap:16px;
+    border:1px solid var(--border);background:#fff;box-shadow:var(--shadow-sm);
+  }
+  .layer .lt{font-size:17px;font-weight:800;color:var(--ink)}
+  .layer .ls{font-size:13.5px;color:var(--slate);margin-top:2px}
+  .layer.top{background:var(--grad);border:none;color:#fff;box-shadow:0 18px 36px -16px rgba(47,107,255,.6)}
+  .layer.top .lt{color:#fff}.layer.top .ls{color:rgba(255,255,255,.9)}
+  .layer .lnum{font-size:11.5px;font-weight:800;letter-spacing:.12em;color:var(--slate-2);text-transform:uppercase;width:96px}
+  .layer.top .lnum{color:rgba(255,255,255,.8)}
+  /* title slide */
+  .hero{display:flex;flex-direction:column;height:100%}
+  .hero .big{font-size:64px;line-height:1.02;font-weight:900;letter-spacing:-.03em;color:var(--ink);margin:6px 0 0}
+  .hero .big em{font-style:normal;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .hero .sub{font-size:22px;line-height:1.5;color:var(--slate);max-width:66ch;margin:22px 0 0;font-weight:450}
+  .logos{display:flex;align-items:center;gap:18px;flex-wrap:wrap;font-weight:700;color:var(--ink-2)}
+  .logos .lg{display:flex;align-items:center;gap:9px;font-size:15px}
+  .logos .sepv{width:1px;height:20px;background:var(--border-2)}
+  .badge-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px}
+  /* mapping legend */
+  .maprow{display:flex;align-items:center;gap:12px;font-size:13px;color:var(--slate);padding:7px 0}
+  .maprow .from{font-weight:700;color:var(--ink-2)}
+  .maprow .to{font-weight:700;color:var(--blue-ink)}
+  .maprow svg{width:18px;height:18px;color:var(--blue);flex:none}
+  .legend-card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:14px 18px}
+  /* nav */
+  .nav{
+    position:fixed;right:18px;bottom:16px;z-index:50;display:flex;gap:8px;align-items:center;
+    background:rgba(15,20,40,.82);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.12);
+    padding:8px 12px;border-radius:999px;color:#cdd6f5;font-size:12.5px;font-weight:700;
+  }
+  .nav button{
+    background:rgba(255,255,255,.1);border:none;color:#fff;width:30px;height:30px;border-radius:50%;
+    font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  }
+  .nav button:hover{background:var(--blue)}
+  .nav .count{font-variant-numeric:tabular-nums;min-width:44px;text-align:center}
+  @media print{
+    body{background:#fff}
+    .deck{padding:0;gap:0}
+    .nav{display:none}
+    .slide{border-radius:0;box-shadow:none;page-break-after:always;break-after:page;width:100%;height:100vh}
+    @page{size:1280px 720px;margin:0}
+  }
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+
+  <!-- 1 · TITLE -->
+  <section class="slide">
+    <div class="hero">
+      <div class="brand">
+        <div class="wordmark">r3to<span class="os">.OS</span></div>
+      </div>
+      <div class="eyebrow" style="margin-top:38px"><span class="dot"></span>Strategy · Solstice ecosystem</div>
+      <div class="big">The per-client brain<br>your <em>agents share</em></div>
+      <p class="sub">One isolated, governed brain per client — <span class="strong">Zilliqa, an asset manager, any brand</span> — that all ~100 Solstice agents read, write, and stay in voice with. The pattern Solstice already runs internally, turned into a product.</p>
+      <div class="grow"></div>
+      <div class="badge-row" style="margin-bottom:20px">
+        <span class="pill"><span class="d"></span>One brain per client</span>
+        <span class="pill"><span class="d"></span>Isolated by construction</span>
+        <span class="pill"><span class="d"></span>Sits on TensorX — doesn't replace it</span>
+      </div>
+      <div class="logos">
+        <span class="lg"><span style="font-family:'Poppins','Inter',sans-serif;font-weight:700;color:var(--ink)">r3to<span style="color:var(--r3-violet)">.OS</span></span></span>
+        <span class="sepv"></span>
+        <span class="lg muted">Solstice</span>
+        <span class="lg muted">TensorX</span>
+        <span class="lg muted">ApexE3</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2 · THE PROOF -->
+  <section class="slide">
+    <div class="eyebrow"><span class="dot"></span>The proof</div>
+    <h2 class="title">This is already how Solstice works</h2>
+    <p class="lede">Humans author one shared knowledge base; agents read &amp; update it; a sovereign perimeter and guardrails keep every output internal and human-validated.</p>
+    <div style="display:grid;grid-template-columns:1.55fr 1fr;gap:28px;align-items:center;margin-top:20px;flex:1">
+      <div style="border:1px solid var(--border);border-radius:16px;overflow:hidden;box-shadow:var(--shadow)">
+        <img src="assets/ltin-architecture.png" alt="Solstice internal AI architecture" style="width:100%;display:block"/>
+        <div style="background:var(--panel);border-top:1px solid var(--border);padding:9px 14px;font-size:12px;font-weight:600;color:var(--slate-2)">Solstice's internal AI architecture — running today</div>
+      </div>
+      <div>
+        <ul class="list-clean">
+          <li><span class="tick"><svg class="icon" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></span><span><span class="strong">Shared .md source of truth</span> in internal git — the one knowledge base</span></li>
+          <li><span class="tick"><svg class="icon" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></span><span>People <span class="strong">author</span> it; Hermes agents <span class="strong">read &amp; update</span> it</span></li>
+          <li><span class="tick"><svg class="icon" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></span><span>Behind a <span class="strong">sovereign perimeter</span> · powered by TensorX</span></li>
+          <li><span class="tick"><svg class="icon" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></span><span>Guardrails: <span class="strong">human-validated, internal, least-privilege</span></span></li>
+        </ul>
+        <div class="legend-card" style="margin-top:14px">
+          <div style="font-size:14.5px;color:var(--ink-2);font-weight:600;line-height:1.5">It works — for us. <span class="kicker">But every client still starts from a blank vault</span> — rebuilt by hand, every time.</div>
+        </div>
+      </div>
+    </div>
+    <div class="foot"><span>r3to.OS × Solstice</span><span class="pageno">02 / 11</span></div>
+  </section>
+
+  <!-- 3 · THE FRICTION -->
+  <section class="slide">
+    <div class="eyebrow"><span class="dot"></span>The friction</div>
+    <h2 class="title">Every new client starts from a blank vault</h2>
+    <p class="lede">The pattern is right. Done by hand, it doesn't scale to ~100 agents across many European clients.</p>
+    <div class="cards" style="grid-template-columns:repeat(3,1fr);margin-top:26px;flex:1;align-content:center">
+      <div class="card">
+        <div class="chip"><svg class="icon icon-lg" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6M9 13h6M9 17h3"/></svg></div>
+        <h3>~100 agents, no shared memory</h3>
+        <p>SecOps to Marketing each reinvent the client's context. Nothing they learn is written back where the next agent can use it.</p>
+      </div>
+      <div class="card">
+        <div class="chip"><svg class="icon icon-lg" viewBox="0 0 24 24"><path d="M3 21h18M6 21V7l7-4 7 4v14M10 21v-5h4v5"/></svg></div>
+        <h3>Many clients, bespoke each time</h3>
+        <p>Asset managers, manufacturers, Zilliqa — every engagement re-stands-up the same rails from zero. Setup is the tax.</p>
+      </div>
+      <div class="card">
+        <div class="chip"><svg class="icon icon-lg" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+        <h3>Voice &amp; isolation by convention</h3>
+        <p>Brand voice drifts between people. Client separation is a policy you <em>hope</em> holds — not a guarantee you can show an auditor.</p>
+      </div>
+    </div>
+    <div class="legend-card" style="margin-top:8px;text-align:center;font-size:15px;color:var(--ink-2);font-weight:600">
+      The pattern is proven. It needs to be a <span class="kicker">product</span>.
+    </div>
+    <div class="foot"><span>r3to.OS × Solstice</span><span class="pageno">03 / 11</span></div>
+  </section>
+
+  <!-- 4 · THE LAYER -->
+  <section class="slide">
+    <div class="eyebrow"><span class="dot"></span>The layer</div>
+    <h2 class="title">r3to.OS is that pattern, productized</h2>
+    <div style="background:var(--grad-soft);border:1px solid var(--border);border-radius:18px;padding:26px 30px;margin-top:20px">
+      <div style="font-size:29px;line-height:1.28;font-weight:800;letter-spacing:-.02em;color:var(--ink)">
+        The client-scoped <span style="background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent">brain + guardrail layer</span> that sits between your people and your agents.
+      </div>
+    </div>
+    <div class="cards" style="grid-template-columns:repeat(3,1fr);margin-top:22px;flex:1;align-content:center">
+      <div class="card">
+        <div class="chip grad"><svg class="icon icon-lg" viewBox="0 0 24 24"><path d="M12 3v18M3 8l9-5 9 5M3 8v8l9 5 9-5V8"/></svg></div>
+        <h3>One brain per client</h3>
+        <p>Isolated by construction — its own facts, lessons, voice &amp; guardrails, synced to that client's private repo.</p>
+      </div>
+      <div class="card">
+        <div class="chip grad"><svg class="icon icon-lg" viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 1 3 3v6a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3zM5 11a7 7 0 0 0 14 0M12 18v3"/></svg></div>
+        <h3>Voice &amp; guardrails built in</h3>
+        <p>Brand voice, banned-words tone guard, human-validated output — enforced live, not left to each operator.</p>
+      </div>
+      <div class="card">
+        <div class="chip grad"><svg class="icon icon-lg" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3"/><rect x="9" y="9" width="6" height="6" rx="1"/><path d="M9 2v2M15 2v2M9 20v2M15 20v2M2 9h2M2 15h2M20 9h2M20 15h2"/></svg></div>
+        <h3>Model- &amp; runtime-agnostic</h3>
+        <p>Sits on top of TensorX's sovereign GPUs and GLM-5.2. It's the memory layer, not another model.</p>
+      </div>
+    </div>
+    <div class="legend-card" style="margin-top:8px;text-align:center;font-size:15px;color:var(--ink-2);font-weight:600">
+      Not another agent. <span class="kicker">The memory every agent shares.</span>
+    </div>
+    <div class="foot"><span>r3to.OS × Solstice</span><span class="pageno">04 / 11</span></div>
+  </section>
+
+  <!-- 5 · ARCHITECTURE OVERLAY -->
+  <section class="slide">
+    <div class="eyebrow"><span class="dot"></span>Architecture</div>
+    <h2 class="title">Your own architecture, as a product</h2>
+    <div class="perimeter" style="margin-top:24px;flex:1;display:flex;flex-direction:column">
+      <div class="plabel"><svg class="icon" style="width:14px;height:14px" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>Secure perimeter · local-first · syncs only to the client's private repo</div>
+      <div style="display:grid;grid-template-columns:1fr 44px 1.15fr 44px 1fr;gap:0;align-items:center;flex:1">
+        <!-- humans -->
+        <div class="panel tint" style="display:flex;flex-direction:column;justify-content:center">
+          <div class="col-title">Humans author</div>
+          <div class="col-sub">The Brain workbench</div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <div class="pill" style="justify-content:flex-start"><span class="d"></span>Facts — brand knowledge</div>
+            <div class="pill" style="justify-content:flex-start"><span class="d"></span>Lessons — what you learn</div>
+            <div class="pill" style="justify-content:flex-start"><span class="d"></span>How-to-act — voice &amp; tone</div>
+          </div>
+        </div>
+        <div class="flow-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 12h16M13 6l6 6-6 6"/></svg></div>
+        <!-- core -->
+        <div class="core">
+          <div style="font-family:'Poppins','Inter',sans-serif;font-weight:700;font-size:19px;letter-spacing:-.01em;color:#fff;margin-bottom:6px">r3to<span style="color:#c9c9ff">.OS</span></div>
+          <div class="k" style="margin-bottom:6px">client brain</div>
+          <h4>Git-synced brand brain</h4>
+          <p class="mono">.atelier/memory/*.md&nbsp;+&nbsp;guardrails/</p>
+          <p style="margin-top:6px">Scoped facts · embedded for recall · one repo per brand</p>
+        </div>
+        <div class="flow-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7l-4 5 4 5"/><path d="M17 7l4 5-4 5"/><path d="M3 12h18"/></svg></div>
+        <!-- agents -->
+        <div class="panel tint" style="display:flex;flex-direction:column;justify-content:center">
+          <div class="col-title">Agents read &amp; write</div>
+          <div class="col-sub">Operator lanes · ~100 agents</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px">
+            <span class="tag">SecOps</span><span class="tag">Data / GDPR</span><span class="tag">Architecture</span>
+            <span class="tag">Product</span><span class="tag">Design</span><span class="tag">Brand</span><span class="tag">Marketing</span><span class="tag">Social</span>
+          </div>
+          <div style="font-size:12.5px;color:var(--slate);margin-top:12px;line-height:1.45">Each lane = rules + skills + specialist sub-agents, in <span class="strong">this client's</span> voice.</div>
+        </div>
+      </div>
+      <div class="guard">
+        <span class="g-t"><svg class="icon" style="width:15px;height:15px;color:#9fb3ff" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>Operational guardrails</span>
+        <span class="g-i">Scope isolation by construction</span><span class="sep">·</span>
+        <span class="g-i">Human-validated output</span><span class="sep">·</span>
+        <span class="g-i">Least-privilege access</span><span class="sep">·</span>
+        <span class="g-i">Banned-words tone guard</span>
+      </div>
+    </div>
+    <div class="foot"><span>Internal git → client brain repo&nbsp;&nbsp;·&nbsp;&nbsp;Hermes → operator lanes&nbsp;&nbsp;·&nbsp;&nbsp;guardrails → scope model</span><span class="pageno">05 / 11</span></div>
+  </section>
+
+  <!-- 6 · ISOLATION / MULTI-CLIENT -->
+  <section class="slide">
+    <div class="eyebrow"><span class="dot"></span>Isolation by construction</div>
+    <h2 class="title">One brain per brand. Never mixed.</h2>
+    <p class="lede">Pick a client and the whole session scopes to it — memory, voice, guardrails, enabled agents. One brand's brain can <span class="strong">never</span> surface in another's context.</p>
+    <div style="flex:1;display:flex;flex-direction:column;justify-content:center;gap:24px;margin-top:8px">
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px">
+        <div class="vault">
+          <div class="vbar"></div>
+          <div class="vhead"><span class="vname">Public Sector</span><span class="vlock"><svg class="icon" style="width:17px;height:17px" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span></div>
+          <div class="vvoice">Sovereign services · plain-language, citizen-facing</div>
+          <div class="vdiv"></div>
+          <div class="vmeta"><span>facts</span><span>lessons</span><span>voice</span><span>guardrails</span></div>
+        </div>
+        <div class="vault">
+          <div class="vbar"></div>
+          <div class="vhead"><span class="vname">Zilliqa</span><span class="vlock"><svg class="icon" style="width:17px;height:17px" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span></div>
+          <div class="vvoice">Web3 infrastructure · builder-community tone</div>
+          <div class="vdiv"></div>
+          <div class="vmeta"><span>facts</span><span>lessons</span><span>voice</span><span>guardrails</span></div>
+        </div>
+        <div class="vault">
+          <div class="vbar"></div>
+          <div class="vhead"><span class="vname">EU Asset Mgr</span><span class="vlock"><svg class="icon" style="width:17px;height:17px" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span></div>
+          <div class="vvoice">Regulated finance · formal, compliance-bound</div>
+          <div class="vdiv"></div>
+          <div class="vmeta"><span>facts</span><span>lessons</span><span>voice</span><span>guardrails</span></div>
+        </div>
+        <div class="vault">
+          <div class="vbar"></div>
+          <div class="vhead"><span class="vname">Manufacturing</span><span class="vlock"><svg class="icon" style="width:17px;height:17px" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span></div>
+          <div class="vvoice">Industrial ops · plain, shop-floor-ready</div>
+          <div class="vdiv"></div>
+          <div class="vmeta"><span>facts</span><span>lessons</span><span>voice</span><span>guardrails</span></div>
+        </div>
+      </div>
+      <div class="legend-card" style="display:flex;align-items:center;gap:18px">
+        <div class="mono" style="font-size:13px;color:var(--blue-ink);font-weight:700;background:var(--blue-soft);padding:8px 12px;border-radius:8px;white-space:nowrap">user · world · client · project · chat</div>
+        <div style="font-size:14px;color:var(--ink-2);font-weight:600;line-height:1.45">Isolation is the scope model — not a filter you can turn off. <span class="muted" style="font-weight:500">Personal stays private; Agency/World is the shared base beneath every client.</span></div>
+      </div>
+    </div>
+    <div class="foot"><span>r3to.OS × Solstice</span><span class="pageno">06 / 11</span></div>
+  </section>
+
+  <!-- 7 · 100 AGENTS -> LANES -->
+  <section class="slide">
+    <div class="eyebrow"><span class="dot"></span>Capability</div>
+    <h2 class="title">100 agents → domain packs on one brain</h2>
+    <p class="lede">Your agents stop being disconnected bots. They become governed specialists — all reading and writing the same per-client brain.</p>
+    <div class="split" style="margin-top:22px;flex:1">
+      <div class="panel" style="padding:22px">
+        <div class="col-title" style="margin-bottom:12px">Operator lanes</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <span class="pill" style="justify-content:flex-start"><span class="d"></span>SecOps</span>
+          <span class="pill" style="justify-content:flex-start"><span class="d"></span>Data / GDPR</span>
+          <span class="pill" style="justify-content:flex-start"><span class="d"></span>AI Architecture</span>
+          <span class="pill" style="justify-content:flex-start"><span class="d"></span>Product</span>
+          <span class="pill" style="justify-content:flex-start"><span class="d"></span>Design</span>
+          <span class="pill" style="justify-content:flex-start"><span class="d"></span>Brand</span>
+          <span class="pill" style="justify-content:flex-start"><span class="d"></span>Marketing</span>
+          <span class="pill" style="justify-content:flex-start"><span class="d"></span>Social</span>
+        </div>
+        <div style="font-size:14px;color:var(--slate);margin-top:16px;line-height:1.5">Each lane carries its own <span class="strong">rules + skills + specialist sub-agents</span> — layered on top of the active client's voice.</div>
+      </div>
+      <div class="panel" style="padding:22px;display:flex;flex-direction:column">
+        <div class="col-title" style="margin-bottom:12px">All bound to one client brain</div>
+        <ul class="list-clean">
+          <li><span class="tick"><svg class="icon" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></span><span>Recall from &amp; write back to the <span class="strong">same scoped facts</span></span></li>
+          <li><span class="tick"><svg class="icon" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></span><span>Speak in <span class="strong">that client's voice</span>, every lane</span></li>
+          <li><span class="tick"><svg class="icon" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></span><span>Bound by <span class="strong">that client's guardrails</span></span></li>
+          <li><span class="tick"><svg class="icon" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></span><span><span class="strong">Can't see</span> another client's data</span></li>
+        </ul>
+        <div class="grow"></div>
+        <div style="background:var(--panel);border-radius:12px;padding:14px 16px;font-size:14px;color:var(--ink-2);font-weight:600;line-height:1.45">A SecOps pack and a Marketing pack, both reading the <span class="kicker">same client brain</span> — neither leaking into the next client.</div>
+      </div>
+    </div>
+    <div class="foot"><span>r3to.OS × Solstice</span><span class="pageno">07 / 11</span></div>
+  </section>
+
+  <!-- 8 · SOVEREIGNTY / GDPR -->
+  <section class="slide">
+    <div class="eyebrow"><span class="dot"></span>Why Europe buys it</div>
+    <h2 class="title">Sovereign by construction, not by policy</h2>
+    <p class="lede">For EU asset managers and manufacturers, data protection is the deal. r3to.OS makes isolation a property of the data model — something you can put on a slide, not a config you hope holds.</p>
+    <div class="cards" style="grid-template-columns:repeat(2,1fr);margin-top:22px;flex:1;align-content:center">
+      <div class="card" style="display:flex;gap:16px;align-items:flex-start">
+        <div class="chip grad" style="margin:0"><svg class="icon icon-lg" viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="8" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/><rect x="13" y="13" width="8" height="8" rx="1.5"/></svg></div>
+        <div><h3>Isolation by construction</h3><p>The scope model means one brand's brain can't surface in another's context. Not a toggle — how the data works.</p></div>
+      </div>
+      <div class="card" style="display:flex;gap:16px;align-items:flex-start">
+        <div class="chip grad" style="margin:0"><svg class="icon icon-lg" viewBox="0 0 24 24"><path d="M4 6c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3zM4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/></svg></div>
+        <div><h3>Data stays internal</h3><p>Local-first on device; each brain syncs only to that client's own private repo. Nothing pools in a shared cloud.</p></div>
+      </div>
+      <div class="card" style="display:flex;gap:16px;align-items:flex-start">
+        <div class="chip grad" style="margin:0"><svg class="icon icon-lg" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg></div>
+        <div><h3>Human-validated · least-privilege</h3><p>Plan-approval, write guards and tone guard keep output reviewed and access minimal — your existing guardrail language.</p></div>
+      </div>
+      <div class="card" style="display:flex;gap:16px;align-items:flex-start">
+        <div class="chip grad" style="margin:0"><svg class="icon icon-lg" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3"/><rect x="9" y="9" width="6" height="6" rx="1"/><path d="M9 2v2M15 2v2M9 20v2M15 20v2M2 9h2M2 15h2M20 9h2M20 15h2"/></svg></div>
+        <div><h3>Runs on sovereign compute</h3><p>Layers onto TensorX sovereign GPUs / on-prem runtime. The governance sits where the data already lives.</p></div>
+      </div>
+    </div>
+    <div class="foot"><span>The GDPR &amp; sovereignty story you already sell — now with a per-client memory guarantee</span><span class="pageno">08 / 11</span></div>
+  </section>
+
+  <!-- 9 · FIT IN THE FAMILY -->
+  <section class="slide">
+    <div class="eyebrow"><span class="dot"></span>Fit</div>
+    <h2 class="title">It sits on top of what you already sell</h2>
+    <p class="lede">r3to.OS doesn't compete with your stack — it completes it. The governed operating layer above the sovereign foundation.</p>
+    <div class="stack" style="margin-top:24px;flex:1;justify-content:center">
+      <div class="layer top">
+        <span class="lnum">Operating layer</span>
+        <div class="chip" style="margin:0;width:40px;height:40px;background:rgba(255,255,255,.18);color:#fff"><svg class="icon" viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v12c0 1.7 3.1 3 7 3s7-1.3 7-3V6M5 12c0 1.7 3.1 3 7 3s7-1.3 7-3"/></svg></div>
+        <div><div class="lt">r3to.OS — governed per-client memory, voice &amp; guardrails</div><div class="ls">One brain per client that people and all ~100 agents work from together</div></div>
+      </div>
+      <div class="flow-arrow" style="color:var(--slate-2)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="width:24px;height:24px"><path d="M12 5v14M6 13l6 6 6-6"/></svg></div>
+      <div class="layer">
+        <span class="lnum">Delivery</span>
+        <div class="chip" style="margin:0;width:40px;height:40px"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 12 0v1M17 11a4 4 0 0 0 3 7"/></svg></div>
+        <div><div class="lt">Solstice — services &amp; ~100 agents</div><div class="ls">SecOps to Marketing · client engagements across Europe</div></div>
+      </div>
+      <div class="layer">
+        <span class="lnum">Foundation</span>
+        <div class="chip" style="margin:0;width:40px;height:40px"><svg class="icon" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3"/><rect x="9" y="9" width="6" height="6" rx="1"/><path d="M9 2v2M15 2v2M9 20v2M15 20v2M2 9h2M2 15h2M20 9h2M20 15h2"/></svg></div>
+        <div><div class="lt">TensorX &amp; ApexE3 — sovereign GPUs, GLM-5.2, on-prem</div><div class="ls">AI architecture · sovereign compute · GDPR-grade data protection</div></div>
+      </div>
+    </div>
+    <div class="foot"><span>Doesn't compete — completes</span><span class="pageno">09 / 11</span></div>
+  </section>
+
+  <!-- 10 · MOVE UP THE STACK -->
+  <section class="slide">
+    <div class="eyebrow"><span class="dot"></span>The opportunity</div>
+    <h2 class="title">From foundation to operating layer</h2>
+    <p class="lede">You sell the foundation today. r3to.OS turns it into daily workflow — without leaving the sovereignty guarantees.</p>
+    <div class="split" style="margin-top:22px;flex:1">
+      <div class="panel" style="padding:24px">
+        <div class="col-title" style="margin-bottom:4px">Today — foundational</div>
+        <div class="col-sub">Project-based, one-off</div>
+        <ul class="list-clean">
+          <li><span class="tick muted"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/></svg></span><span>AI architecture &amp; enablement</span></li>
+          <li><span class="tick muted"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/></svg></span><span>Sovereign GPUs &amp; on-prem runtime</span></li>
+          <li><span class="tick muted"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/></svg></span><span>GDPR / data protection</span></li>
+        </ul>
+      </div>
+      <div class="panel" style="padding:24px;background:var(--grad-soft);border-color:#d7e0ff">
+        <div class="col-title" style="margin-bottom:4px">With r3to.OS — operating layer</div>
+        <div class="col-sub">Recurring, compounding</div>
+        <ul class="list-clean">
+          <li><span class="tick"><svg class="icon" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></span><span>Daily human + agent workflow, per client</span></li>
+          <li><span class="tick"><svg class="icon" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></span><span>A brand brain that <span class="strong">compounds</span> every engagement</span></li>
+          <li><span class="tick"><svg class="icon" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></span><span>A stickier, <span class="strong">recurring product line</span></span></li>
+        </ul>
+      </div>
+    </div>
+    <div class="legend-card" style="margin-top:10px;text-align:center;font-size:15.5px;color:var(--ink-2);font-weight:600">
+      Same sovereignty guarantees. <span class="kicker">A new, recurring product every Solstice client gets.</span>
+    </div>
+    <div class="foot"><span>r3to.OS × Solstice</span><span class="pageno">10 / 11</span></div>
+  </section>
+
+  <!-- 11 · THE ASK -->
+  <section class="slide">
+    <div class="eyebrow"><span class="dot"></span>Next</div>
+    <h2 class="title">Pilot on one live brain</h2>
+    <p class="lede">Prove it on one brand, then it's a product every Solstice client gets. Small, measurable, low-risk.</p>
+    <div style="display:flex;flex-direction:column;gap:16px;margin-top:26px;flex:1;justify-content:center">
+      <div class="card" style="display:flex;gap:20px;align-items:center">
+        <div class="num">1</div>
+        <div><h3 style="margin-bottom:3px">Stand up one client brain</h3><p>Point r3to.OS at one client's <span class="strong">existing repo — say Zilliqa's</span> — pull its facts, voice &amp; guardrails in minutes.</p></div>
+      </div>
+      <div class="card" style="display:flex;gap:20px;align-items:center">
+        <div class="num">2</div>
+        <div><h3 style="margin-bottom:3px">Wire 2–3 lanes</h3><p>Turn on <span class="strong">SecOps + Marketing</span> (and Data/GDPR) — agents reading and writing the same brain, in that brand's voice.</p></div>
+      </div>
+      <div class="card" style="display:flex;gap:20px;align-items:center">
+        <div class="num">3</div>
+        <div><h3 style="margin-bottom:3px">Measure what matters</h3><p>Setup time for client&nbsp;#2 · voice consistency across lanes · a clean <span class="strong">isolation audit</span>.</p></div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:16px;background:var(--grad);border-radius:16px;padding:20px 26px;color:#fff;box-shadow:0 18px 36px -16px rgba(47,107,255,.6)">
+      <div style="font-size:19px;font-weight:800;letter-spacing:-.01em">One brand brain, all your agents working from it — Solstice's own pattern, productized.</div>
+    </div>
+    <div class="foot"><span>r3to.OS × Solstice · TensorX · ApexE3</span><span class="pageno">11 / 11</span></div>
+  </section>
+
+</div>
+
+<div class="nav">
+  <button id="prev" aria-label="Previous">‹</button>
+  <span class="count"><span id="cur">1</span> / 11</span>
+  <button id="next" aria-label="Next">›</button>
+</div>
+
+<script>
+  const slides = Array.from(document.querySelectorAll('.slide'));
+  const cur = document.getElementById('cur');
+  let i = 0;
+  function go(n){
+    i = Math.max(0, Math.min(slides.length-1, n));
+    slides[i].scrollIntoView({behavior:'smooth', block:'center'});
+    cur.textContent = i+1;
+  }
+  document.getElementById('next').onclick = ()=>go(i+1);
+  document.getElementById('prev').onclick = ()=>go(i-1);
+  window.addEventListener('keydown', e=>{
+    if(e.key==='ArrowRight'||e.key==='PageDown'||e.key===' '){e.preventDefault();go(i+1);}
+    if(e.key==='ArrowLeft'||e.key==='PageUp'){e.preventDefault();go(i-1);}
+  });
+  // track which slide is centered on manual scroll
+  const io = new IntersectionObserver(entries=>{
+    entries.forEach(en=>{ if(en.isIntersecting){ i = slides.indexOf(en.target); cur.textContent=i+1; }});
+  }, {threshold:0.55});
+  slides.forEach(s=>io.observe(s));
+</script>
+</body>
+</html>

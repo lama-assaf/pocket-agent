@@ -23,12 +23,32 @@ import type { LaneId, PackAgent } from '../marketplace/types';
 import { SUPPORTED_MODELS, isKnownModel, getProviderForModel } from '../agent/model-catalog';
 import { resolvePackAgentForCurrentSession } from '../agent/agent-overrides';
 import { isAgentEnabledForCurrentSession } from '../agent/enablement';
+import { getCurrentSessionId } from './session-context';
+import { recordRoutingDecision } from '../utils/routing-log';
 
 // ── Constants ──
 
 const SUB_AGENT_MAX_TURNS = 15;
 const SUB_AGENT_MAX_OUTPUT_CHARS = 100_000;
 const SUB_AGENT_TIMEOUT_MS = 300_000; // 5 minutes
+
+/**
+ * Resource ceilings for a single sub-agent run. Defaults to the module
+ * constants above (production behavior, unchanged); `createSubAgentTool`'s
+ * optional 4th param lets tests inject small values to force turn/timeout/
+ * truncation limits without mocking timers or the whole module.
+ */
+export interface SubAgentLimits {
+  maxTurns: number;
+  maxOutputChars: number;
+  timeoutMs: number;
+}
+
+const DEFAULT_SUB_AGENT_LIMITS: SubAgentLimits = {
+  maxTurns: SUB_AGENT_MAX_TURNS,
+  maxOutputChars: SUB_AGENT_MAX_OUTPUT_CHARS,
+  timeoutMs: SUB_AGENT_TIMEOUT_MS,
+};
 
 /** Only these tools are available to sub-agents. Everything else is parent-only. */
 const ALLOWED_SUB_AGENT_TOOLS = new Set([
@@ -41,7 +61,7 @@ const ALLOWED_SUB_AGENT_TOOLS = new Set([
 const SUB_AGENT_SYSTEM_PROMPT =
   "You are a task worker. Execute the given task completely and efficiently. No small talk, no explanations unless asked. Do the work, report what you did and the result. If something fails, say what failed and why. That's it.";
 
-/** Maps Claude Code tool names (used by marketplace pack agents) to Pocket Agent tool names. */
+/** Maps Claude Code tool names (used by marketplace pack agents) to r3to.os tool names. */
 const CC_TO_POCKET_TOOL: Record<string, string> = {
   Read: 'read',
   Write: 'write',
@@ -86,7 +106,7 @@ export function resolveSpecialistModel(alias: string | undefined, configuredMode
   return match ? match.id : configuredModel;
 }
 
-/** Map Claude Code tool names to Pocket Agent tool names, dropping unknown ones. */
+/** Map Claude Code tool names to r3to.os tool names, dropping unknown ones. */
 export function mapAgentTools(tools: string[]): string[] {
   const out = new Set<string>();
   for (const t of tools) {
@@ -112,11 +132,14 @@ const SubAgentParams = z.object({
  * @param getStreamConfig - Async function returning current provider/model config
  * @param lane - Optional lane the caller is operating in; when set, enables dispatch to
  *   named pack specialists via the `agent` param.
+ * @param limits - Resource ceilings (maxTurns/maxOutputChars/timeoutMs). Defaults to
+ *   the production constants; tests inject small values to force each limit.
  */
 export function createSubAgentTool(
   parentTools: AgentTool[],
   getStreamConfig: (model: string) => Promise<StreamConfig>,
-  lane?: LaneId
+  lane?: LaneId,
+  limits: SubAgentLimits = DEFAULT_SUB_AGENT_LIMITS
 ): AgentTool<typeof SubAgentParams> {
   const specialistNames = lane
     ? allAgentsGrouped()
@@ -136,6 +159,47 @@ export function createSubAgentTool(
       context: ToolContext
     ): Promise<string> => {
       const { task } = args;
+
+      // Validate a named-specialist request BEFORE spawning anything — an
+      // unknown or disabled specialist used to fall through silently to the
+      // generic worker prompt with no feedback to the caller at all. Now it
+      // gets a corrective, actionable error (the valid specialist list for
+      // this lane) and never starts a sub-agent run.
+      if (args.agent) {
+        if (!lane) {
+          recordRoutingDecision({
+            sessionId: getCurrentSessionId(),
+            kind: 'subagent_spawn',
+            target: args.agent,
+            outcome: 'rejected',
+            detail: 'No lane is active for specialist dispatch',
+          });
+          return `Error: no lane is active, so named specialists aren't available ("${args.agent}" requires a design/product/brand/social lane). Call subagent without "agent" for a generic worker.`;
+        }
+        const validNames = allAgentsGrouped()
+          .filter((g) => g.lane === lane && isAgentEnabledForCurrentSession(g.packId, g.agent.name))
+          .map((g) => g.agent.name);
+        if (!validNames.includes(args.agent)) {
+          const detail = `Unknown or disabled specialist "${args.agent}" for the ${lane} lane. Available: ${validNames.join(', ') || 'none'}.`;
+          recordRoutingDecision({
+            sessionId: getCurrentSessionId(),
+            kind: 'subagent_spawn',
+            target: args.agent,
+            lane,
+            outcome: 'rejected',
+            detail,
+          });
+          return `Error: ${detail}`;
+        }
+        recordRoutingDecision({
+          sessionId: getCurrentSessionId(),
+          kind: 'subagent_spawn',
+          target: args.agent,
+          lane,
+          outcome: 'accepted',
+        });
+      }
+
       const id = `sub_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
       // Register for tracking
@@ -152,6 +216,7 @@ export function createSubAgentTool(
       try {
         // Resolve a named specialist when the caller asked for one and a lane is set.
         // Falls back to the generic worker prompt/tool set otherwise — unchanged behavior.
+        // (Already validated as resolvable above when args.agent is set.)
         const spec = args.agent && lane ? resolveSpecialist(lane, args.agent) : null;
         const system = spec ? spec.prompt : SUB_AGENT_SYSTEM_PROMPT;
         const allowedToolNames = spec
@@ -175,7 +240,7 @@ export function createSubAgentTool(
           system,
           tools: subTools,
           webSearch: true,
-          maxTurns: SUB_AGENT_MAX_TURNS,
+          maxTurns: limits.maxTurns,
           maxTokens: 8192,
           apiKey: streamConfig.apiKey,
           baseUrl: streamConfig.baseUrl,
@@ -188,11 +253,11 @@ export function createSubAgentTool(
         // Run with timeout
         const result = await Promise.race([
           runSubAgent(id, messages, agentOptions, context),
-          timeout(SUB_AGENT_TIMEOUT_MS, context.signal),
+          timeout(limits.timeoutMs, context.signal),
         ]);
 
         // Truncate output
-        const output = truncateOutput(result);
+        const output = truncateOutput(result, limits.maxOutputChars);
 
         updateSubAgent(id, { status: 'done', result: output });
         return output;
@@ -278,12 +343,9 @@ async function runSubAgent(
 /**
  * Truncate output to fit within parent context limits.
  */
-function truncateOutput(text: string): string {
-  if (text.length <= SUB_AGENT_MAX_OUTPUT_CHARS) return text;
-  return (
-    text.slice(0, SUB_AGENT_MAX_OUTPUT_CHARS) +
-    `\n\n[Output truncated at ${SUB_AGENT_MAX_OUTPUT_CHARS.toLocaleString()} chars]`
-  );
+function truncateOutput(text: string, maxChars: number = SUB_AGENT_MAX_OUTPUT_CHARS): string {
+  if (text.length <= maxChars) return text;
+  return text.slice(0, maxChars) + `\n\n[Output truncated at ${maxChars.toLocaleString()} chars]`;
 }
 
 /**

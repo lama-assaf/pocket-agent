@@ -198,6 +198,100 @@ export function deleteCampaign(db: Database.Database, id: number): boolean {
   return result.changes > 0;
 }
 
+// ============ Brain import (pull-side counterpart to src/clients/content-export.ts) ============
+
+export interface ImportCampaignInput {
+  scope: string;
+  name: string;
+  brief?: string;
+  status: CampaignStatus;
+  /** Original creation moment from the exporting install — required so the imported row's identity (name+createdAt, see content-import.ts) stays stable across repeated pulls. */
+  createdAt: string;
+  /** Defaults to createdAt when omitted. */
+  updatedAt?: string;
+}
+
+/**
+ * Insert a campaign reconstructed from a teammate's shared brain, preserving
+ * its ORIGINAL status/timestamps — unlike createCampaign (always starts
+ * 'active' with no timestamp control), this is the raw historical-snapshot
+ * primitive content-import.ts needs. Never called for a campaign that
+ * already exists locally (content-import.ts dedupes first), so this never
+ * needs to touch the deliverable status machine.
+ */
+export function importCampaign(db: Database.Database, input: ImportCampaignInput): number {
+  const stmt = db.prepare(`
+    INSERT INTO campaigns (scope, name, brief, status, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, COALESCE(?, ?))
+  `);
+  const result = stmt.run(
+    input.scope,
+    input.name,
+    input.brief ?? '',
+    input.status,
+    input.createdAt,
+    input.updatedAt ?? null,
+    input.createdAt
+  );
+  return result.lastInsertRowid as number;
+}
+
+export interface ImportDeliverableInput {
+  campaignId: number;
+  lane?: string | null;
+  title: string;
+  description?: string;
+  status: DeliverableStatus;
+  assignedSpecialist?: string | null;
+  /** Already resolved to a LOCAL deliverable id (content-import.ts maps the
+   * exported dependency's title to whatever local id that title ended up
+   * with in this same import batch) — never the exporting install's raw id,
+   * which means nothing on this machine. */
+  dependsOn?: number | null;
+  resultRef?: string | null;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+/**
+ * Insert a deliverable reconstructed from a teammate's shared brain,
+ * preserving its ORIGINAL status/resultRef/timestamps — unlike addDeliverable
+ * (always starts 'pending' with no resultRef), this is the raw
+ * historical-snapshot primitive content-import.ts needs. Deliberately skips
+ * addDeliverable's live dependency-graph validation: we're reconstructing
+ * state another install already validated when it happened, not performing a
+ * new live transition, and the caller has already resolved `dependsOn` to a
+ * same-campaign local id (or null if the reference couldn't be resolved).
+ */
+export function importCampaignDeliverable(
+  db: Database.Database,
+  input: ImportDeliverableInput
+): number {
+  const stmt = db.prepare(`
+    INSERT INTO campaign_deliverables
+      (campaign_id, lane, title, description, status, assigned_specialist, depends_on, result_ref, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, ?))
+  `);
+  const result = stmt.run(
+    input.campaignId,
+    input.lane ?? null,
+    input.title,
+    input.description ?? '',
+    input.status,
+    input.assignedSpecialist ?? null,
+    input.dependsOn ?? null,
+    input.resultRef ?? null,
+    input.createdAt,
+    input.updatedAt ?? null,
+    input.createdAt
+  );
+  // Touch the parent campaign's updated_at, same discipline as addDeliverable.
+  db.prepare("UPDATE campaigns SET updated_at = (strftime('%Y-%m-%dT%H:%M:%fZ')) WHERE id = ?").run(
+    input.campaignId
+  );
+  return result.lastInsertRowid as number;
+}
+
 // ============ Deliverable CRUD ============
 
 export interface AddDeliverableInput {

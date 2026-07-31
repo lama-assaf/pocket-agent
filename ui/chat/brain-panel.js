@@ -163,11 +163,36 @@ function _initBrainPanel() {
   const brainView = document.getElementById('brain-view');
   if (!brainView) return;
 
-  // Tab click handlers
-  brainView.querySelectorAll('.brain-nav-item').forEach(tab => {
+  // Tab click handlers. .brain-nav-item is a <div role="tab"> (see
+  // ui/chat.html), not a native button, so Enter/Space activation and
+  // arrow-key roving focus (the standard tablist keyboard pattern) have to
+  // be wired explicitly — without this the how-to-act/lessons/etc. tabs
+  // were mouse-only.
+  const tabs = Array.from(brainView.querySelectorAll('.brain-nav-item'));
+  tabs.forEach((tab, i) => {
     tab.addEventListener('click', () => {
       playNormalClick();
+      tab.focus();
       _brainSwitchTab(tab.dataset.tab);
+    });
+    tab.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+        e.preventDefault();
+        playNormalClick();
+        _brainSwitchTab(tab.dataset.tab);
+        return;
+      }
+      if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+        e.preventDefault();
+        const next = tabs[(i + 1) % tabs.length];
+        next.focus();
+        _brainSwitchTab(next.dataset.tab);
+      } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+        e.preventDefault();
+        const prev = tabs[(i - 1 + tabs.length) % tabs.length];
+        prev.focus();
+        _brainSwitchTab(prev.dataset.tab);
+      }
     });
   });
 
@@ -185,7 +210,120 @@ function _initBrainPanel() {
   if (pullBtn) pullBtn.addEventListener('click', () => { playNormalClick(); brainPullActive(); });
   const publishBtn = document.getElementById('brain-publish-btn');
   if (publishBtn) publishBtn.addEventListener('click', () => { playNormalClick(); brainPublishActive(); });
+
+  // Brand color picker (World / client scopes only — see _bpRefreshAccentRow).
+  const accentInput = document.getElementById('bp-accent-input');
+  if (accentInput) {
+    // Native <input type="color"> fires 'input' continuously while the OS
+    // color panel is being dragged — debounce so dragging doesn't spam
+    // clients:update / settings:set.
+    let accentDebounce = null;
+    accentInput.addEventListener('input', () => {
+      clearTimeout(accentDebounce);
+      const hex = accentInput.value;
+      accentDebounce = setTimeout(() => _bpSaveAccent(hex), 200);
+    });
+  }
+  const accentReset = document.getElementById('bp-accent-reset');
+  if (accentReset) {
+    accentReset.addEventListener('click', () => { playNormalClick(); _bpResetAccent(); });
+  }
+
   _brainPopulateSpaceOptions();
+}
+
+// ---- Brand color (client-identity accent) ----
+
+// Show/populate the "Brand color" row for the currently-viewed scope. Only
+// World and client scopes have somewhere to store an override — Personal has
+// no row (and must never be brandable), and a project inherits its parent
+// client's accent rather than having its own.
+async function _bpRefreshAccentRow() {
+  const row = document.getElementById('bp-accent-row');
+  const input = document.getElementById('bp-accent-input');
+  const hexEl = document.getElementById('bp-accent-hex');
+  const resetBtn = document.getElementById('bp-accent-reset');
+  if (!row || !input || !hexEl || !resetBtn) return;
+
+  const space = _brainSpace || '';
+  let id = null;
+  let isWorld = false;
+  if (space === 'world') {
+    id = 'world';
+    isWorld = true;
+  } else if (space.indexOf('client:') === 0) {
+    id = space.slice('client:'.length);
+  }
+
+  if (!window.ClientAccent || !id) {
+    row.hidden = true;
+    return;
+  }
+
+  row.hidden = false;
+  row.dataset.bpAccentId = id;
+  row.dataset.bpAccentIsWorld = isWorld ? '1' : '';
+
+  let override = null;
+  try {
+    if (isWorld) {
+      override = await window.ClientAccent.getWorldAccentOverride();
+    } else {
+      const clients = await window.pocketAgent.clients.list();
+      const client = (clients || []).find((c) => c.id === id);
+      override = client && window.ClientAccent.isValidHex(client.accent_color) ? client.accent_color : null;
+    }
+  } catch (err) {
+    console.error('[Brain] Failed to load brand color:', err);
+  }
+
+  const hex = override || window.ClientAccent.defaultAccentFor(id);
+  input.value = hex;
+  hexEl.textContent = override ? hex.toUpperCase() : `${hex.toUpperCase()} · default`;
+  resetBtn.hidden = !override;
+}
+
+async function _bpSaveAccent(hex) {
+  const row = document.getElementById('bp-accent-row');
+  if (!row || !window.ClientAccent || !window.ClientAccent.isValidHex(hex)) return;
+  const id = row.dataset.bpAccentId;
+  const isWorld = row.dataset.bpAccentIsWorld === '1';
+  try {
+    if (isWorld) {
+      await window.ClientAccent.setWorldAccentOverride(hex);
+    } else {
+      const res = await window.pocketAgent.clients.update(id, { accentColor: hex });
+      if (!res || res.success === false) throw new Error((res && res.error) || 'Failed to save brand color');
+    }
+    await _bpRefreshAccentRow();
+    // Re-resolves against the TRUE active workspace — a harmless no-op
+    // recompute if the user is editing a different client than the one
+    // that's active, an immediate live preview if it's the same one.
+    if (typeof updateActiveClientHeader === 'function') updateActiveClientHeader();
+  } catch (err) {
+    console.error('[Brain] Failed to save brand color:', err);
+    _brainShowToast(window.cleanToastMessage ? window.cleanToastMessage(err) : 'Failed to save brand color', 'error');
+  }
+}
+
+async function _bpResetAccent() {
+  const row = document.getElementById('bp-accent-row');
+  if (!row || !window.ClientAccent) return;
+  const id = row.dataset.bpAccentId;
+  const isWorld = row.dataset.bpAccentIsWorld === '1';
+  try {
+    if (isWorld) {
+      await window.ClientAccent.setWorldAccentOverride(null);
+    } else {
+      const res = await window.pocketAgent.clients.update(id, { accentColor: null });
+      if (!res || res.success === false) throw new Error((res && res.error) || 'Failed to reset brand color');
+    }
+    await _bpRefreshAccentRow();
+    if (typeof updateActiveClientHeader === 'function') updateActiveClientHeader();
+  } catch (err) {
+    console.error('[Brain] Failed to reset brand color:', err);
+    _brainShowToast(window.cleanToastMessage ? window.cleanToastMessage(err) : 'Failed to reset brand color', 'error');
+  }
 }
 
 // Populate the header Space filter with Personal, Agency, each client, and each
@@ -232,7 +370,14 @@ function _brainSwitchTab(tabId) {
   if (!brainView) return;
 
   brainView.querySelectorAll('.brain-nav-item').forEach(t => {
-    t.classList.toggle('active', t.dataset.tab === tabId);
+    const isActive = t.dataset.tab === tabId;
+    t.classList.toggle('active', isActive);
+    // .brain-nav-item is role="tab" (see ui/chat.html) — keep the ARIA
+    // selection state and roving tabindex (only the active tab is Tab-
+    // reachable; arrow keys move focus within the list, matching the
+    // standard tablist keyboard pattern) in sync with .active.
+    t.setAttribute('aria-selected', isActive ? 'true' : 'false');
+    t.tabIndex = isActive ? 0 : -1;
   });
   brainView.querySelectorAll('.brain-section').forEach(s => {
     s.classList.toggle('active', s.id === 'brain-' + tabId);
@@ -327,6 +472,11 @@ async function _wbLoad(sectionKey) {
   // Render the create row once per load (reflects the current scope).
   _wbRenderCreate(sectionKey, scope);
 
+  // Brand color picker lives in the how-to-act tab — refresh it on every
+  // load of that tab (covers both a tab switch and a space-select change
+  // while already on it, since both funnel through _wbLoad('howtoact')).
+  if (sectionKey === 'howtoact') _bpRefreshAccentRow();
+
   const countEl = document.getElementById(`brain-${sectionKey}-count`);
   try {
     const [all, usage] = await Promise.all([
@@ -342,6 +492,10 @@ async function _wbLoad(sectionKey) {
   } catch (err) {
     console.error(`[Brain] Failed to load ${sectionKey}:`, err);
     _brainShowToast('Failed to load memory', 'error');
+    const tableEl = document.getElementById(`brain-${sectionKey}-table`);
+    const emptyEl = document.getElementById(`brain-${sectionKey}-empty`);
+    if (tableEl) tableEl.classList.add('hidden');
+    wbShowError(emptyEl, err.message || 'Unknown error', `_wbLoad('${sectionKey}')`);
   }
 }
 
@@ -389,7 +543,7 @@ function _wbRenderRows(sectionKey) {
   if (facts.length === 0) {
     tbody.innerHTML = '';
     if (tableEl) tableEl.classList.add('hidden');
-    if (emptyEl) emptyEl.classList.remove('hidden');
+    wbShowEmpty(emptyEl);
     return;
   }
   if (tableEl) tableEl.classList.remove('hidden');
@@ -634,8 +788,18 @@ function _brainSyncScope() {
   return null;
 }
 
+// Flag it when the workbench is browsing a different brain than the one the
+// active chat is using (e.g. a deep-link from the client picker's "Memory &
+// voice" card) — otherwise the divergence is silent and confusing.
+function _brainUpdateDivergeHint() {
+  const hint = document.getElementById('brain-space-diverge-hint');
+  if (!hint) return;
+  hint.hidden = _brainSpace === _brainActiveScope();
+}
+
 // Show the Pull/Publish bar only for syncable (client/world) scopes.
 async function _brainUpdateSyncBar() {
+  _brainUpdateDivergeHint();
   const bar = document.getElementById('brain-sync-bar');
   if (!bar) return;
   const scope = _brainSyncScope();

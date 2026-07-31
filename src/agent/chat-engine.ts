@@ -6,6 +6,7 @@
  * remain in-process.
  */
 
+import fs from 'fs/promises';
 import { agentLoop } from '@kenkaiiii/gg-agent';
 import type { AgentOptions } from '@kenkaiiii/gg-agent';
 import { stream as ggStream } from '@kenkaiiii/gg-ai';
@@ -31,7 +32,7 @@ import { getStreamConfig } from './chat-providers';
 import { resolveModel } from './resolve-model';
 import { getProviderForModel } from './providers';
 import { getContextWindow } from './model-catalog';
-import { getChatAgentTools, getCoderAgentTools } from './chat-tools';
+import { getChatAgentTools, getCoderAgentTools, type PlanModeHooks } from './chat-tools';
 import { formatLaneSkills, buildLaneContextInjection } from './lane-context';
 import {
   buildSystemPrompt as buildCoderSystemPrompt,
@@ -343,13 +344,50 @@ export class ChatEngine {
       // bridged in for this turn (roadmap item 5) — same context that scopes
       // fact recall in buildSystemPrompt above.
       const mcpSessionContext = sessionId ? this.memory.getSessionContext(sessionId) : undefined;
+
+      // Plan mode (coder only) — `exit_plan` is how a proposed plan reaches
+      // the propose/approve/reject flow (see docs/plan-approval.md). The plan
+      // file's content, once submitted, becomes this turn's response and
+      // flips `planPending` so the IPC layer (agent-ipc.ts) hands it to
+      // PlanApprovals instead of treating it as a normal chat reply.
+      const planModeRef = { current: false };
+      const planState: { content: string | null } = { content: null };
+      const planHooks: PlanModeHooks = {
+        planModeRef,
+        onEnterPlan: (reason) => {
+          this.emitStatus({
+            type: 'plan_mode_entered',
+            sessionId,
+            message: reason || 'planning the pounce...',
+          });
+        },
+        onExitPlan: async (planPath: string) => {
+          try {
+            planState.content = await fs.readFile(planPath, 'utf-8');
+          } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            return `Error: could not read plan file at ${planPath}: ${message}`;
+          }
+          this.emitStatus({
+            type: 'plan_mode_exited',
+            sessionId,
+            message: 'plan ready for review',
+          });
+          return (
+            'Plan submitted for review. Stop here — do not implement the plan or call any ' +
+            "further tools. Wait for the user's approval or revision feedback."
+          );
+        },
+      };
+
       const agentTools =
         sessionMode === 'coder'
           ? await getCoderAgentTools(
               this.toolsConfig,
               this.getCoderCwd(sessionId),
               mcpSessionContext,
-              sessionId
+              sessionId,
+              planHooks
             )
           : await getChatAgentTools(
               this.toolsConfig,
@@ -636,6 +674,15 @@ export class ChatEngine {
         }
       }
 
+      // A plan was submitted via exit_plan this turn — replace whatever text
+      // the model produced (e.g. "waiting for your review") with the actual
+      // plan content, which is what the approval dialog and PlanApprovals
+      // store need to show/execute (see docs/plan-approval.md).
+      const planPending = planState.content !== null;
+      if (planState.content !== null) {
+        response = planState.content;
+      }
+
       // Update in-memory conversation with the final assistant response
       // (Agent manages its own internal messages, but we track for session persistence)
       if (response) {
@@ -678,6 +725,7 @@ export class ChatEngine {
             : undefined,
         contextTokens: lastTurnContextTokens,
         contextWindow: contextWindowFor(model, streamConfig.accountId),
+        planPending: planPending || undefined,
       };
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
@@ -899,13 +947,44 @@ export class ChatEngine {
     // brand space): visibleScopes lists chat → nearest → base, and personal
     // (`user`) memory is visible only in the personal context. top-8
     // relevance-ranked facts; the char budget remains a safety cap.
-    const facts = queryEmbedding
-      ? this.memory.retrieveRelevantFacts(queryEmbedding, 8, FACTS_CHAR_BUDGET, visibleScopes) ||
-        this.memory.getFactsForContext(visibleScopes)
-      : this.memory.getFactsForContext(visibleScopes);
+    // The fallback to the wholesale dump used to be silent (indistinguishable
+    // from the normal semantic path in the logs). factsFallbackReason names
+    // *why* semantic recall didn't serve this turn so a degraded embedding
+    // pipeline (or a scope with nothing embedded yet) is diagnosable instead
+    // of just looking like facts happened to be less relevant.
+    let factsFallbackReason: 'no-query-embedding' | 'no-relevant-facts' | null = null;
+    let facts: string;
+    if (queryEmbedding) {
+      const relevant = this.memory.retrieveRelevantFacts(
+        queryEmbedding,
+        8,
+        FACTS_CHAR_BUDGET,
+        visibleScopes
+      );
+      if (relevant) {
+        facts = relevant;
+      } else {
+        factsFallbackReason = 'no-relevant-facts';
+        facts = this.memory.getFactsForContext(visibleScopes);
+      }
+    } else {
+      factsFallbackReason = 'no-query-embedding';
+      facts = this.memory.getFactsForContext(visibleScopes);
+    }
+    if (factsFallbackReason) {
+      const detail =
+        factsFallbackReason === 'no-query-embedding'
+          ? 'embedQuery() failed or returned an empty query; check the embedding pipeline.'
+          : 'no fact in the visible scopes scored above the relevance threshold, or embeddings are still pending (see getPendingFactEmbeddingCount).';
+      console.warn(
+        `[ChatEngine] Semantic facts recall degraded to wholesale importance dump - reason: ${factsFallbackReason}. ${detail}`
+      );
+    }
     if (facts) {
       dynamicParts.push(facts);
-      console.log(`[ChatEngine] Facts injected: ${facts.length} chars`);
+      console.log(
+        `[ChatEngine] Facts injected: ${facts.length} chars${factsFallbackReason ? ` (fallback: ${factsFallbackReason})` : ''}`
+      );
     }
 
     // 4. Daily logs — recent conversation history (skip for scheduled/routine

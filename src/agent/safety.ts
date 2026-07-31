@@ -1,5 +1,5 @@
 /**
- * Pre-tool-use safety validation for Pocket Agent
+ * Pre-tool-use safety validation for r3to.os
  *
  * Blocks dangerous commands that should NEVER be executed under any circumstances.
  * These patterns represent catastrophic operations with no legitimate use case.

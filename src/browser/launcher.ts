@@ -328,7 +328,10 @@ export async function launchBrowser(
       await new Promise((resolve) => setTimeout(resolve, delayMs));
 
       if (spawnError) {
-        return { success: false, error: `Failed to launch ${def.name}: ${(spawnError as Error).message}` };
+        return {
+          success: false,
+          error: `Failed to launch ${def.name}: ${(spawnError as Error).message}`,
+        };
       }
       if (exitedEarly) {
         const { code, signal } = exitedEarly as { code: number | null; signal: string | null };

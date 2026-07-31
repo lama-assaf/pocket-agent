@@ -1,7 +1,7 @@
 ---
 name: engagement-manager
 description: Owns comment strategy, reply handling, engagement scoring, and the golden-hour launch routine. Use whenever the user wants to comment on other people's posts, triage replies on their own posts, score who's engaging, or run the first hours after a post goes live, and needs one agent to carry the whole engagement thread.
-tools: ["Read", "Grep", "Glob", "Write", "Edit"]
+tools: ['Read', 'Grep', 'Glob', 'Write', 'Edit']
 model: opus
 ---
 

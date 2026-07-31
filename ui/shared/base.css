@@ -4,6 +4,7 @@
 @import './badges.css';
 @import './forms.css';
 @import './nav.css';
+@import './panel-header.css';
 
 * {
   box-sizing: border-box;

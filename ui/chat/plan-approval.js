@@ -1,9 +1,22 @@
 // ---- Plan Mode Approval ----
 let planApprovalSessionId = null;
 let planRejectState = 'initial'; // 'initial' | 'feedback'
+let planApprovalId = null;
 
-function showPlanApproval(content, sessionId) {
+async function showPlanApproval(content, sessionId) {
   planApprovalSessionId = sessionId;
+  const existing = await window.pocketAgent.plans.getCurrent(sessionId);
+  if (existing?.status === 'pending' && existing.content === content) {
+    planApprovalId = existing.id;
+  } else {
+    const proposed = await window.pocketAgent.plans.propose(sessionId, content);
+    if (!proposed.success) {
+      addMessage('error', proposed.error || 'Unable to propose plan');
+      planApprovalSessionId = null;
+      return;
+    }
+    planApprovalId = proposed.plan.id;
+  }
   planRejectState = 'initial';
 
   const overlay = document.getElementById('plan-approval-overlay');
@@ -20,21 +33,32 @@ function showPlanApproval(content, sessionId) {
   feedbackInput.classList.add('hidden');
   feedbackInput.value = '';
   overlay.classList.add('show');
+  // No onEscape: this is a decision point (Approve/Revise), not a
+  // dismissible prompt — there's no neutral "cancel" action today, so
+  // Escape stays a no-op here exactly like before this fix, while Tab/
+  // Shift+Tab still get properly trapped inside the overlay.
+  focusTrapActivate(overlay);
 }
 
 function hidePlanApproval() {
   document.getElementById('plan-approval-overlay').classList.remove('show');
   planApprovalSessionId = null;
+  planApprovalId = null;
   planRejectState = 'initial';
+  focusTrapDeactivate();
 }
 
 async function approvePlan() {
-  if (!planApprovalSessionId) return;
+  if (!planApprovalSessionId || !planApprovalId) return;
   const sessionId = planApprovalSessionId;
+  const planId = planApprovalId;
+  const result = await window.pocketAgent.plans.approve(sessionId, planId);
+  if (!result.success) {
+    addMessage('error', result.error || 'Plan approval failed');
+    return;
+  }
   hidePlanApproval();
-
-  // Send approval as a regular follow-up message
-  await sendPlanResponse('Approved. Proceed with implementation.', sessionId);
+  if (result.result?.response) addMessage('assistant', result.result.response, true, [], null, true, result.result.media);
 }
 
 function rejectPlan() {
@@ -49,15 +73,21 @@ function rejectPlan() {
   }
 
   // Second click: send rejection with feedback
-  if (!planApprovalSessionId) return;
+  if (!planApprovalSessionId || !planApprovalId) return;
   const sessionId = planApprovalSessionId;
+  const planId = planApprovalId;
   const feedback = document.getElementById('plan-feedback-input').value.trim();
-  hidePlanApproval();
-
-  const message = feedback
-    ? `Rejected. Please revise the plan with this feedback:\n${feedback}`
-    : 'Rejected. Please revise the plan.';
-  sendPlanResponse(message, sessionId);
+  window.pocketAgent.plans.reject(sessionId, planId, feedback).then((result) => {
+    if (!result.success) {
+      addMessage('error', result.error || 'Plan rejection failed');
+      return;
+    }
+    hidePlanApproval();
+    const message = feedback
+      ? `Rejected. Please revise the plan with this feedback:\n${feedback}`
+      : 'Rejected. Please revise the plan.';
+    sendPlanResponse(message, sessionId);
+  });
 }
 
 async function sendPlanResponse(message, sessionId) {

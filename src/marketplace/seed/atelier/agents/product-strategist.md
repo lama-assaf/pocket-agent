@@ -1,7 +1,7 @@
 ---
 name: product-strategist
 description: Writes prds, specs, positioning docs, and feature scoping plans. Use whenever the user mentions prd, product requirements, spec, feature spec, positioning, scoping, mvp definition, or wants help thinking through what to build, for whom, and why.
-tools: ["Read", "Grep", "Glob", "Write", "Edit"]
+tools: ['Read', 'Grep', 'Glob', 'Write', 'Edit']
 model: opus
 ---
 

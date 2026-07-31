@@ -1,7 +1,7 @@
 ---
 name: release-narrator
 description: Writes release notes, changelogs, and ship announcements. Use whenever the user needs release notes, changelog entries, what's new posts, ship announcements, version updates, or any communication that tells users what shipped.
-tools: ["Read", "Grep", "Glob", "Write", "Bash"]
+tools: ['Read', 'Grep', 'Glob', 'Write', 'Bash']
 model: opus
 ---
 

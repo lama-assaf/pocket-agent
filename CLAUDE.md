@@ -1,4 +1,4 @@
-# Pocket Agent
+# r3to.os
 
 A persistent desktop AI that runs 24/7 as a menu-bar app, evolving from a single-brain personal assistant into a **client-first agency workspace**: one operator, many client brands, each with its own isolated, shareable brain (memory + voice + how-to-act). Powered by the Claude Agent SDK, with continuous memory, operator lanes (design/product/brand/social), Telegram, browser automation, and scheduled tasks.
 
@@ -73,7 +73,7 @@ Fix ALL errors/warnings before continuing.
 - `npm run format` - Prettier auto-format
 - `npm run test` - Run all tests
 
-> **Native module note:** `better-sqlite3` is rebuilt per-ABI. Tests run under Node (the `pretest` hook checks/rebuilds); `npm run electron`'s `preelectron` hook rebuilds for Electron. If tests fail with `NODE_MODULE_VERSION`, run `npm rebuild better-sqlite3`.
+> **Native module note:** `better-sqlite3` is rebuilt per-ABI (Electron vs. plain Node — see `docs/dev-setup.md` for the full explanation). `npm install`/`npm ci` fetch a prebuilt binary automatically (`prebuild-install`, no compiler needed in the common case); tests run under Node (the `pretest` hook checks/rebuilds); `npm run electron`'s `preelectron` hook rebuilds for Electron. A per-ABI cache (`scripts/native-cache.cjs`, gitignored, per machine) makes switching between the two fast after the first build of each side. If tests fail with `NODE_MODULE_VERSION`, run `npm rebuild better-sqlite3`; if `npm run electron`/`npm run dev` does, run `npm run rebuild:native`. CI caches `~/.npm` (and, for the Node-only `verify` job, `node_modules` itself) so this rarely triggers a real rebuild there either — see `docs/dev-setup.md`'s CI section.
 
 ## Key Architecture
 

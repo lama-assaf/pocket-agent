@@ -2,34 +2,21 @@
  * macOS Permission Detection and Management
  *
  * Handles checking and requesting macOS system permissions
- * required by various skills.
+ * required by various skills. macOS-only: every exported function is a
+ * no-op/granted-by-default no-op when called on another platform (defensive
+ * fallback for direct callers/tests of this module) — the real cross-platform
+ * dispatch lives in src/permissions/index.ts, which routes to
+ * src/permissions/windows.ts on win32 instead of calling into this file.
  */
 
 import { systemPreferences, shell } from 'electron';
 import { execSync } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
+import { PERMISSION_INFO, type PermissionType, type PermissionStatus } from './types';
 
-export type PermissionType =
-  | 'accessibility'
-  | 'screen-recording'
-  | 'full-disk-access'
-  | 'reminders'
-  | 'contacts'
-  | 'calendar'
-  | 'camera'
-  | 'microphone'
-  | 'bluetooth'
-  | 'automation';
-
-export interface PermissionStatus {
-  type: PermissionType;
-  granted: boolean;
-  canRequest: boolean;
-  label: string;
-  description: string;
-  settingsUrl: string;
-}
+export type { PermissionType, PermissionStatus } from './types';
+export { getAllPermissionTypes } from './types';
 
 // Map permission types to System Settings URLs (macOS Ventura+)
 const SETTINGS_URLS: Record<PermissionType, string> = {
@@ -44,49 +31,6 @@ const SETTINGS_URLS: Record<PermissionType, string> = {
   microphone: 'x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone',
   bluetooth: 'x-apple.systempreferences:com.apple.preference.security?Privacy_Bluetooth',
   automation: 'x-apple.systempreferences:com.apple.preference.security?Privacy_Automation',
-};
-
-const PERMISSION_INFO: Record<PermissionType, { label: string; description: string }> = {
-  accessibility: {
-    label: 'Accessibility',
-    description: 'Control your computer and other apps',
-  },
-  'screen-recording': {
-    label: 'Screen Recording',
-    description: 'Capture screen content and screenshots',
-  },
-  'full-disk-access': {
-    label: 'Full Disk Access',
-    description: 'Access files in protected locations',
-  },
-  reminders: {
-    label: 'Reminders',
-    description: 'Read and create reminders',
-  },
-  contacts: {
-    label: 'Contacts',
-    description: 'Access your contacts',
-  },
-  calendar: {
-    label: 'Calendar',
-    description: 'Access your calendars and events',
-  },
-  camera: {
-    label: 'Camera',
-    description: 'Use your camera',
-  },
-  microphone: {
-    label: 'Microphone',
-    description: 'Use your microphone',
-  },
-  bluetooth: {
-    label: 'Bluetooth',
-    description: 'Discover and connect to Bluetooth devices',
-  },
-  automation: {
-    label: 'Automation',
-    description: 'Control other apps via AppleScript',
-  },
 };
 
 /**
@@ -280,17 +224,9 @@ export async function requestPermission(type: PermissionType): Promise<boolean> 
  */
 export async function openPermissionSettings(type: PermissionType): Promise<void> {
   if (!isMacOS()) {
-    // Windows: open the Settings app to the relevant privacy page
-    const winSettingsMap: Partial<Record<PermissionType, string>> = {
-      camera: 'ms-settings:privacy-webcam',
-      microphone: 'ms-settings:privacy-microphone',
-      calendar: 'ms-settings:privacy-calendar',
-      contacts: 'ms-settings:privacy-contacts',
-    };
-    const winUrl = winSettingsMap[type];
-    if (winUrl) {
-      await shell.openExternal(winUrl);
-    }
+    // Not this platform — src/permissions/index.ts routes non-macOS calls to
+    // src/permissions/windows.ts instead; this is only a defensive no-op for
+    // direct callers/tests of this module.
     return;
   }
 
@@ -298,11 +234,4 @@ export async function openPermissionSettings(type: PermissionType): Promise<void
   if (url) {
     await shell.openExternal(url);
   }
-}
-
-/**
- * Get all permission types
- */
-export function getAllPermissionTypes(): PermissionType[] {
-  return Object.keys(SETTINGS_URLS) as PermissionType[];
 }

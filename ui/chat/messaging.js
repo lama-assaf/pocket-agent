@@ -19,12 +19,14 @@ function setButtonState(loading) {
   if (loading) {
     sendBtn.classList.add('stop-btn');
     sendBtn.title = 'Stop';
+    sendBtn.setAttribute('aria-label', 'Stop generating');
     sendIcon.classList.add('hidden');
     stopIcon.classList.remove('hidden');
     sendBtn.disabled = false;
   } else {
     sendBtn.classList.remove('stop-btn');
     sendBtn.title = 'Send';
+    sendBtn.setAttribute('aria-label', 'Send message');
     sendIcon.classList.remove('hidden');
     stopIcon.classList.add('hidden');
   }
@@ -144,10 +146,13 @@ async function sendMessage() {
     statusElBySession.set(sessionId, statusEl);
   }
 
-  // Lock mode toggle once a message is sent in this session
-  const toggle = document.querySelector('.mode-toggle');
-  if (toggle && sessionId === currentSessionId) {
-    toggle.classList.add('locked');
+  // Lock mode-select + lane switcher once a message is sent in this session.
+  // (`.mode-toggle` was the pre-lane-switcher control and no longer exists in
+  // the DOM — this silently no-op'd, leaving the lane switcher and mode-select
+  // clickable immediately after the first send until the next session
+  // load/switch re-ran updateModeUIForSession's own lock check.)
+  if (sessionId === currentSessionId) {
+    applyModeLock(true);
   }
 
   scrollToBottom();

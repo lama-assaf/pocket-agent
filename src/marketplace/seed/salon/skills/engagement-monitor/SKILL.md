@@ -23,24 +23,24 @@ Use when a user asks to review who engaged with recent posts, wants engagement s
 
 Rank engagement by what it costs the engager to give, not by what's easiest to count.
 
-| signal | approximate weight | why |
-|---|---|---|
-| save | ~5x | costs nothing publicly, means the reader wants to return to it; strongest private-intent signal available |
-| meaningful comment (15+ words) | ~4x | costs public effort and time; the words themselves are evidence of read-through |
-| share with commentary | ~3-4x | costs reputation; the sharer is putting their own name next to the idea |
-| short comment | ~2x | some effort, low information |
-| like | ~1x | costs almost nothing; on its own, a like means almost nothing about intent |
+| signal                         | approximate weight | why                                                                                                       |
+| ------------------------------ | ------------------ | --------------------------------------------------------------------------------------------------------- |
+| save                           | ~5x                | costs nothing publicly, means the reader wants to return to it; strongest private-intent signal available |
+| meaningful comment (15+ words) | ~4x                | costs public effort and time; the words themselves are evidence of read-through                           |
+| share with commentary          | ~3-4x              | costs reputation; the sharer is putting their own name next to the idea                                   |
+| short comment                  | ~2x                | some effort, low information                                                                              |
+| like                           | ~1x                | costs almost nothing; on its own, a like means almost nothing about intent                                |
 
 A post with 500 likes and two saves is a weaker signal than a post with 40 likes and twelve meaningful comments. Score the second one higher.
 
 ## engager ICP tiers
 
-| tier | definition |
-|---|---|
-| peer | works in the same space, similar role or company stage; good for reach and credibility, not usually a buyer |
+| tier         | definition                                                                                                        |
+| ------------ | ----------------------------------------------------------------------------------------------------------------- |
+| peer         | works in the same space, similar role or company stage; good for reach and credibility, not usually a buyer       |
 | aspirational | the audience the user wants to be seen by, larger accounts that are harder to convert but valuable for visibility |
-| prospect | matches the campaign's actual target buyer or user profile |
-| other | doesn't fit any tier above; track only if engagement is unusually high-weight |
+| prospect     | matches the campaign's actual target buyer or user profile                                                        |
+| other        | doesn't fit any tier above; track only if engagement is unusually high-weight                                     |
 
 Report the per-post breakdown as a percentage across the four tiers, not just a headcount. A post that's 80% peer engagement is doing something different than one that's 60% prospect.
 
@@ -49,7 +49,7 @@ Report the per-post breakdown as a percentage across the four tiers, not just a 
 The ledger lives inside the campaign file at `.atelier/memory/campaigns/<slug>.md`, in a `## engager ledger` section, with these columns:
 
 | handle | tier | posts engaged | suggested next action |
-|---|---|---|---|
+| ------ | ---- | ------------- | --------------------- |
 
 - Update existing rows rather than duplicating a handle across multiple entries.
 - "Posts engaged" tracks a running count across the whole campaign, not just the post under review.

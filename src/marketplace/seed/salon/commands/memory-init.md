@@ -24,6 +24,7 @@ existing file, regardless of which plugin wrote it.
    file that's already there — not `instincts.md`, not `lessons.md`, not
    `voice.md` if it's already been customized. report exactly which files
    were added and which were already present and left alone.
+
 3. if `<project>/.atelier/memory/` does not exist at all, create the full
    shared base plus salon's additions in one pass:
    - `.atelier/memory/instincts.md` ← `${CLAUDE_PLUGIN_ROOT}/memory/instincts.md`
@@ -33,6 +34,7 @@ existing file, regardless of which plugin wrote it.
 
    (salon's `instincts.md` and `lessons.md` seeds mirror atelier's shape, so
    this stays a valid base even if atelier is never installed.)
+
 4. tell the user:
    - which files were created and which were already present
    - memory is meant to be committed so the team shares it; if they prefer

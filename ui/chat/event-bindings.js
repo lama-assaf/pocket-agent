@@ -16,11 +16,11 @@ document.getElementById('about-modal').addEventListener('click', (e) => {
 bindClick('about-close-btn', () => { playNormalClick(); closeAbout(); });
 bindClick('about-link-youtube', () => {
   playNormalClick();
-  window.pocketAgent.app.openExternal('https://www.youtube.com/@kenkaidoesai');
+  window.pocketAgent.app.openExternal('https://www.youtube.com/@zilliqadoesai');
 });
 bindClick('about-link-skool', () => {
   playNormalClick();
-  window.pocketAgent.app.openExternal('https://www.skool.com/kenkai');
+  window.pocketAgent.app.openExternal('https://www.skool.com/zilliqa');
 });
 
 // --- Plan Approval ---
@@ -35,6 +35,7 @@ bindClick('cv-join-client-btn', () => { playNormalClick(); cvJoinClient(); });
 bindClick('cv-pull-all-btn', () => { playNormalClick(); cvPullAll(); });
 
 // --- Sidebar ---
+bindClick('sidebar-home-btn', () => { playNormalClick(); toggleWorkspaceHomeView(); });
 bindClick('sidebar-new-chat', () => { playNormalClick(); createNewSession(); });
 bindClick('sidebar-personalize-btn', () => { playNormalClick(); togglePersonalizePanel(); });
 bindClick('sidebar-routines-btn', () => { playNormalClick(); toggleRoutinesPanel(); });
@@ -83,6 +84,14 @@ bindClick('bg-dropdown-back-btn', () => { playNormalClick(); closeBackgroundTask
 document.getElementById('mode-select').addEventListener('change', function() {
   playNormalClick();
   setAgentMode(this.value);
+});
+// Operator lane switcher (design/product/brand/social) — same setAgentMode
+// pipeline as mode-select, just a dedicated, color-coded control per lane.
+document.querySelectorAll('.lane-btn').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    playNormalClick();
+    setAgentMode(btn.dataset.lane);
+  });
 });
 // Project selector — refines the active client workspace to a project.
 (function() {

@@ -21,15 +21,15 @@ Use when a user asks to comment on someone else's post, build visibility in a ni
 
 ## comment shapes
 
-| shape | what it does | when to use |
-|---|---|---|
-| missing-piece concession | agree with the post, then name the one thing it left out | default choice — this shape gets the highest measured rate of author replies of any of these seven |
-| answer-the-closing-question | the post ends on a question; answer it directly and specifically | any post that closes with an explicit ask |
-| data-point-first | open with a number or concrete result, then connect it to the post's claim | posts making a claim you can back or complicate with a real figure |
-| practitioner observation | add a detail only someone who's done the work would know | technical or how-to posts in the user's actual domain |
-| agree-then-push counter (with concession) | concede the premise first, then argue a sharper or opposite conclusion from it | posts with a take worth pressure-testing, not posts that are factually wrong |
-| quotable reframe | restate the post's idea in under 12 words, sharper than the original | strong posts where there's nothing to add, only something to crystallize |
-| sharper follow-up question | ask the question the post's own logic raises but doesn't answer | posts that stop one step short of their own implication |
+| shape                                     | what it does                                                                   | when to use                                                                                        |
+| ----------------------------------------- | ------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
+| missing-piece concession                  | agree with the post, then name the one thing it left out                       | default choice — this shape gets the highest measured rate of author replies of any of these seven |
+| answer-the-closing-question               | the post ends on a question; answer it directly and specifically               | any post that closes with an explicit ask                                                          |
+| data-point-first                          | open with a number or concrete result, then connect it to the post's claim     | posts making a claim you can back or complicate with a real figure                                 |
+| practitioner observation                  | add a detail only someone who's done the work would know                       | technical or how-to posts in the user's actual domain                                              |
+| agree-then-push counter (with concession) | concede the premise first, then argue a sharper or opposite conclusion from it | posts with a take worth pressure-testing, not posts that are factually wrong                       |
+| quotable reframe                          | restate the post's idea in under 12 words, sharper than the original           | strong posts where there's nothing to add, only something to crystallize                           |
+| sharper follow-up question                | ask the question the post's own logic raises but doesn't answer                | posts that stop one step short of their own implication                                            |
 
 ## rules
 

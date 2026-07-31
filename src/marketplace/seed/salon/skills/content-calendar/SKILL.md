@@ -21,36 +21,36 @@ Use when a user wants a content calendar, a batch of post ideas across pillars a
 
 ## the 8 format columns
 
-| format | what it does |
-|---|---|
-| actionable | a specific step the reader can do today |
-| motivational | a stance or story that moves the reader's belief, not just their to-do list |
-| analytical | breaks a number, trend, or mechanism down |
-| contrarian | states the opposite of the room's consensus, and means it |
-| observation | names a pattern nobody's said out loud yet |
-| x-vs-y | a direct comparison forcing a choice |
-| present-vs-future | contrasts where things stand now against where they're headed |
-| listicle | a numbered or bulleted set, each item load-bearing |
+| format            | what it does                                                                |
+| ----------------- | --------------------------------------------------------------------------- |
+| actionable        | a specific step the reader can do today                                     |
+| motivational      | a stance or story that moves the reader's belief, not just their to-do list |
+| analytical        | breaks a number, trend, or mechanism down                                   |
+| contrarian        | states the opposite of the room's consensus, and means it                   |
+| observation       | names a pattern nobody's said out loud yet                                  |
+| x-vs-y            | a direct comparison forcing a choice                                        |
+| present-vs-future | contrasts where things stand now against where they're headed               |
+| listicle          | a numbered or bulleted set, each item load-bearing                          |
 
 ## pillar mix guard
 
-| pillar type | target share |
-|---|---|
-| authority | 40-50% |
-| narrative | 30-40% |
-| community | 20-30% |
-| product (optional) | ≤15% |
+| pillar type        | target share |
+| ------------------ | ------------ |
+| authority          | 40-50%       |
+| narrative          | 30-40%       |
+| community          | 20-30%       |
+| product (optional) | ≤15%         |
 
 These bands describe the whole grid across all pillars and formats, not a per-week quota. A calendar that's 70% product content has stopped being a content calendar and started being an ad schedule.
 
 ## per-platform cadence guard
 
-| platform | cadence | note |
-|---|---|---|
-| LinkedIn | 3-5 posts/week | more than 5 dilutes reach per post without a proportional gain in total reach |
-| X | daily or more | the platform rewards frequency; a gap of more than a day resets momentum |
-| Discord | news-driven | post when there's real news, not on a fixed clock; sustainable only if comment volume in the server holds up under the pace |
-| Telegram | news-driven | same discipline as Discord — cadence follows what's actually happening, not a calendar habit |
+| platform | cadence        | note                                                                                                                        |
+| -------- | -------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| LinkedIn | 3-5 posts/week | more than 5 dilutes reach per post without a proportional gain in total reach                                               |
+| X        | daily or more  | the platform rewards frequency; a gap of more than a day resets momentum                                                    |
+| Discord  | news-driven    | post when there's real news, not on a fixed clock; sustainable only if comment volume in the server holds up under the pace |
+| Telegram | news-driven    | same discipline as Discord — cadence follows what's actually happening, not a calendar habit                                |
 
 Discord and Telegram cadence is a ceiling, not a floor: if comment volume in the server drops as posting frequency rises, that's the signal to slow down, not push harder.
 

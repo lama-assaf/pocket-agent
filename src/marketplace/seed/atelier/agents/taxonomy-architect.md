@@ -1,7 +1,7 @@
 ---
 name: taxonomy-architect
 description: Designs information architecture, navigation, and content taxonomies. Use whenever the user mentions IA, information architecture, navigation, sitemap, content structure, taxonomy, categorization, or needs to organize a system's content into something users can find.
-tools: ["Read", "Grep", "Glob", "Write"]
+tools: ['Read', 'Grep', 'Glob', 'Write']
 model: opus
 ---
 

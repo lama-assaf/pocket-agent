@@ -229,6 +229,37 @@ export function registerMiscIPC(deps: IPCDependencies): void {
     return { success: true };
   });
 
+  // GitHub OAuth device flow for brain repository sync
+  ipcMain.handle('github:startOAuth', async () => {
+    const { GitHubOAuth } = await import('../../auth/github-oauth');
+    return GitHubOAuth.startFlow();
+  });
+
+  // startFlow() above resolves as soon as the device code is shown; the
+  // renderer polls this (same pattern as kimi:isOAuthPending) to learn when
+  // the background poll loop finishes (success, denial, or expiry).
+  ipcMain.handle('github:isOAuthPending', async () => {
+    const { GitHubOAuth } = await import('../../auth/github-oauth');
+    return GitHubOAuth.isPending();
+  });
+
+  ipcMain.handle('github:getAuthStatus', async () => {
+    const { GitHubOAuth } = await import('../../auth/github-oauth');
+    return GitHubOAuth.getAuthStatus();
+  });
+
+  ipcMain.handle('github:cancelOAuth', async () => {
+    const { GitHubOAuth } = await import('../../auth/github-oauth');
+    GitHubOAuth.cancelFlow();
+    return { success: true };
+  });
+
+  ipcMain.handle('github:disconnect', async () => {
+    const { GitHubOAuth } = await import('../../auth/github-oauth');
+    GitHubOAuth.disconnect();
+    return { success: true };
+  });
+
   // Browser control
   ipcMain.handle('browser:detectInstalled', async () => {
     const { detectInstalledBrowsers } = await import('../../browser/launcher');
@@ -249,13 +280,13 @@ export function registerMiscIPC(deps: IPCDependencies): void {
   const ALLOWED_COMMAND_PREFIXES = IS_WINDOWS
     ? [
         '(Get-Command pocket',
-        'Invoke-RestMethod https://api.github.com/repos/KenKaiii/',
+        'Invoke-RestMethod https://api.github.com/repos/lama-assaf/',
         '$installDir = Join-Path',
       ]
     : [
         'which pocket',
-        'curl -fsSL https://api.github.com/repos/KenKaiii/pocket-agent-cli/',
-        'curl -fsSL https://raw.githubusercontent.com/KenKaiii/pocket-agent-cli/main/scripts/install.sh -o /tmp/pocket-cli-install.sh && sed',
+        'curl -fsSL https://api.github.com/repos/lama-assaf/pocket-agent-cli/',
+        'curl -fsSL https://raw.githubusercontent.com/lama-assaf/pocket-agent-cli/main/scripts/install.sh -o /tmp/pocket-cli-install.sh && sed',
       ];
 
   // Validate the `strings` version-check command

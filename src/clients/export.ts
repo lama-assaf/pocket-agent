@@ -66,7 +66,9 @@ export const RESERVED_EXPORT_PATHS: readonly string[] = [
 export function isReservedExportPath(relPath: string): boolean {
   const norm = relPath.split(path.sep).join('/');
   return RESERVED_EXPORT_PATHS.some((reserved) =>
-    reserved.endsWith('/') ? norm === reserved.slice(0, -1) || norm.startsWith(reserved) : norm === reserved
+    reserved.endsWith('/')
+      ? norm === reserved.slice(0, -1) || norm.startsWith(reserved)
+      : norm === reserved
   );
 }
 

@@ -1,7 +1,7 @@
 ---
 name: design-reviewer
 description: Critiques designs against spacing, type, color, hierarchy, and contrast principles. Use whenever the user asks for design review, design feedback, design critique, design check, or shares a Figma file, screenshot, or mockup for evaluation.
-tools: ["Read", "Grep", "Glob"]
+tools: ['Read', 'Grep', 'Glob']
 model: opus
 ---
 

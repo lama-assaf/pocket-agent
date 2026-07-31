@@ -210,11 +210,19 @@ const CORPORATE_FILLER_REGEX = buildPatternRegex(CORPORATE_FILLER);
 const HOLLOW_OPENER_REGEX = buildPatternRegex(HOLLOW_OPENERS);
 
 /** True when the match at `index` falls within an allowlisted technical context. */
-function isAllowlisted(text: string, index: number, matchLength: number, phraseLower: string): boolean {
+function isAllowlisted(
+  text: string,
+  index: number,
+  matchLength: number,
+  phraseLower: string
+): boolean {
   const contexts = TECHNICAL_CONTEXT_ALLOWLIST[phraseLower];
   if (!contexts) return false;
   const window = text
-    .slice(Math.max(0, index - ALLOWLIST_CONTEXT_CHARS), index + matchLength + ALLOWLIST_CONTEXT_CHARS)
+    .slice(
+      Math.max(0, index - ALLOWLIST_CONTEXT_CHARS),
+      index + matchLength + ALLOWLIST_CONTEXT_CHARS
+    )
     .toLowerCase();
   return contexts.some((ctx) => window.includes(ctx));
 }
@@ -367,7 +375,9 @@ export function scanForBannedTone(text: string, context?: SessionContext): ToneS
       list.push(h.phrase);
       byCategory.set(h.category, list);
     }
-    const parts = [...byCategory.entries()].map(([cat, phrases]) => `${cat}: ${phrases.join(', ')}`);
+    const parts = [...byCategory.entries()].map(
+      ([cat, phrases]) => `${cat}: ${phrases.join(', ')}`
+    );
     messages.push(`banned/AI-tone terms — ${parts.join('; ')}`);
   }
   if (rhythm.flag) {

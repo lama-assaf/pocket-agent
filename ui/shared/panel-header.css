@@ -1,0 +1,97 @@
+/* Panel header primitive — single source of truth for the header bar used
+   by every full-screen workbench panel (Settings, The Brain, Agents,
+   Content, Campaigns, Analytics, Routines, Personalize). Previously each
+   panel's own CSS file redefined this identical block under its own prefix
+   (.brain-header, .agt-header, .cnt-header, ...), which had already drifted
+   (stray blank lines in a few copies). Add a new panel's header class to
+   these selector lists rather than redefining the block — mirrors the
+   .nav-item primitive in shared/nav.css. */
+
+.settings-header,
+.brain-header,
+.agt-header,
+.cnt-header,
+.cpn-header,
+.ant-header,
+.routines-header,
+.pz-header,
+.wsh-header {
+  background: var(--surface-panel);
+  padding: 10px 16px;
+  border-radius: var(--radius-control);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 12px;
+}
+
+.settings-header h1,
+.brain-header h1,
+.agt-header h1,
+.cnt-header h1,
+.cpn-header h1,
+.ant-header h1,
+.routines-header h1,
+.pz-header h1,
+.wsh-header h1 {
+  font-family: 'Cal Sans', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.settings-header h1 span,
+.brain-header h1 span,
+.agt-header h1 span,
+.cnt-header h1 span,
+.cpn-header h1 span,
+.ant-header h1 span,
+.routines-header h1 span,
+.pz-header h1 span,
+.wsh-header h1 span {
+  color: var(--text-primary);
+}
+
+.settings-header-actions,
+.brain-header-actions,
+.agt-header-actions,
+.cnt-header-actions,
+.cpn-header-actions,
+.ant-header-actions,
+.routines-header-actions,
+.pz-header-actions,
+.wsh-header-actions,
+#settings-view .header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Workspace breadcrumb — ties every panel back to the active client, so
+   switching between Brain/Agents/Content/... never loses the "which brand
+   am I in" context. Empty by default; populated with e.g. "Aurelia
+   Skincare › " by updateActiveClientHeader() (ui/chat/clients-view.js)
+   whenever the active workspace changes, and once on initial load.
+
+   Selector list mirrors ".XXX-header h1 span" above and must stay at least
+   that specific (0,0,3,0) — ".workbench-scope" alone (0,0,1,0) previously
+   lost to that rule's plain var(--text-primary), silently making the accent
+   color here a dead property. */
+.settings-header h1 .workbench-scope,
+.brain-header h1 .workbench-scope,
+.agt-header h1 .workbench-scope,
+.cnt-header h1 .workbench-scope,
+.cpn-header h1 .workbench-scope,
+.ant-header h1 .workbench-scope,
+.routines-header h1 .workbench-scope,
+.pz-header h1 .workbench-scope,
+.wsh-header h1 .workbench-scope {
+  /* --client-accent-readable is the ACTIVE workspace's identity color
+     (client-accent.js); falls back to the skin's own muted text color when
+     unset (Personal is always unset, by design). Tints the one piece of text
+     every panel shares, so the breadcrumb is felt through color, not just
+     read as words. */
+  color: var(--client-accent-readable, var(--text-muted));
+  font-weight: 600;
+}

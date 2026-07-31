@@ -1,7 +1,7 @@
 ---
 name: pitch-deck-writer
 description: Writes investor pitch decks, fundraising narratives, and venture decks. Use whenever the user mentions pitch deck, fundraising deck, investor deck, seed deck, series a deck, vc pitch, or needs slides that tell an investable story.
-tools: ["Read", "Grep", "Glob", "Write"]
+tools: ['Read', 'Grep', 'Glob', 'Write']
 model: opus
 ---
 

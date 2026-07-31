@@ -28,7 +28,6 @@ usage:
      [the note, lightly edited for clarity]
 
    - instincts.md entry format (one bullet at the end of the file):
-
      - **[2-4 word label]**: [the note as a directly applicable rule]
 
 4. use today's real date. keep the user's meaning; fix only grammar.

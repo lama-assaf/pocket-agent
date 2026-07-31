@@ -86,7 +86,7 @@ function createDefaultIcon(): Electron.NativeImage {
   fillRect(5, 10, 10, 11);
 
   const icon = nativeImage.createFromBuffer(canvas, { width: size, height: size });
-  icon.setTemplateImage(true); // For macOS menu bar
+  if (IS_MACOS) icon.setTemplateImage(true); // For macOS menu bar
   return icon;
 }
 
@@ -109,7 +109,10 @@ function getMenuIcon(): Electron.NativeImage | undefined {
         height: 32,
         buffer: rawIcon.resize({ width: 32, height: 32 }).toPNG(),
       });
-      cachedMenuIcon.setTemplateImage(true);
+      // Template images auto-invert for macOS's light/dark menu bar; on
+      // Windows this would just force the context-menu icon to render as a
+      // flat monochrome mask instead of the real icon.
+      if (IS_MACOS) cachedMenuIcon.setTemplateImage(true);
     }
   } catch {
     cachedMenuIcon = undefined;
@@ -156,7 +159,7 @@ export async function createTray(): Promise<void> {
   }
 
   tray = new Tray(icon);
-  tray.setToolTip('Pocket Agent');
+  tray.setToolTip('r3to.os');
 
   // Double-click opens chat
   tray.on('double-click', () => {
@@ -179,7 +182,7 @@ export function updateTrayMenu(): void {
 
   const contextMenu = Menu.buildFromTemplate([
     {
-      label: `Pocket Agent v${app.getVersion()}`,
+      label: `r3to.os v${app.getVersion()}`,
       enabled: false,
       icon: menuIcon,
     },
@@ -209,7 +212,7 @@ export function updateTrayMenu(): void {
       label: 'Reboot',
       click: async () => {
         await callbacks?.restartAgent();
-        callbacks?.showNotification('Pocket Agent', 'Back online! ✨');
+        callbacks?.showNotification('r3to.os', 'Back online! ✨');
       },
     },
     { type: 'separator' },

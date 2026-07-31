@@ -30,6 +30,7 @@ import {
   type FirstPartyServerDescriptor,
 } from '../../marketplace/mcp-status';
 import { getMcpServerManager } from '../../mcp/manager';
+import { readPocketCliFallbackEnv } from '../../config/pocket-cli-fallback';
 import type { SessionContext } from '../../memory/sessions';
 
 // Not a real session — the Settings MCP list has no "current chat" while
@@ -57,7 +58,7 @@ function listFirstPartyServers(): FirstPartyServerDescriptor[] {
   return Object.keys(servers).map((id) => ({
     id,
     name: id,
-    description: 'Built-in Pocket Agent server',
+    description: 'Built-in r3to.os server',
     kind: 'stdio' as const,
   }));
 }
@@ -78,7 +79,11 @@ export function registerMcpIPC(): void {
         config: loadConfig(),
         resolveScope: (packId, entryId) =>
           resolveMcpEnablement(context, packId, entryId, MCP_UI_SESSION_ID),
-        resolveRuntime: (id) => ({ status: manager.getStatus(id), error: manager.getLastError(id) }),
+        resolveRuntime: (id) => ({
+          status: manager.getStatus(id),
+          error: manager.getLastError(id),
+        }),
+        envFallback: readPocketCliFallbackEnv(),
       });
     }
   );
@@ -146,7 +151,10 @@ export function registerMcpIPC(): void {
       // Never auto-enables a risk-flagged entry — that still requires the
       // explicit confirm-dialog opt-in via mcp:setServerEnabled, preserving
       // the safety-critical gate mcp:setServerEnabled enforces server-side.
-      const becameFullyConfigured = isFullyConfigured(found.entry, mergedEnv);
+      const becameFullyConfigured = isFullyConfigured(found.entry, {
+        ...readPocketCliFallbackEnv(),
+        ...mergedEnv,
+      });
       const autoEnabled = becameFullyConfigured && !existing.enabled && !found.entry.riskNote;
 
       config[id] = { ...existing, env: mergedEnv, enabled: existing.enabled || autoEnabled };
@@ -159,14 +167,11 @@ export function registerMcpIPC(): void {
   // Layered on top of the settings-level enabled/configured gate above — a
   // client/project can disable a server the agency has enabled and configured.
 
-  ipcMain.handle(
-    'mcp:getServerScopeEnablement',
-    async (_, id: string, context: SessionContext) => {
-      const found = findMarketplaceEntry(id);
-      if (!found) return null;
-      return getMcpEnablementAtScope(context, found.packId, found.entry.id);
-    }
-  );
+  ipcMain.handle('mcp:getServerScopeEnablement', async (_, id: string, context: SessionContext) => {
+    const found = findMarketplaceEntry(id);
+    if (!found) return null;
+    return getMcpEnablementAtScope(context, found.packId, found.entry.id);
+  });
 
   ipcMain.handle(
     'mcp:setServerScopeEnablement',
@@ -195,10 +200,7 @@ export function registerMcpIPC(): void {
   // this is a global (not per-scope) settings-level action.
   ipcMain.handle(
     'mcp:reauthenticateServer',
-    async (
-      _,
-      id: string
-    ): Promise<{ success: boolean; cleared: boolean; message: string }> => {
+    async (_, id: string): Promise<{ success: boolean; cleared: boolean; message: string }> => {
       if (id.startsWith('first-party:')) {
         return { success: false, cleared: false, message: 'Built-in servers do not use OAuth' };
       }
@@ -207,7 +209,8 @@ export function registerMcpIPC(): void {
 
       const config = loadConfig();
       const stored = config[id];
-      const reauthCmd = resolveReauthCommand(found.entry, stored?.env ?? {});
+      const env = { ...readPocketCliFallbackEnv(), ...(stored?.env ?? {}) };
+      const reauthCmd = resolveReauthCommand(found.entry, env);
       if (!reauthCmd) {
         return {
           success: false,
@@ -220,10 +223,14 @@ export function registerMcpIPC(): void {
       // login right away) if the server is actually enabled + fully
       // configured — otherwise there's nothing valid to spawn, and the
       // manager method already handles a missing respawnSpec by reporting
-      // just the clear step succeeded.
+      // just the clear step succeeded. Mirrors buildEnabledResolvedServers'
+      // rule: a stored entry explicitly disabled (enabled === false) blocks
+      // this even if envFallback completes the credentials; no stored entry
+      // at all is treated as enabled.
+      const explicitlyDisabled = stored !== undefined && stored.enabled === false;
       const resolvedSpec =
-        stored?.enabled && isFullyConfigured(found.entry, stored.env)
-          ? resolveMcpServer(found.entry, stored.env)
+        !explicitlyDisabled && isFullyConfigured(found.entry, env)
+          ? resolveMcpServer(found.entry, env)
           : null;
 
       const manager = getMcpServerManager();

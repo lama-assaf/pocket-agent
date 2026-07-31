@@ -130,7 +130,7 @@ describe('exportMemory', () => {
     expect(typeof data.exportedAt).toBe('string');
 
     const md = memory.exportMemoryMarkdown();
-    expect(md).toContain('# Pocket Agent Memory Export');
+    expect(md).toContain('# r3to.os Memory Export');
     expect(md).toContain('Ken');
     expect(md).toContain('## Soul');
   });

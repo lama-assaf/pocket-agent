@@ -33,13 +33,13 @@ Use when a user asks for a LinkedIn post, update, or announcement, or asks to ad
 
 ## framework menu
 
-| framework | shape | best for |
-|---|---|---|
-| PAS (problem–agitate–solve) | name the problem, sit in the pain, resolve it | pain-point-driven service or product posts |
-| AIDA (attention–interest–desire–action) | hook, build interest, make it wanted, ask for the action | launches, offers, anything with a clear next step |
-| BAB (before–after–bridge) | show the gap, show the outcome, show the path between | transformation stories, case studies, results posts |
-| STAR (situation–task–action–result) | set the scene, state the task, show what was done, show the outcome | personal or team narratives, project recaps |
-| SLAY (statement–list–anecdote–yes-and) | bold claim, quick list backing it, a concrete story, a closing reinforcement | opinion posts, thought-leadership takes |
+| framework                               | shape                                                                        | best for                                            |
+| --------------------------------------- | ---------------------------------------------------------------------------- | --------------------------------------------------- |
+| PAS (problem–agitate–solve)             | name the problem, sit in the pain, resolve it                                | pain-point-driven service or product posts          |
+| AIDA (attention–interest–desire–action) | hook, build interest, make it wanted, ask for the action                     | launches, offers, anything with a clear next step   |
+| BAB (before–after–bridge)               | show the gap, show the outcome, show the path between                        | transformation stories, case studies, results posts |
+| STAR (situation–task–action–result)     | set the scene, state the task, show what was done, show the outcome          | personal or team narratives, project recaps         |
+| SLAY (statement–list–anecdote–yes-and)  | bold claim, quick list backing it, a concrete story, a closing reinforcement | opinion posts, thought-leadership takes             |
 
 ## checklist
 

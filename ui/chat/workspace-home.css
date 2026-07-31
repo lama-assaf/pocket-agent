@@ -1,0 +1,315 @@
+/* Workspace Home — scoped under #workspace-home-view.
+   Base header look (.wsh-header / .wsh-header-actions) comes from the shared
+   panel-header primitive (ui/shared/panel-header.css) — this file only adds
+   the content layout below it. Dense, application-primary spacing (Linear/
+   Superhuman-style utility screen), not a marketing hero. */
+
+#workspace-home-view {
+  display: none;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+#workspace-home-view.active {
+  display: flex;
+}
+
+#workspace-home-view .wsh-header {
+  margin: 10px 12px 0;
+}
+
+/* Client-identity accent chip — mirrors .active-client-avatar (sidebar) so
+   the same color reads in both places. Falls through to the skin's own
+   --accent when Personal is active (--client-accent-readable is unset —
+   see client-accent.js), which is what keeps Personal neutral. Selector
+   carries two classes so it beats panel-header.css's ".wsh-header h1 span"
+   rule (which would otherwise force --text-primary onto this span too). */
+.wsh-header .wsh-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-sm);
+  font-family: 'Cal Sans', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--on-client-accent, var(--on-accent));
+  background: var(--client-accent-readable, var(--accent));
+  flex-shrink: 0;
+}
+
+.wsh-header .wsh-avatar.cv-avatar--personal {
+  background: var(--surface-control);
+  color: var(--text-primary);
+}
+
+.wsh-header .wsh-avatar.cv-avatar--world {
+  background: var(--accent-secondary);
+  color: var(--on-accent);
+}
+
+#workspace-home-view .wsh-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 12px 12px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+#workspace-home-view .wsh-section {
+  background: var(--surface-card);
+  border-radius: var(--radius-card);
+  padding: 12px 14px 14px;
+}
+
+#workspace-home-view .wsh-section-title {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+
+/* ---- Lanes (start a chat) ---- */
+
+#workspace-home-view .wsh-lanes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+#workspace-home-view .wsh-lane-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  text-align: left;
+  padding: 10px 12px;
+  background: var(--surface-control);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard),
+    transform var(--duration-fast) var(--ease-standard);
+}
+
+#workspace-home-view .wsh-lane-tile[data-lane='design'] { --lane-color: var(--lane-design-readable, var(--lane-design)); }
+#workspace-home-view .wsh-lane-tile[data-lane='product'] { --lane-color: var(--lane-product-readable, var(--lane-product)); }
+#workspace-home-view .wsh-lane-tile[data-lane='brand'] { --lane-color: var(--lane-brand-readable, var(--lane-brand)); }
+#workspace-home-view .wsh-lane-tile[data-lane='social'] { --lane-color: var(--lane-social-readable, var(--lane-social)); }
+
+#workspace-home-view .wsh-lane-tile svg {
+  width: 16px;
+  height: 16px;
+  color: var(--lane-color);
+}
+
+#workspace-home-view .wsh-lane-tile:hover:not(:disabled) {
+  background: var(--surface-control-hover);
+  border-color: color-mix(in srgb, var(--lane-color) 45%, transparent);
+  transform: translateY(-1px);
+}
+
+/* Global rule (ui/shared/ui.css) already gives this button a ring at the
+   right width/offset — this only pins the COLOR to the lane's own tint
+   instead of the client-identity accent, matching .lane-btn in input.css. */
+#workspace-home-view .wsh-lane-tile:focus-visible {
+  outline-color: var(--lane-color, var(--accent-readable));
+}
+
+#workspace-home-view .wsh-lane-tile:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
+  transform: none;
+}
+
+#workspace-home-view .wsh-lane-tile-label {
+  font-family: 'Cal Sans', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+#workspace-home-view .wsh-lane-tile-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* ---- Recent chats ---- */
+
+#workspace-home-view .wsh-recent-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+#workspace-home-view .wsh-recent-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  background: var(--surface-control);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control);
+  color: var(--text-secondary);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+
+#workspace-home-view .wsh-recent-row:hover {
+  background: var(--surface-control-hover);
+}
+
+#workspace-home-view .wsh-recent-name {
+  flex: 1;
+  min-width: 0;
+  color: var(--text-primary);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#workspace-home-view .wsh-recent-lane {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: capitalize;
+  padding: 2px 7px;
+  border-radius: var(--radius-pill);
+  color: var(--lane-color, var(--text-muted));
+  background: color-mix(in srgb, var(--lane-color, var(--text-muted)) 16%, transparent);
+}
+
+#workspace-home-view .wsh-recent-lane[data-lane='design'] { --lane-color: var(--lane-design-readable, var(--lane-design)); }
+#workspace-home-view .wsh-recent-lane[data-lane='product'] { --lane-color: var(--lane-product-readable, var(--lane-product)); }
+#workspace-home-view .wsh-recent-lane[data-lane='brand'] { --lane-color: var(--lane-brand-readable, var(--lane-brand)); }
+#workspace-home-view .wsh-recent-lane[data-lane='social'] { --lane-color: var(--lane-social-readable, var(--lane-social)); }
+
+#workspace-home-view .wsh-recent-time {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* ---- Brain health ---- */
+
+#workspace-home-view .wsh-brain-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 8px;
+}
+
+#workspace-home-view .wsh-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 10px 12px;
+  background: var(--surface-control);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control);
+  cursor: pointer;
+  text-align: left;
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+
+#workspace-home-view .wsh-stat:hover {
+  background: var(--surface-control-hover);
+}
+
+#workspace-home-view .wsh-stat-count {
+  font-family: 'Cal Sans', sans-serif;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+#workspace-home-view .wsh-stat-label {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+#workspace-home-view .wsh-stat--empty .wsh-stat-count {
+  color: var(--text-muted);
+}
+
+#workspace-home-view .wsh-stat-nudge {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--warning);
+}
+
+/* Loading placeholder — a graceful progressive fill instead of a blank gap
+   while facts.list() resolves. */
+#workspace-home-view .wsh-stat--skeleton {
+  height: 54px;
+  cursor: default;
+  animation: wsh-pulse 1.2s var(--ease-standard) infinite;
+}
+
+@keyframes wsh-pulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
+/* ---- Quick links ---- */
+
+#workspace-home-view .wsh-links {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 8px;
+}
+
+#workspace-home-view .wsh-link-tile {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--surface-control);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) var(--ease-standard),
+    opacity var(--duration-fast) var(--ease-standard);
+}
+
+#workspace-home-view .wsh-link-tile svg {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  color: var(--accent-readable);
+}
+
+#workspace-home-view .wsh-link-tile:hover {
+  background: var(--surface-control-hover);
+  color: var(--text-primary);
+}
+
+/* Brand-only quick links (Campaigns, Analytics) dim when Personal is the
+   active workspace — same treatment as .sidebar-btn--brand-only in
+   sidebar.css, so the two surfaces agree on what "de-emphasized" looks like. */
+#workspace-home-view.workspace-personal .wsh-link-tile--brand-only {
+  opacity: 0.45;
+}
+
+#workspace-home-view.workspace-personal .wsh-link-tile--brand-only:hover {
+  opacity: 0.8;
+}

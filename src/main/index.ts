@@ -13,7 +13,7 @@ import { MemoryManager } from '../memory';
 import { setTransformersCacheDir } from '../utils/transformers-env';
 import { createScheduler, CronScheduler } from '../scheduler';
 import { createTelegramBot, TelegramBot } from '../channels/telegram';
-import { SettingsManager } from '../settings';
+import { SettingsManager, createElectronEncryptionProvider } from '../settings';
 import { DEFAULT_COMMANDS } from '../config/commands';
 import { getBrowserManager } from '../browser';
 import { setPluginsRoot } from '../marketplace/paths';
@@ -24,8 +24,14 @@ import { ensureWorldScaffold, ensureClientScaffold } from '../clients/registry';
 import { seedDefaultClients } from '../clients/seed';
 import { loadClientSeeds } from '../clients/seed-loader';
 import { DebouncedPusher, autoPullLiveClients } from '../clients/sync-manager';
-import { remirrorScope, importAnalyticsForScope, importContentForScope } from '../clients/live-sync';
+import {
+  remirrorScope,
+  remirrorImportedDocsForScope,
+  importAnalyticsForScope,
+  importContentForScope,
+} from '../clients/live-sync';
 import { setAuditLogRoot } from '../utils/audit-log';
+import { initAppFileLogging } from '../utils/app-log';
 import { getMcpServerManager } from '../mcp/manager';
 import { initializeUpdater, setupUpdaterIPC, setSettingsWindow, setChatWindow } from './updater';
 import { createWindow, getWindow } from './windows';
@@ -42,12 +48,15 @@ import {
   registerMarketplaceIPC,
   registerMcpIPC,
   registerAuditLogIPC,
+  registerRoutingLogIPC,
   registerContentIPC,
   registerCampaignIPC,
   registerAnalyticsIPC,
   registerLinkedInIPC,
   registerXIPC,
   registerClientsImportIPC,
+  registerClientsMemoryStatusIPC,
+  registerDebugIPC,
 } from './ipc';
 import type { IPCDependencies } from './ipc';
 
@@ -68,6 +77,18 @@ process.on('uncaughtException', (err) => {
 
 // Fix PATH for packaged apps — platform-aware (must run early, at module load)
 fixPathForPackagedApp();
+
+// Dev-only, opt-in remote debugging port so the debug capture IPC (see
+// src/main/ipc/debug-ipc.ts) is reachable from outside the app — a CDP
+// client can `Runtime.evaluate` `window.pocketAgent.debug.capture(...)` in
+// the renderer, working around this environment's broken OS-level screen
+// capture and Accessibility queries without touching either. Must be set
+// before app.whenReady(). Same double-gate as debug-ipc.ts (never packaged,
+// requires explicit opt-in) so it's never live outside a deliberate capture
+// session.
+if (!app.isPackaged && process.env.POCKET_AGENT_DEBUG_CAPTURE === '1') {
+  app.commandLine.appendSwitch('remote-debugging-port', '9333');
+}
 
 let memory: MemoryManager | null = null;
 let scheduler: CronScheduler | null = null;
@@ -139,7 +160,10 @@ function scheduleLiveSyncPush(scope: string): void {
   const token = SettingsManager.get('github.token') || '';
   if (!token) return;
   const dir = clientPaths(clientId).rootDir;
-  liveSyncPusher.schedule({ dir, url: client.repo_url, token }, `Update ${clientId} memory (live sync)`);
+  liveSyncPusher.schedule(
+    { dir, url: client.repo_url, token },
+    `Update ${clientId} memory (live sync)`
+  );
 }
 
 // Window IDs for the registry
@@ -531,11 +555,15 @@ function setupIPC(): void {
   registerLinkedInIPC(deps);
   registerXIPC(deps);
   registerClientsImportIPC(deps);
+  registerClientsMemoryStatusIPC(deps);
   // No IPCDependencies needed — the marketplace module has no electron/memory
   // dependency of its own.
   registerMarketplaceIPC();
   registerMcpIPC();
   registerAuditLogIPC();
+  registerRoutingLogIPC();
+  // Dev-only, opt-in (see debug-ipc.ts) — no-ops unless POCKET_AGENT_DEBUG_CAPTURE=1.
+  registerDebugIPC();
 }
 
 // ============ Agent Lifecycle ============
@@ -741,6 +769,12 @@ async function restartAgent(): Promise<void> {
 // ============ App Lifecycle ============
 
 app.whenReady().then(async () => {
+  // Mirror console output to a day-sharded log file under the platform log
+  // dir (e.g. ~/Library/Logs/r3to.os on macOS) — a packaged app has no
+  // visible terminal, so this is the only findable record a tester can hand
+  // back to us for a bug report. Must run before the very first log line.
+  initAppFileLogging(app.getPath('logs'));
+
   console.log('[Main] App ready, starting initialization...');
 
   try {
@@ -826,8 +860,14 @@ app.whenReady().then(async () => {
     // backfill. Models still download lazily on first use, just into this dir.
     setTransformersCacheDir(path.join(userDataPath, 'models'));
 
-    // Initialize settings first (uses same DB)
+    // Initialize settings first (uses same DB). Explicitly wire the real
+    // Electron safeStorage-backed encryption provider here — SettingsManager
+    // already auto-detects this (see src/settings/encryption-provider.ts),
+    // but doing it explicitly at the one real entrypoint keeps the wiring
+    // visible rather than implicit, and this is genuinely the real Electron
+    // main process so the call is always safe.
     console.log('[Main] Initializing settings...');
+    SettingsManager.setEncryptionProvider(createElectronEncryptionProvider());
     SettingsManager.initialize(dbPath);
 
     // Migrate from old config.json if it exists
@@ -898,6 +938,9 @@ app.whenReady().then(async () => {
             await bridge
               .syncScopeRoot(clientScopeRoot(r.id))
               .catch((e) => console.error(`[clients] Re-mirror failed for ${r.id}:`, e));
+            await remirrorImportedDocsForScope(capturedMemory, r.id).catch((e) =>
+              console.error(`[clients] Imported-docs re-mirror failed for ${r.id}:`, e)
+            );
             // Re-import the client's shared analytics-posts.json into
             // post_analytics too, so a fresh install (or anyone who hasn't
             // run their own capture) sees the team's numbers immediately —
@@ -1025,6 +1068,9 @@ app.whenReady().then(async () => {
             await remirrorScope(capturedMemory, r.id).catch((e) =>
               console.error(`[clients] Re-mirror failed for ${r.id}:`, e)
             );
+            await remirrorImportedDocsForScope(capturedMemory, r.id).catch((e) =>
+              console.error(`[clients] Imported-docs re-mirror failed for ${r.id}:`, e)
+            );
             await importAnalyticsForScope(capturedMemory, r.id);
             await importContentForScope(capturedMemory, r.id);
           }
@@ -1077,6 +1123,14 @@ app.whenReady().then(async () => {
       await initializeAgent();
     } else {
       // First-run: open chat so the user lands on onboarding.
+      openChatWindow();
+    }
+
+    // Dev-only, opt-in: a capture session needs the chat window open and a
+    // CDP-reachable renderer target immediately — there's no tray icon to
+    // click from outside the app (that's the broken OS-level Accessibility
+    // route this hook exists to avoid). Same double-gate as debug-ipc.ts.
+    if (!app.isPackaged && process.env.POCKET_AGENT_DEBUG_CAPTURE === '1') {
       openChatWindow();
     }
 

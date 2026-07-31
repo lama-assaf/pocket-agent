@@ -21,23 +21,23 @@ Use when a user has comments sitting on their own published post and needs help 
 
 ## triage matrix
 
-| category | criteria | action |
-|---|---|---|
-| amplify | real audience overlap, a genuine compliment or story that other readers benefit from seeing surfaced | pin or heart, plus a short reply that adds one more detail |
-| answer | a real question, in good faith, that other readers likely share | answer directly and specifically |
-| redirect | on-topic but better served elsewhere (a DM, a support channel, a pinned thread) | reply pointing to the better channel, don't solve it inline |
-| defuse | frustrated or sharp but rooted in a real grievance | de-escalation script, then a substantive answer |
-| ignore + hide | spam, bad-faith bait, or a comment designed to provoke rather than discuss | no reply; hide only if it violates platform rules or drowns out real discussion |
+| category      | criteria                                                                                             | action                                                                          |
+| ------------- | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| amplify       | real audience overlap, a genuine compliment or story that other readers benefit from seeing surfaced | pin or heart, plus a short reply that adds one more detail                      |
+| answer        | a real question, in good faith, that other readers likely share                                      | answer directly and specifically                                                |
+| redirect      | on-topic but better served elsewhere (a DM, a support channel, a pinned thread)                      | reply pointing to the better channel, don't solve it inline                     |
+| defuse        | frustrated or sharp but rooted in a real grievance                                                   | de-escalation script, then a substantive answer                                 |
+| ignore + hide | spam, bad-faith bait, or a comment designed to provoke rather than discuss                           | no reply; hide only if it violates platform rules or drowns out real discussion |
 
 ## reply shapes
 
-| shape | what it does | when to use |
-|---|---|---|
-| answer-their-question | direct, specific answer to what was actually asked | answer-category comments |
-| concede-then-sharpen | grant the valid part of a pushback, then restate the claim more precisely | defuse-category comments with a real point buried in the tone |
-| extend-their-thesis | take the commenter's idea one step further and credit them for it | amplify-category comments from a strong or aligned voice |
-| lived-experience | answer with a specific personal or team anecdote instead of a general claim | answer-category comments asking "does this actually work" |
-| ask-back | turn the reply into a question that invites the commenter to say more | amplify-category comments worth extending into a conversation |
+| shape                 | what it does                                                                | when to use                                                   |
+| --------------------- | --------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| answer-their-question | direct, specific answer to what was actually asked                          | answer-category comments                                      |
+| concede-then-sharpen  | grant the valid part of a pushback, then restate the claim more precisely   | defuse-category comments with a real point buried in the tone |
+| extend-their-thesis   | take the commenter's idea one step further and credit them for it           | amplify-category comments from a strong or aligned voice      |
+| lived-experience      | answer with a specific personal or team anecdote instead of a general claim | answer-category comments asking "does this actually work"     |
+| ask-back              | turn the reply into a question that invites the commenter to say more       | amplify-category comments worth extending into a conversation |
 
 ## de-escalation script for hostile replies
 

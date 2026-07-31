@@ -40,6 +40,14 @@
       "_comment": "official filesystem mcp - sandboxed read/write within your project root. useful for skill self-inspection.",
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-filesystem", "${PROJECT_ROOT}"]
+    },
+    "electron-mcp-server": {
+      "_comment": "Electron app automation/debugging/testing via Chrome DevTools Protocol. github.com/halilural/electron-mcp-server, npm: electron-mcp-server. Launch/close Electron apps, take screenshots, read main/renderer/console logs, and drive UI interactions (click_by_text, fill_input, get_page_structure, eval, etc.) through send_command_to_electron — lets the agent run and visually verify this app's own Electron windows during development. Target app needs remote debugging enabled (--remote-debugging-port=9222, or pass devMode:true to the launch_electron_app tool, which sets this itself); the server auto-scans ports 9222-9225 for a running instance. SECURITY_LEVEL is hardcoded to 'balanced' (safe UI interactions allowed, eval/assignments blocked) — verified against the README's documented security levels (strict/balanced/permissive/development); override in this entry's env if you need a different level. Optional: SCREENSHOT_ENCRYPTION_KEY (32-byte hex) encrypts screenshot payloads — intentionally omitted here (zero required env) so the server works with no manual setup; add it via the Settings MCP credentials field if you want encrypted screenshots.",
+      "command": "npx",
+      "args": ["-y", "electron-mcp-server"],
+      "env": {
+        "SECURITY_LEVEL": "balanced"
+      }
     }
   }
 }

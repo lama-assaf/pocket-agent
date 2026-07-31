@@ -29,11 +29,11 @@ Use when a draft is written but not yet trusted — a high-stakes launch post, a
 
 ## depth tiers
 
-| tier | passes run | revision |
-|---|---|---|
-| quick | skeptic, scroller, editor (passes 1, 3, 5) | one light revision pass |
-| standard | all five personas | one full revision pass |
-| deep | all five personas | full revision, then a 24-hour cooling period before final read |
+| tier     | passes run                                 | revision                                                       |
+| -------- | ------------------------------------------ | -------------------------------------------------------------- |
+| quick    | skeptic, scroller, editor (passes 1, 3, 5) | one light revision pass                                        |
+| standard | all five personas                          | one full revision pass                                         |
+| deep     | all five personas                          | full revision, then a 24-hour cooling period before final read |
 
 ## rules
 

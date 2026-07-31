@@ -104,7 +104,10 @@ export function canTransition(
   actor: TransitionActor
 ): TransitionCheck {
   if (actor === 'agent' && HUMAN_ONLY_TARGETS.has(to)) {
-    return { ok: false, error: `Only a human can set status "${to}" — this requires the approve/reject IPC action, not an agent tool.` };
+    return {
+      ok: false,
+      error: `Only a human can set status "${to}" — this requires the approve/reject IPC action, not an agent tool.`,
+    };
   }
   const allowed = TRANSITIONS[from] ?? [];
   if (!allowed.includes(to)) {
@@ -294,6 +297,59 @@ export function deleteContentDraft(db: Database.Database, id: number): boolean {
   return result.changes > 0;
 }
 
+// ============ Brain import (pull-side counterpart to src/clients/content-export.ts) ============
+
+export interface ImportContentDraftInput {
+  scope: string;
+  channel: string;
+  title: string;
+  body: string;
+  status: ContentDraftStatus;
+  scheduledFor?: string | null;
+  postedAt?: string | null;
+  externalRef?: string | null;
+  /** Original creation moment from the exporting install — required so the imported row's identity (channel+title+createdAt, see content-import.ts) stays stable across repeated pulls. */
+  createdAt: string;
+  /** Defaults to createdAt when omitted (a freshly-imported row has no separate edit history yet). */
+  updatedAt?: string;
+}
+
+/**
+ * Insert a content draft reconstructed from a teammate's shared brain,
+ * preserving its ORIGINAL status/timestamps — unlike createContentDraft
+ * (always starts a fresh 'draft'), this is the raw historical-snapshot
+ * primitive content-import.ts needs, mirroring how src/memory/analytics.ts's
+ * recordPostAnalytics already accepted a full historical snapshot (source,
+ * capturedAt) rather than only "record what's happening right now". Never
+ * called for a draft that already exists locally (see content-import.ts's
+ * dedupe-and-skip contract) — so this never needs to enforce the approval
+ * state machine; it's reconstructing state another install already validated,
+ * not performing a live transition. `session_id`/`cron_job_id` are always
+ * NULL on an imported row — both are local-DB foreign keys (a session, a
+ * scheduled cron job) that aren't portable across machines, same reasoning
+ * as analytics-export.ts excluding `content_post_id` from its JSON.
+ */
+export function importContentDraft(db: Database.Database, input: ImportContentDraftInput): number {
+  const stmt = db.prepare(`
+    INSERT INTO content_drafts (scope, channel, title, body, status, scheduled_for, posted_at, external_ref, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, ?))
+  `);
+  const result = stmt.run(
+    input.scope,
+    input.channel,
+    input.title,
+    input.body,
+    input.status,
+    input.scheduledFor ?? null,
+    input.postedAt ?? null,
+    input.externalRef ?? null,
+    input.createdAt,
+    input.updatedAt ?? null,
+    input.createdAt
+  );
+  return result.lastInsertRowid as number;
+}
+
 // ============ Post log (audit trail) ============
 
 export interface RecordContentPostInput {
@@ -303,12 +359,18 @@ export interface RecordContentPostInput {
   status: ContentPostStatus;
   detail?: string | null;
   externalRef?: string | null;
+  /** Override the created_at moment (defaults to now). Lets a brain import
+   * reconstruct a post-attempt's ORIGINAL timestamp instead of stamping
+   * import-time — required for the (channel, status, externalRef, createdAt)
+   * dedupe key in content-import.ts to stay stable across repeated pulls,
+   * same reasoning as analytics.ts's recordPostAnalytics capturedAt override. */
+  createdAt?: string;
 }
 
 export function recordContentPost(db: Database.Database, input: RecordContentPostInput): number {
   const stmt = db.prepare(`
-    INSERT INTO content_posts (draft_id, scope, channel, status, detail, external_ref)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO content_posts (draft_id, scope, channel, status, detail, external_ref, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, COALESCE(?, (strftime('%Y-%m-%dT%H:%M:%fZ'))))
   `);
   const result = stmt.run(
     input.draftId,
@@ -316,7 +378,8 @@ export function recordContentPost(db: Database.Database, input: RecordContentPos
     input.channel,
     input.status,
     input.detail ?? null,
-    input.externalRef ?? null
+    input.externalRef ?? null,
+    input.createdAt ?? null
   );
   return result.lastInsertRowid as number;
 }

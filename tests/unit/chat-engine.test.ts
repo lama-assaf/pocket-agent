@@ -37,6 +37,8 @@ function makeAgentDone(
 let capturedAgentOptions: Record<string, unknown> | null = null;
 let capturedAgentMessages: Array<Record<string, unknown>> | null = null;
 let mockAgentEvents: Array<Record<string, unknown>> = [];
+/** When set, the plain (non-gated) mocked agentLoop iterator throws this after yielding mockAgentEvents (or immediately if empty), then clears itself. */
+let mockAgentError: Error | null = null;
 
 /**
  * Optional gate for controlling iteration timing of the mocked agentLoop.
@@ -118,6 +120,11 @@ vi.mock('@kenkaiiii/gg-agent', () => ({
             if (i < mockAgentEvents.length) {
               return { value: mockAgentEvents[i++], done: false };
             }
+            if (mockAgentError) {
+              const err = mockAgentError;
+              mockAgentError = null;
+              throw err;
+            }
             return { value: undefined, done: true };
           },
         };
@@ -167,6 +174,11 @@ vi.mock('../../src/agent/chat-providers', () => ({
 vi.mock('../../src/agent/chat-tools', () => ({
   getChatAgentTools: vi.fn(() => []),
   getServerTools: vi.fn(() => []),
+  getCoderAgentTools: vi.fn(() => []),
+}));
+
+vi.mock('fs/promises', () => ({
+  default: { readFile: vi.fn(async () => 'mock plan content') },
 }));
 
 vi.mock('../../src/tools', () => ({
@@ -241,6 +253,7 @@ describe('ChatEngine', () => {
     capturedAgentOptions = null;
     capturedAgentMessages = null;
     mockAgentEvents = [];
+    mockAgentError = null;
     pendingGates = [];
     gateConsumerIndex = 0;
 
@@ -1200,6 +1213,280 @@ describe('ChatEngine', () => {
 
       // saveToMemory only short-circuits when channel.startsWith('cron:').
       expect(memory.saveMessage).toHaveBeenCalled();
+    });
+  });
+
+  describe('Error handling', () => {
+    it('a non-abort agentLoop failure persists a user+error message pair and rethrows', async () => {
+      mockAgentEvents = [];
+      mockAgentError = new Error('upstream provider exploded');
+      const { engine, memory } = createEngine();
+
+      await expect(engine.processMessage('do the thing', 'desktop', 'S')).rejects.toThrow(
+        'upstream provider exploded'
+      );
+
+      const userCall = memory.saveMessage.mock.calls.find((args: unknown[]) => args[0] === 'user');
+      const assistantCall = memory.saveMessage.mock.calls.find(
+        (args: unknown[]) => args[0] === 'assistant'
+      );
+      expect(userCall).toBeDefined();
+      expect(userCall![1]).toBe('do the thing');
+      expect(assistantCall).toBeDefined();
+      expect(assistantCall![1]).toBe('upstream provider exploded');
+      expect((assistantCall![3] as { isError: boolean }).isError).toBe(true);
+    });
+
+    it('an abort/interrupt error returns an empty result, emits done, and saves NOTHING (no error bubble)', async () => {
+      mockAgentEvents = [];
+      mockAgentError = new Error('Request aborted by user');
+      const { engine, memory, statusEmitter } = createEngine();
+
+      const result = await engine.processMessage('do the thing', 'desktop', 'S');
+
+      expect(result).toEqual({ response: '', tokensUsed: 0, wasCompacted: false });
+      expect(memory.saveMessage).not.toHaveBeenCalled();
+      expect(statusEmitter).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'done', sessionId: 'S' })
+      );
+    });
+
+    it('an "interrupted" error message is treated the same as "aborted" (no error bubble)', async () => {
+      mockAgentEvents = [];
+      mockAgentError = new Error('stream interrupted mid-turn');
+      const { engine, memory } = createEngine();
+
+      const result = await engine.processMessage('do the thing', 'desktop', 'S');
+
+      expect(result.response).toBe('');
+      expect(memory.saveMessage).not.toHaveBeenCalled();
+    });
+
+    it('a failure still clears the in-flight processing/abort-controller bookkeeping (session usable again)', async () => {
+      mockAgentEvents = [];
+      mockAgentError = new Error('boom');
+      const { engine } = createEngine();
+
+      await expect(engine.processMessage('first', 'desktop', 'S')).rejects.toThrow();
+      expect(engine.isQueryProcessing('S')).toBe(false);
+
+      // A follow-up call on the same session must not be permanently wedged by the prior failure.
+      setDefaultAgentEvents('recovered');
+      const result = await engine.processMessage('second', 'desktop', 'S');
+      expect(result.response).toBe('recovered');
+    });
+  });
+
+  describe('Tool-call coordination (toolsUsed metadata)', () => {
+    it('accumulates deduped tool names from tool_call_start + server_tool_call events into cron metadata', async () => {
+      mockAgentEvents = [
+        { type: 'tool_call_start', name: 'web_fetch', args: { url: 'https://example.com' } },
+        { type: 'tool_call_end', name: 'web_fetch' },
+        // Same tool invoked twice in one turn — must dedupe, not double-report.
+        { type: 'tool_call_start', name: 'web_fetch', args: { url: 'https://example.com/2' } },
+        { type: 'tool_call_end', name: 'web_fetch' },
+        { type: 'server_tool_call', name: 'web_search' },
+        makeTextDelta('Done checking the feed.'),
+        makeTurnEnd(1, { inputTokens: 10, outputTokens: 5 }),
+        makeAgentDone(1, { inputTokens: 10, outputTokens: 5 }),
+      ];
+      const { engine, memory } = createEngine();
+
+      await engine.processMessage('check the feed', 'cron:feed-check', 'cron-session');
+
+      const assistantCall = memory.saveMessage.mock.calls.find(
+        (args: unknown[]) => args[0] === 'assistant'
+      );
+      expect(assistantCall).toBeDefined();
+      const metadata = assistantCall![3] as { toolsUsed: string[] };
+      expect(metadata.toolsUsed.sort()).toEqual(['web_fetch', 'web_search']);
+    });
+
+    it('non-cron channels never attach toolsUsed metadata (only scheduler runs need the evidence trail)', async () => {
+      mockAgentEvents = [
+        { type: 'tool_call_start', name: 'web_fetch', args: {} },
+        { type: 'tool_call_end', name: 'web_fetch' },
+        makeTextDelta('done'),
+        makeTurnEnd(1, { inputTokens: 10, outputTokens: 5 }),
+        makeAgentDone(1, { inputTokens: 10, outputTokens: 5 }),
+      ];
+      const { engine, memory } = createEngine();
+
+      await engine.processMessage('do it', 'desktop', 'desktop-session');
+
+      const assistantCall = memory.saveMessage.mock.calls.find(
+        (args: unknown[]) => args[0] === 'assistant'
+      );
+      expect(assistantCall![3]).toBeUndefined();
+    });
+
+    it('a turn with no tool calls never attaches an empty toolsUsed array', async () => {
+      mockAgentEvents = [
+        makeTextDelta('no tools needed'),
+        makeTurnEnd(1, { inputTokens: 10, outputTokens: 5 }),
+        makeAgentDone(1, { inputTokens: 10, outputTokens: 5 }),
+      ];
+      const { engine, memory } = createEngine();
+
+      await engine.processMessage('check the feed', 'cron:feed-check', 'cron-session');
+
+      const assistantCall = memory.saveMessage.mock.calls.find(
+        (args: unknown[]) => args[0] === 'assistant'
+      );
+      const metadata = assistantCall![3] as { toolsUsed?: string[] } | undefined;
+      expect(metadata?.toolsUsed).toBeUndefined();
+    });
+  });
+
+  describe('Multi-turn context assembly', () => {
+    it('a second processMessage call on the same session sends the accumulated conversation to agentLoop', async () => {
+      const { engine } = createEngine();
+
+      setDefaultAgentEvents('First reply');
+      await engine.processMessage('First message', 'desktop', 'S');
+      // Turn 1: agentLoop sees the leading system message + the fresh user turn.
+      expect(capturedAgentMessages).toHaveLength(2);
+      expect(capturedAgentMessages!.map((m) => m.role)).toEqual(['system', 'user']);
+
+      setDefaultAgentEvents('Second reply');
+      await engine.processMessage('Second message', 'desktop', 'S');
+
+      // Turn 2's agentLoop call must additionally see turn 1's user+assistant
+      // messages PLUS the new user turn — real multi-turn context, not a
+      // fresh slate each call.
+      expect(capturedAgentMessages).toHaveLength(4);
+      const roles = capturedAgentMessages!.map((m) => m.role);
+      expect(roles).toEqual(['system', 'user', 'assistant', 'user']);
+    });
+
+    it('two different sessions never share conversation context', async () => {
+      const { engine } = createEngine();
+
+      setDefaultAgentEvents('reply A');
+      await engine.processMessage('hello from A', 'desktop', 'session-A');
+
+      setDefaultAgentEvents('reply B');
+      await engine.processMessage('hello from B', 'desktop', 'session-B');
+
+      // session-B's first turn must be a fresh conversation (system + its own
+      // user turn only), not session-A's leftovers.
+      expect(capturedAgentMessages).toHaveLength(2);
+      const userMsg = capturedAgentMessages!.find((m) => m.role === 'user');
+      expect(userMsg?.content).toContain('hello from B');
+    });
+  });
+
+  // ─── Plan mode (propose — see docs/plan-approval.md) ────────────────
+  //
+  // The approve/reject/execute legs of the flow live in PlanApprovals
+  // (tests/unit/plan-approval.test.ts) and the plan:* IPC handlers
+  // (tests/unit/agent-ipc-plan.test.ts). These tests cover the missing link
+  // between them: ChatEngine wiring gg-coder's `exit_plan`/`enter_plan`
+  // tools (via onExitPlan/onEnterPlan hooks passed into getCoderAgentTools)
+  // so a plan produced by the agent actually reaches `planPending` instead
+  // of vanishing as dead code.
+  describe('Plan mode (exit_plan wiring)', () => {
+    function createCoderEngine() {
+      const memory = {
+        setSummarizer: vi.fn(),
+        getRecentMessages: vi.fn(() => []),
+        getSessionMessageCount: vi.fn(() => 0),
+        getFactsForContext: vi.fn(() => ''),
+        getSoulContext: vi.fn(() => ''),
+        getDailyLogsContext: vi.fn(() => ''),
+        embedQuery: vi.fn(async () => null),
+        retrieveRelevantFacts: vi.fn(() => ''),
+        retrieveRelevantSoul: vi.fn(() => ''),
+        retrieveRelevantRollups: vi.fn(() => ''),
+        saveMessage: vi.fn(() => 1),
+        getSmartContext: vi.fn(async () => ({ recentMessages: [], rollingSummary: null })),
+        getSessionMode: vi.fn(() => 'coder'),
+        getSessionContext: vi.fn(() => ({ contextType: 'personal', clientId: null, projectKey: null })),
+        getFactsMemoryUsage: vi.fn(() => ({ usedChars: 0, budgetChars: 50000, pct: 0 })),
+        getSoulMemoryUsage: vi.fn(() => ({ usedChars: 0, budgetChars: 50000, pct: 0 })),
+        getSessionWorkingDirectory: vi.fn(() => null),
+      };
+      const statusEmitter = vi.fn();
+      const engine = new ChatEngine({
+        memory: memory as never,
+        toolsConfig: {} as never,
+        statusEmitter,
+        workspace: '/tmp/workspace',
+      } as never);
+      return { engine, memory, statusEmitter };
+    }
+
+    it('surfaces an exit_plan submission as planPending with the plan file content as the response', async () => {
+      const { getCoderAgentTools } = await import('../../src/agent/chat-tools');
+      // Real gg-coder invokes onExitPlan from inside the exit_plan tool's
+      // execute() while the agent loop is running. agentLoop itself is
+      // mocked here, so we simulate that call at the point the tool set is
+      // built (which happens before the loop starts either way) — the
+      // ordering doesn't matter for what we're verifying: that the hook's
+      // resolved plan content ends up as `planPending`/`response`.
+      vi.mocked(getCoderAgentTools).mockImplementation(async (...args: unknown[]) => {
+        const planHooks = args[4] as { onExitPlan: (planPath: string) => Promise<string> };
+        await planHooks.onExitPlan('/tmp/workspace/.gg/plans/build-the-thing.md');
+        return [];
+      });
+
+      const { engine, statusEmitter } = createCoderEngine();
+      mockAgentEvents = [
+        makeTextDelta("I've submitted the plan for your review."),
+        makeTurnEnd(1, { inputTokens: 10, outputTokens: 5 }),
+        makeAgentDone(1, { inputTokens: 10, outputTokens: 5 }),
+      ];
+
+      const result = await engine.processMessage('build the thing', 'desktop', 'S-coder');
+
+      expect(result.planPending).toBe(true);
+      expect(result.response).toBe('mock plan content');
+      expect(statusEmitter).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'plan_mode_exited', sessionId: 'S-coder' })
+      );
+    });
+
+    it('emits plan_mode_entered when the agent calls enter_plan', async () => {
+      const { getCoderAgentTools } = await import('../../src/agent/chat-tools');
+      vi.mocked(getCoderAgentTools).mockImplementation(async (...args: unknown[]) => {
+        const planHooks = args[4] as { onEnterPlan: (reason?: string) => void | Promise<void> };
+        await planHooks.onEnterPlan('complex multi-file change');
+        return [];
+      });
+
+      const { engine, statusEmitter } = createCoderEngine();
+      setDefaultAgentEvents('researching first...');
+
+      const result = await engine.processMessage('do something risky', 'desktop', 'S-coder-2');
+
+      expect(result.planPending).toBeFalsy();
+      expect(statusEmitter).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'plan_mode_entered',
+          sessionId: 'S-coder-2',
+          message: 'complex multi-file change',
+        })
+      );
+    });
+
+    it('does not set planPending when exit_plan fails to read the plan file', async () => {
+      const { getCoderAgentTools } = await import('../../src/agent/chat-tools');
+      const fsPromises = await import('fs/promises');
+      vi.mocked(fsPromises.default.readFile).mockRejectedValueOnce(new Error('ENOENT'));
+      let toolResult = '';
+      vi.mocked(getCoderAgentTools).mockImplementation(async (...args: unknown[]) => {
+        const planHooks = args[4] as { onExitPlan: (planPath: string) => Promise<string> };
+        toolResult = await planHooks.onExitPlan('/tmp/workspace/.gg/plans/missing.md');
+        return [];
+      });
+
+      const { engine } = createCoderEngine();
+      setDefaultAgentEvents('never mind');
+
+      const result = await engine.processMessage('build the thing', 'desktop', 'S-coder-3');
+
+      expect(toolResult).toMatch(/Error: could not read plan file/);
+      expect(result.planPending).toBeFalsy();
     });
   });
 });

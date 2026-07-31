@@ -9,8 +9,17 @@ import type {
   MemoryTemplate,
   Skill,
   McpCatalogEntry,
+  LaneId,
 } from './types';
 import { getPluginsRoot } from './paths';
+
+/** Valid lane ids — a frontmatter `lane:` naming anything else is treated as absent. */
+const LANE_IDS: ReadonlySet<string> = new Set(['design', 'product', 'brand', 'social']);
+
+function parseLaneField(v?: string): LaneId | undefined {
+  const lane = v?.trim().toLowerCase();
+  return lane && LANE_IDS.has(lane) ? (lane as LaneId) : undefined;
+}
 
 const FM_RE = /^---\n([\s\S]*?)\n---\n([\s\S]*)$/;
 
@@ -49,9 +58,14 @@ function listFiles(dir: string, ext = '.md'): string[] {
   }
 }
 
-function parseToolsField(v?: string): string[] {
+/**
+ * Parse a frontmatter list field — either bracket form (`["Read", "Grep"]`,
+ * used by `tools:`) or a bare comma-separated list (`design review, a11y`,
+ * used by `keywords:`). Shared so a new list-shaped frontmatter field doesn't
+ * need its own parser.
+ */
+function parseListField(v?: string): string[] {
   if (!v) return [];
-  // frontmatter tools look like: ["Read", "Grep", "Glob"]
   const inner = v.replace(/^\[|\]$/g, '');
   return inner
     .split(',')
@@ -66,10 +80,11 @@ function loadAgents(dir: string): PackAgent[] {
       return {
         name: name || path.basename(file, '.md'),
         description: description || '',
-        tools: parseToolsField(meta.tools),
+        tools: parseListField(meta.tools),
         model: meta.model,
         prompt: body,
         source: file,
+        lane: parseLaneField(meta.lane),
       };
     })
     .filter((a) => a.prompt.length > 0);
@@ -88,8 +103,17 @@ function loadSkills(dir: string): Skill[] {
   for (const name of listDirs(dir)) {
     const file = path.join(dir, name, 'SKILL.md');
     if (!fs.existsSync(file)) continue;
-    const { name: fmName, description, body } = parseFrontmatter(readMd(file));
-    out.push({ name: fmName || name, description: description || '', content: body, source: file });
+    const { name: fmName, description, meta, body } = parseFrontmatter(readMd(file));
+    const lane = parseLaneField(meta.lane);
+    const keywords = parseListField(meta.keywords).map((k) => k.toLowerCase());
+    out.push({
+      name: fmName || name,
+      description: description || '',
+      content: body,
+      source: file,
+      lane,
+      keywords: keywords.length ? keywords : undefined,
+    });
   }
   return out;
 }

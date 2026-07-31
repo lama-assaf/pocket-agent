@@ -56,10 +56,9 @@ export function resolveAgentOverride(
   } catch {
     return null;
   }
-  const scopeSet = new Set(scopes);
-  const rows = memory
-    .getAllFacts()
-    .filter((f) => f.category === AGENT_OVERRIDE_CATEGORY && scopeSet.has(f.scope));
+  // Indexed category+scope lookup (facts.ts's getFactsByCategoryAndScopes)
+  // instead of getAllFacts() plus an in-memory filter over every fact.
+  const rows = memory.getFactsByCategoryAndScopes(AGENT_OVERRIDE_CATEGORY, scopes);
   return pickNearestOverride(rows, packId, agentName);
 }
 
@@ -110,10 +109,8 @@ export function getAgentOverrideAtScope(
   const scope = resolveNearestScope(context);
   const subject = overrideSubject(packId, agentName);
   const fact = memory
-    .getAllFacts()
-    .find(
-      (f) => f.category === AGENT_OVERRIDE_CATEGORY && f.subject === subject && f.scope === scope
-    );
+    .getFactsByCategoryAndScopes(AGENT_OVERRIDE_CATEGORY, [scope])
+    .find((f) => f.subject === subject);
   if (!fact) return null;
   return { scope, fields: parseOverrideContent(fact.content) };
 }
@@ -156,10 +153,8 @@ export function clearAgentOverride(
   if (!memory) return { success: false, scope };
   const subject = overrideSubject(packId, agentName);
   const fact = memory
-    .getAllFacts()
-    .find(
-      (f) => f.category === AGENT_OVERRIDE_CATEGORY && f.subject === subject && f.scope === scope
-    );
+    .getFactsByCategoryAndScopes(AGENT_OVERRIDE_CATEGORY, [scope])
+    .find((f) => f.subject === subject);
   if (!fact) return { success: true, scope }; // already clear
   memory.deleteFact(fact.id);
   return { success: true, scope };

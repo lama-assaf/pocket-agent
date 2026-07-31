@@ -184,7 +184,7 @@ async function _agtLoadAgents() {
 
     if (_agtAgents.length === 0) {
       groupsEl.innerHTML = '';
-      if (emptyEl) emptyEl.classList.remove('hidden');
+      wbShowEmpty(emptyEl);
       return;
     }
     if (emptyEl) emptyEl.classList.add('hidden');
@@ -214,6 +214,8 @@ async function _agtLoadAgents() {
   } catch (err) {
     console.error('[Agents] Failed to load agents:', err);
     _agtShowToast('Failed to load agents', 'error');
+    groupsEl.innerHTML = '';
+    wbShowError(emptyEl, err.message || 'Unknown error', '_agtLoadAgents()');
   }
 }
 

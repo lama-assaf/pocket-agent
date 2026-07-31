@@ -26,6 +26,7 @@ import { validateBashCommand, validateWritePath } from './safety';
 import { scanForBannedTone } from './write-guards';
 import { SettingsManager } from '../settings';
 import { appendAuditLog, digestContent } from '../utils/audit-log';
+import { recordRoutingDecision } from '../utils/routing-log';
 import { jsonSchemaToZod } from './schema-utils';
 import { getMcpBridgedTools } from './mcp-bridge';
 
@@ -193,6 +194,16 @@ function buildLaneSkillTool(lane: LaneId): AgentTool {
     execute: async (input: unknown, _context: ToolContext) => {
       const { skill } = input as z.infer<typeof parameters>;
       const found = skills.find((s) => s.name === skill);
+      recordRoutingDecision({
+        sessionId: getCurrentSessionId(),
+        kind: 'skill_load',
+        target: skill,
+        lane,
+        outcome: found ? 'accepted' : 'rejected',
+        detail: found
+          ? undefined
+          : `Unknown skill for lane "${lane}". Available: ${names.join(', ')}`,
+      });
       return found ? found.content : `Unknown skill "${skill}". Available: ${names.join(', ')}`;
     },
   };
@@ -241,7 +252,7 @@ export async function getChatAgentTools(
   // Add file tools (read, write, edit) from gg-coder. getChatAgentTools is
   // never called for coder mode (see chat-engine.ts) — every mode reachable
   // here produces prose, so the tone guard is always on (scanTone: true).
-  const { tools: coderNativeTools } = createCoderTools(cwd);
+  const { tools: coderNativeTools } = await createCoderTools(cwd);
   const fileToolNames = new Set(['read', 'write', 'edit']);
   for (const t of coderNativeTools) {
     if (fileToolNames.has(t.name)) {
@@ -274,21 +285,51 @@ export async function getChatAgentTools(
 }
 
 /**
+ * Plan-mode hooks wired into gg-coder's native `enter_plan`/`exit_plan` tools
+ * (see docs/plan-approval.md). `planModeRef` gates bash/edit/write to
+ * read-only + `.gg/plans/` while a plan is being drafted; `onEnterPlan`/
+ * `onExitPlan` let the caller (ChatEngine) observe those transitions —
+ * `onExitPlan` in particular is how a proposed plan's content reaches the
+ * `planPending`/`PlanApprovals` flow instead of silently vanishing.
+ */
+export interface PlanModeHooks {
+  planModeRef: { current: boolean };
+  onEnterPlan: (reason?: string) => void | Promise<void>;
+  onExitPlan: (planPath: string) => Promise<string>;
+}
+
+/**
  * Build the AgentTool array for Coder mode.
  * Uses gg-coder native tools (read, write, edit, bash, etc.) merged with MCP tools.
  *
  * Same MCP-bridging contract as getChatAgentTools — see that doc. Coder mode
  * is exempt from the anti-AI-tone guard but NOT from the MCP bridge: a
  * scheduling/CMS MCP server is just as useful to call from coder mode.
+ *
+ * `planHooks`, when supplied, adds gg-coder's `enter_plan`/`exit_plan` tools
+ * to the coder toolset and enforces plan-mode restrictions via its
+ * `planModeRef`. Omitted by default (undefined) so callers that don't care
+ * about plan mode (e.g. tests building a plain tool list) get the same
+ * tool set as before.
  */
 export async function getCoderAgentTools(
   config: ToolsConfig,
   cwd: string,
   sessionContext?: SessionContext,
-  sessionId: string = getCurrentSessionId()
+  sessionId: string = getCurrentSessionId(),
+  planHooks?: PlanModeHooks
 ): Promise<AgentTool[]> {
-  // Create gg-coder native tools
-  const { tools: coderNativeTools } = createCoderTools(cwd);
+  // Create gg-coder native tools (+ enter_plan/exit_plan when planHooks is given)
+  const { tools: coderNativeTools } = await createCoderTools(
+    cwd,
+    planHooks
+      ? {
+          planModeRef: planHooks.planModeRef,
+          onEnterPlan: planHooks.onEnterPlan,
+          onExitPlan: planHooks.onExitPlan,
+        }
+      : undefined
+  );
 
   // Get MCP-wrapped tools (browser, notify, project, grep-github, switch_agent)
   const customTools = getCustomTools(config);

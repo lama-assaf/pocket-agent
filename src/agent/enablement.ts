@@ -36,7 +36,12 @@ import {
 
 export type { ResolvedEnablement } from '../marketplace/enablement';
 
-/** Fetch the fact rows for `category`, restricted to the context's visible scopes. Degrades to [] on any failure (memory unset, no context, malformed selection). */
+/**
+ * Fetch the fact rows for the category, restricted to the context's visible
+ * scopes, via the indexed getFactsByCategoryAndScopes (facts.ts) instead of
+ * getAllFacts() plus an in-memory filter over every fact in the store.
+ * Degrades to [] on any failure (memory unset, no context, malformed selection).
+ */
 function visibleRows(
   context: SessionContext | undefined,
   sessionId: string,
@@ -50,8 +55,7 @@ function visibleRows(
   } catch {
     return [];
   }
-  const scopeSet = new Set(scopes);
-  return memory.getAllFacts().filter((f) => f.category === category && scopeSet.has(f.scope));
+  return memory.getFactsByCategoryAndScopes(category, scopes);
 }
 
 interface EnablementRowLike {
@@ -71,7 +75,11 @@ export function resolveAgentEnablement(
   sessionId: string
 ): ResolvedEnablement {
   const rows = visibleRows(context, sessionId, ENABLED_AGENTS_CATEGORY);
-  return resolveEnablement(rows, ENABLED_AGENTS_CATEGORY, agentEnablementSubject(packId, agentName));
+  return resolveEnablement(
+    rows,
+    ENABLED_AGENTS_CATEGORY,
+    agentEnablementSubject(packId, agentName)
+  );
 }
 
 /**
@@ -124,10 +132,8 @@ export function isMcpEnabledAtWorldScope(packId: string, entryId: string): boole
   if (!memory) return true;
   const subject = mcpEnablementSubject(packId, entryId);
   const fact = memory
-    .getAllFacts()
-    .find(
-      (f) => f.category === ENABLED_MCP_CATEGORY && f.subject === subject && f.scope === WORLD_SCOPE
-    );
+    .getFactsByCategoryAndScopes(ENABLED_MCP_CATEGORY, [WORLD_SCOPE])
+    .find((f) => f.subject === subject);
   if (!fact) return true;
   return parseEnablementContent(fact.content);
 }
@@ -143,8 +149,8 @@ function getEnablementAtScope(
   if (!memory) return null;
   const scope = resolveNearestScope(context);
   const fact = memory
-    .getAllFacts()
-    .find((f) => f.category === category && f.subject === subject && f.scope === scope);
+    .getFactsByCategoryAndScopes(category, [scope])
+    .find((f) => f.subject === subject);
   if (!fact) return null;
   return { scope, enabled: parseEnablementContent(fact.content) };
 }
@@ -171,8 +177,8 @@ function clearEnablement(
   const memory = getMemoryManager();
   if (!memory) return { success: false, scope };
   const fact = memory
-    .getAllFacts()
-    .find((f) => f.category === category && f.subject === subject && f.scope === scope);
+    .getFactsByCategoryAndScopes(category, [scope])
+    .find((f) => f.subject === subject);
   if (!fact) return { success: true, scope }; // already inheriting — nothing to clear
   memory.deleteFact(fact.id);
   return { success: true, scope };
@@ -183,7 +189,11 @@ export function getAgentEnablementAtScope(
   packId: string,
   agentName: string
 ): { scope: string; enabled: boolean } | null {
-  return getEnablementAtScope(context, ENABLED_AGENTS_CATEGORY, agentEnablementSubject(packId, agentName));
+  return getEnablementAtScope(
+    context,
+    ENABLED_AGENTS_CATEGORY,
+    agentEnablementSubject(packId, agentName)
+  );
 }
 
 export function setAgentEnablement(
@@ -192,7 +202,12 @@ export function setAgentEnablement(
   agentName: string,
   enabled: boolean
 ): { success: boolean; scope?: string; error?: string } {
-  return setEnablement(context, ENABLED_AGENTS_CATEGORY, agentEnablementSubject(packId, agentName), enabled);
+  return setEnablement(
+    context,
+    ENABLED_AGENTS_CATEGORY,
+    agentEnablementSubject(packId, agentName),
+    enabled
+  );
 }
 
 export function clearAgentEnablement(
@@ -200,7 +215,11 @@ export function clearAgentEnablement(
   packId: string,
   agentName: string
 ): { success: boolean; scope: string } {
-  return clearEnablement(context, ENABLED_AGENTS_CATEGORY, agentEnablementSubject(packId, agentName));
+  return clearEnablement(
+    context,
+    ENABLED_AGENTS_CATEGORY,
+    agentEnablementSubject(packId, agentName)
+  );
 }
 
 export function getMcpEnablementAtScope(
@@ -217,7 +236,12 @@ export function setMcpEnablement(
   entryId: string,
   enabled: boolean
 ): { success: boolean; scope?: string; error?: string } {
-  return setEnablement(context, ENABLED_MCP_CATEGORY, mcpEnablementSubject(packId, entryId), enabled);
+  return setEnablement(
+    context,
+    ENABLED_MCP_CATEGORY,
+    mcpEnablementSubject(packId, entryId),
+    enabled
+  );
 }
 
 export function clearMcpEnablement(

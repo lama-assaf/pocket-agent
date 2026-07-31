@@ -20,13 +20,13 @@ Use the moment a post goes live and the user asks what to do in the following ho
 
 ## golden-hour checklist
 
-| time | action |
-|---|---|
-| T+0 | post goes live |
-| T+0 to T+5 min | reply to every early comment as it lands |
-| T+5 to T+15 min | engage 5-10 adjacent, in-niche posts (comment-strategy pass) |
-| T+15 to T+30 min | recheck the post and reply to anything new |
-| T+1 to T+2 hr | final pass: reply to remaining comments, then step back |
+| time             | action                                                       |
+| ---------------- | ------------------------------------------------------------ |
+| T+0              | post goes live                                               |
+| T+0 to T+5 min   | reply to every early comment as it lands                     |
+| T+5 to T+15 min  | engage 5-10 adjacent, in-niche posts (comment-strategy pass) |
+| T+15 to T+30 min | recheck the post and reply to anything new                   |
+| T+1 to T+2 hr    | final pass: reply to remaining comments, then step back      |
 
 On X specifically, stay actively online for at least 30 minutes after posting — early reply density in that window is part of what the platform reads as a live, worth-extending post.
 

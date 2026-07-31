@@ -33,6 +33,7 @@ import {
   buildEnabledResolvedServers,
   type ResolvedMcpServer,
 } from '../marketplace/mcp-status';
+import { readPocketCliFallbackEnv } from '../config/pocket-cli-fallback';
 import type { MCPServerConfig } from '../tools';
 
 /** Settings key holding the marketplace MCP enable/credential blob (encrypted). */
@@ -60,6 +61,7 @@ export function buildMarketplaceMcpServers(): Record<string, MCPServerConfig> {
     marketplace,
     config,
     scopeEnabled: isMcpEnabledAtWorldScope,
+    envFallback: readPocketCliFallbackEnv(),
   });
   const out: Record<string, MCPServerConfig> = {};
   for (const [id, spec] of Object.entries(resolved)) out[id] = toMCPServerConfig(spec);

@@ -17,6 +17,7 @@ import {
   scopeRootsForSelection,
   guardrailFilesForContext,
   voiceFileForContext,
+  rootsExist,
 } from '../../src/clients/registry';
 import type { SessionContext } from '../../src/memory/sessions';
 
@@ -117,5 +118,11 @@ describe('clients registry', () => {
     expect(voiceFileForContext(clientCtx)).toContain(
       path.join('acme', '.atelier', 'memory', 'voice.md')
     );
+  });
+
+  it('rootsExist is false before any scaffold, true once either root is created', () => {
+    expect(rootsExist()).toBe(false);
+    ensureWorldScaffold();
+    expect(rootsExist()).toBe(true);
   });
 });

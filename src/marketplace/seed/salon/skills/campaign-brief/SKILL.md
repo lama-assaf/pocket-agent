@@ -23,28 +23,28 @@ Use when a user wants to start a new campaign, plan a launch, or turn a loose go
 
 ## message house
 
-| layer | contents |
-|---|---|
-| core claim | the one sentence the campaign has to prove, true even if every other line got cut |
-| support pillars (3) | the three angles that each independently back the core claim |
-| proof points | one concrete number, quote, or shipped fact per pillar — no pillar stands on adjectives alone |
+| layer               | contents                                                                                      |
+| ------------------- | --------------------------------------------------------------------------------------------- |
+| core claim          | the one sentence the campaign has to prove, true even if every other line got cut             |
+| support pillars (3) | the three angles that each independently back the core claim                                  |
+| proof points        | one concrete number, quote, or shipped fact per pillar — no pillar stands on adjectives alone |
 
 ## channel strategy grid
 
 | platform | owned | earned | paid |
-|---|---|---|---|
-| X | | | |
-| LinkedIn | | | |
-| Discord | | | |
-| Telegram | | | |
+| -------- | ----- | ------ | ---- |
+| X        |       |        |      |
+| LinkedIn |       |        |      |
+| Discord  |       |        |      |
+| Telegram |       |        |      |
 
 Fill every cell or mark it "n/a" with a one-line reason. A blank cell reads as forgotten, not deliberate.
 
 ## benchmark bands
 
-| metric | good | great | excellent |
-|---|---|---|---|
-| (per campaign metric) | | | |
+| metric                | good | great | excellent |
+| --------------------- | ---- | ----- | --------- |
+| (per campaign metric) |      |       |           |
 
 Set bands at brief time, before the first post ships. campaign-retro scores against these bands later — bands written after results are in don't measure anything, they only excuse whatever happened.
 

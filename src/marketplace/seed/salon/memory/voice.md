@@ -31,11 +31,13 @@ gut-check for "does this draft sound like us."
 ## vocabulary
 
 **do use:**
+
 - (words/phrases that sound like this brand)
 - (jargon that's earned, not performative)
 - (a signature turn of phrase, if there is one)
 
 **don't use:**
+
 - (corporate filler — "synergy," "leverage," "circle back")
 - (hype words that don't hold up — "revolutionary," "game-changing")
 - (anything that reads like it was written by a committee)

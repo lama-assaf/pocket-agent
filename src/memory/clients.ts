@@ -19,6 +19,13 @@ export interface Client {
   last_pulled_at: string | null;
   /** ISO timestamp of the last successful push (a commit actually landed on the remote), or null if never pushed. */
   last_pushed_at: string | null;
+  /**
+   * User-chosen brand color override, e.g. "#5b9dff", or null to use the
+   * deterministic id-derived default (see ui/shared/client-accent.js). Never
+   * set for Personal — that scope has no client row and stays neutral by
+   * design (this module doesn't model Personal at all).
+   */
+  accent_color: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -27,7 +34,7 @@ export interface Client {
 export function getClients(db: Database.Database): Client[] {
   return db
     .prepare(
-      `SELECT id, name, sync_mode, repo_url, last_pulled_at, last_pushed_at, created_at, updated_at
+      `SELECT id, name, sync_mode, repo_url, last_pulled_at, last_pushed_at, accent_color, created_at, updated_at
        FROM clients
        ORDER BY updated_at DESC`
     )
@@ -38,7 +45,7 @@ export function getClients(db: Database.Database): Client[] {
 export function getClient(db: Database.Database, id: string): Client | null {
   const row = db
     .prepare(
-      `SELECT id, name, sync_mode, repo_url, last_pulled_at, last_pushed_at, created_at, updated_at
+      `SELECT id, name, sync_mode, repo_url, last_pulled_at, last_pushed_at, accent_color, created_at, updated_at
        FROM clients WHERE id = ?`
     )
     .get(id) as Client | undefined;
@@ -51,14 +58,26 @@ export function getClient(db: Database.Database, id: string): Client | null {
  */
 export function createClient(
   db: Database.Database,
-  input: { id: string; name: string; syncMode?: ClientSyncMode; repoUrl?: string | null }
+  input: {
+    id: string;
+    name: string;
+    syncMode?: ClientSyncMode;
+    repoUrl?: string | null;
+    accentColor?: string | null;
+  }
 ): Client {
   const existing = getClient(db, input.id);
   if (existing) throw new Error(`Client "${input.id}" already exists`);
   db.prepare(
-    `INSERT INTO clients (id, name, sync_mode, repo_url, created_at, updated_at)
-     VALUES (?, ?, ?, ?, (strftime('%Y-%m-%dT%H:%M:%fZ')), (strftime('%Y-%m-%dT%H:%M:%fZ')))`
-  ).run(input.id, input.name, input.syncMode ?? 'live', input.repoUrl ?? null);
+    `INSERT INTO clients (id, name, sync_mode, repo_url, accent_color, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, (strftime('%Y-%m-%dT%H:%M:%fZ')), (strftime('%Y-%m-%dT%H:%M:%fZ')))`
+  ).run(
+    input.id,
+    input.name,
+    input.syncMode ?? 'live',
+    input.repoUrl ?? null,
+    input.accentColor ?? null
+  );
   return getClient(db, input.id)!;
 }
 
@@ -66,7 +85,13 @@ export function createClient(
 export function updateClient(
   db: Database.Database,
   id: string,
-  fields: { name?: string; syncMode?: ClientSyncMode; repoUrl?: string | null }
+  fields: {
+    name?: string;
+    syncMode?: ClientSyncMode;
+    repoUrl?: string | null;
+    /** Pass null to clear the override and fall back to the derived default. */
+    accentColor?: string | null;
+  }
 ): boolean {
   const sets: string[] = [];
   const values: unknown[] = [];
@@ -81,6 +106,10 @@ export function updateClient(
   if (fields.repoUrl !== undefined) {
     sets.push('repo_url = ?');
     values.push(fields.repoUrl);
+  }
+  if (fields.accentColor !== undefined) {
+    sets.push('accent_color = ?');
+    values.push(fields.accentColor);
   }
   if (sets.length === 0) return false;
   sets.push("updated_at = (strftime('%Y-%m-%dT%H:%M:%fZ'))");

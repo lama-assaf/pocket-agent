@@ -397,4 +397,71 @@ describe('buildEnabledResolvedServers — the runtime gate', () => {
     expect(withTrue).toEqual(omitted);
     expect(Object.keys(withTrue)).toEqual(['atelier:notion']);
   });
+
+  it('envFallback reaches a url entry\'s header template, not just stdio env (pocket CLI bearer-token bridge)', () => {
+    const bearerEntry: McpCatalogEntry = {
+      id: 'x-api-bearer',
+      kind: 'url',
+      description: 'App-only Bearer access',
+      url: 'https://api.x.com/mcp',
+      headers: { Authorization: 'Bearer ${X_BEARER_TOKEN}' },
+    };
+    const out = buildEnabledResolvedServers({
+      marketplace: [{ packId: 'salon', entry: bearerEntry }],
+      config: {},
+      envFallback: { X_BEARER_TOKEN: 'from-pocket-cli' },
+    });
+    expect(out).toEqual({
+      'salon:x-api-bearer': {
+        kind: 'url',
+        url: 'https://api.x.com/mcp',
+        headers: { Authorization: 'Bearer from-pocket-cli' },
+      },
+    });
+  });
+
+  it("a url entry's envFallback-driven auto-enable never affects a separate stdio entry's own required env", () => {
+    const xApiEntry: McpCatalogEntry = {
+      id: 'x-api',
+      kind: 'stdio',
+      description: 'OAuth2 user-context X MCP',
+      command: 'npx',
+      args: ['-y', '@xdevplatform/xurl', 'mcp', 'https://api.x.com/mcp'],
+      env: { CLIENT_ID: '${X_CLIENT_ID}', CLIENT_SECRET: '${X_CLIENT_SECRET}' },
+    };
+    const bearerEntry: McpCatalogEntry = {
+      id: 'x-api-bearer',
+      kind: 'url',
+      description: 'App-only Bearer access',
+      url: 'https://api.x.com/mcp',
+      headers: { Authorization: 'Bearer ${X_BEARER_TOKEN}' },
+    };
+    // Only the bearer token is available via fallback; x-api's own
+    // CLIENT_ID/CLIENT_SECRET are still unset, and neither entry has ever
+    // been touched in the Settings UI (config: {}).
+    const out = buildEnabledResolvedServers({
+      marketplace: [
+        { packId: 'salon', entry: xApiEntry },
+        { packId: 'salon', entry: bearerEntry },
+      ],
+      config: {},
+      envFallback: { X_BEARER_TOKEN: 'from-pocket-cli' },
+    });
+    expect(Object.keys(out)).toEqual(['salon:x-api-bearer']);
+
+    const statusList = buildMcpServerStatusList({
+      firstParty: [],
+      marketplace: [
+        { packId: 'salon', entry: xApiEntry },
+        { packId: 'salon', entry: bearerEntry },
+      ],
+      config: {},
+      envFallback: { X_BEARER_TOKEN: 'from-pocket-cli' },
+    });
+    const xApiStatus = statusList.find((s) => s.id === 'salon:x-api');
+    const bearerStatus = statusList.find((s) => s.id === 'salon:x-api-bearer');
+    // x-api's "Missing credentials" status is untouched by the bearer fallback.
+    expect(xApiStatus?.configured).toBe(false);
+    expect(bearerStatus?.configured).toBe(true);
+  });
 });

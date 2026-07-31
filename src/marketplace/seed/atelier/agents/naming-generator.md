@@ -1,7 +1,7 @@
 ---
 name: naming-generator
 description: Generates names for products, features, companies, or brands with rationale. Use whenever the user needs a name, asks for naming options, mentions branding a product, or wants help finding a name that has the right meaning and availability.
-tools: ["Read", "Grep", "Glob", "WebSearch"]
+tools: ['Read', 'Grep', 'Glob', 'WebSearch']
 model: opus
 ---
 

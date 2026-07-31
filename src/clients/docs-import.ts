@@ -37,6 +37,80 @@ export const DEFAULT_EXCLUDES: readonly string[] = [
 const OBSIDIAN_WORKSPACE_FILE_RE = /(^|\/)\.obsidian\/workspace(-mobile)?\.json$/;
 
 /**
+ * Bookkeeping directory (rootDir-relative, NOT inside any imported subtree)
+ * holding one manifest file per subtree, recording every path copied there on
+ * the prior run. Compared against the current run's copiedFiles to detect
+ * files deleted at the source, so they can be pruned from destRoot instead of
+ * persisting forever. Deliberately kept OUTSIDE destRoot — e.g. `docs/` stays
+ * exactly the doc tree a human (or Obsidian) browses, with no pipeline
+ * artifact mixed into it — while still living inside rootDir so it round-trips
+ * through the same git repo the docs themselves sync through.
+ */
+const MANIFEST_DIR = '.atelier/docs-import-manifests';
+
+interface ImportManifest {
+  /** destRoot-relative paths copied by the previous run. */
+  files: string[];
+}
+
+/** One manifest file per subtree, so multiple imports into one client repo (different subtrees) never share state. */
+function manifestPath(rootDir: string, subtree: string): string {
+  const safeName = subtree.split(path.sep).join('/').replace(/[\\/]/g, '__') || 'root';
+  return path.join(rootDir, MANIFEST_DIR, `${safeName}.json`);
+}
+
+function readManifest(rootDir: string, subtree: string): ImportManifest {
+  try {
+    const raw = fs.readFileSync(manifestPath(rootDir, subtree), 'utf-8');
+    const parsed = JSON.parse(raw) as Partial<ImportManifest>;
+    return {
+      files: Array.isArray(parsed.files) ? parsed.files.filter((f) => typeof f === 'string') : [],
+    };
+  } catch {
+    return { files: [] }; // no prior manifest (first import) or unreadable — treat as empty
+  }
+}
+
+function writeManifest(rootDir: string, subtree: string, files: string[]): void {
+  const target = manifestPath(rootDir, subtree);
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+  fs.writeFileSync(target, JSON.stringify({ files: [...files].sort() }, null, 2) + '\n', 'utf-8');
+}
+
+/**
+ * Delete destRoot files recorded in the previous manifest but absent from the
+ * current copiedFiles set (i.e. removed at the source since the last import).
+ * Guarded so it can only ever remove paths that resolve strictly inside
+ * destRoot — a stale/tampered manifest entry with `..` segments is skipped
+ * rather than followed outside the managed subtree. Returns the pruned paths
+ * (destRoot-relative) for reporting. Best-effort: a file already gone (races,
+ * manual cleanup) is silently skipped, not an error.
+ */
+function pruneStaleFiles(
+  destRoot: string,
+  previousFiles: string[],
+  currentFiles: readonly string[]
+): string[] {
+  const current = new Set(currentFiles);
+  const resolvedDestRoot = path.resolve(destRoot) + path.sep;
+  const pruned: string[] = [];
+  for (const rel of previousFiles) {
+    if (current.has(rel)) continue;
+    const abs = path.resolve(path.join(destRoot, rel));
+    if (!abs.startsWith(resolvedDestRoot)) continue; // never delete outside the managed subtree
+    try {
+      if (fs.existsSync(abs)) {
+        fs.rmSync(abs, { force: true });
+        pruned.push(rel);
+      }
+    } catch {
+      /* best-effort — leave it for a future run rather than fail the whole import */
+    }
+  }
+  return pruned;
+}
+
+/**
  * Strict secret-detection patterns — the same set used to manually vet the
  * Zilliqa-comms import before it was pushed. Deliberately strict (favors
  * false negatives over false positives on prose that merely mentions
@@ -92,10 +166,13 @@ export interface ImportDocsOptions {
   /** Additional exclude segment names, layered on top of DEFAULT_EXCLUDES. */
   excludes?: readonly string[];
   /**
-   * When true, mirrors every imported .md file into recallable agent memory
-   * via AtelierMemoryBridge (namespaced under `<subtree>/`, so it can never
-   * collide with — or be cleared by — the `.atelier/memory` mirror). Requires
-   * `memory`.
+   * When true, mirrors every imported plain-text-ish file (.md, .markdown,
+   * .txt — see AtelierMemoryBridge's TEXT_INGEST_EXTENSIONS; binary formats
+   * like .docx/images are copied to the repo but skipped for ingestion) into
+   * recallable agent memory via AtelierMemoryBridge (namespaced under
+   * `<subtree>/`, so it can never collide with — or be cleared by — the
+   * `.atelier/memory` mirror). Large files are chunked (see chunkText).
+   * Requires `memory`.
    */
   ingestToMemory?: boolean;
   /** Required when ingestToMemory is true. */
@@ -112,7 +189,14 @@ export interface ImportDocsResult {
    * source file happens to be named like) an exporter-owned path.
    */
   skippedReservedPaths: string[];
-  /** Number of imported .md files mirrored into memory (0 when ingestToMemory is false). */
+  /**
+   * destRoot-relative paths removed because they were copied by a previous
+   * run of this pipeline (recorded in the manifest) but no longer exist at
+   * the source — i.e. deleted upstream since the last import. Empty on a
+   * first import (no prior manifest).
+   */
+  prunedFiles: string[];
+  /** Number of imported text-ish files mirrored into memory (0 when ingestToMemory is false). */
   ingestedFiles: number;
 }
 
@@ -165,8 +249,17 @@ function walk(dir: string, base: string, excludes: readonly string[], out: strin
  *      recording) any whose destination path is exporter-owned
  *      (isReservedExportPath, from export.ts's RESERVED_EXPORT_PATHS —
  *      the same list the app's own Publish flow treats as generated).
- *   4. If ingestToMemory, mirror the copied .md files into recallable
- *      memory via AtelierMemoryBridge.mirrorDocsDir.
+ *   4. Prune: any file recorded in the previous run's manifest (stored
+ *      outside destRoot, under `.atelier/docs-import-manifests/`) but not
+ *      copied this run (i.e. deleted at the source since) is removed from
+ *      destRoot, then the manifest is rewritten with this run's file list.
+ *      Deletion is confined to destRoot by construction (see
+ *      pruneStaleFiles) — never touches `.git`, `.obsidian` scaffolding, or
+ *      anything outside the managed subtree.
+ *   5. If ingestToMemory, mirror the (now pruned) destRoot into recallable
+ *      memory via AtelierMemoryBridge.mirrorDocsDir — since stale files are
+ *      already gone from disk by this point, the mirror's own full
+ *      delete-then-readd resync naturally stops re-ingesting them too.
  */
 export async function importDocsIntoClient(options: ImportDocsOptions): Promise<ImportDocsResult> {
   const {
@@ -182,7 +275,9 @@ export async function importDocsIntoClient(options: ImportDocsOptions): Promise<
     throw new Error('importDocsIntoClient: `memory` is required when ingestToMemory is true');
   }
   if (!fs.existsSync(sourceDir) || !fs.statSync(sourceDir).isDirectory()) {
-    throw new Error(`importDocsIntoClient: sourceDir does not exist or is not a directory: ${sourceDir}`);
+    throw new Error(
+      `importDocsIntoClient: sourceDir does not exist or is not a directory: ${sourceDir}`
+    );
   }
 
   const allExcludes = [...DEFAULT_EXCLUDES, ...excludes];
@@ -232,7 +327,12 @@ export async function importDocsIntoClient(options: ImportDocsOptions): Promise<
     copiedFiles.push(rel);
   }
 
-  // 4) Optional: mirror imported markdown into recallable memory.
+  // 4) Prune files that a prior run copied but the source no longer has.
+  const previousManifest = readManifest(rootDir, subtree);
+  const prunedFiles = pruneStaleFiles(destRoot, previousManifest.files, copiedFiles);
+  writeManifest(rootDir, subtree, copiedFiles);
+
+  // 5) Optional: mirror imported text docs into recallable memory.
   let ingestedFiles = 0;
   if (ingestToMemory && memory) {
     const bridge = new AtelierMemoryBridge(memory);
@@ -241,5 +341,5 @@ export async function importDocsIntoClient(options: ImportDocsOptions): Promise<
     ingestedFiles = result.files;
   }
 
-  return { copiedFiles, skippedReservedPaths, ingestedFiles };
+  return { copiedFiles, skippedReservedPaths, prunedFiles, ingestedFiles };
 }

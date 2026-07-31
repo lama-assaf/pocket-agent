@@ -45,6 +45,13 @@ function renderTabs() {
     tab.dataset.sessionId = session.id;
     tab.dataset.index = index;
     tab.draggable = true;
+    // Plain click-only div was keyboard-unreachable (same gap already fixed
+    // for .cv-card-main and .ob-optional-header elsewhere) — drag-reorder
+    // stays mouse-only (acceptable; the core switch-session action doesn't
+    // need it), but selecting a session must work via keyboard too.
+    tab.setAttribute('role', 'button');
+    tab.tabIndex = 0;
+    tab.setAttribute('aria-label', (isActive ? 'Current chat: ' : 'Switch to chat: ') + session.name);
 
     tab.onclick = (e) => {
       if (!e.target.closest('.sidebar-session-close') && !e.target.closest('.tab-name-input')) {
@@ -52,6 +59,14 @@ function renderTabs() {
         returnToChatView();
         switchSession(session.id);
       }
+    };
+    tab.onkeydown = (e) => {
+      if (e.target.closest('.tab-name-input')) return; // let the rename input handle its own keys
+      if (e.key !== 'Enter' && e.key !== ' ' && e.key !== 'Spacebar') return;
+      e.preventDefault();
+      playNormalClick();
+      returnToChatView();
+      switchSession(session.id);
     };
     tab.ondblclick = () => startRenameSession(session.id);
 
@@ -117,6 +132,8 @@ function renderTabs() {
       const closeBtn = document.createElement('button');
       closeBtn.className = 'sidebar-session-close';
       closeBtn.innerHTML = '×';
+      // The × glyph alone reads as nothing useful to a screen reader.
+      closeBtn.setAttribute('aria-label', 'Delete chat: ' + session.name);
       closeBtn.onclick = (e) => {
         e.stopPropagation();
         playNormalClick();
@@ -128,9 +145,13 @@ function renderTabs() {
     tabsContainer.appendChild(tab);
   });
 
-  // Hide new chat button in sidebar when at max
+  // Hide new chat button in sidebar when the ACTIVE WORKSPACE is at max.
+  // Must use the workspace-filtered count (`shown`), not the global
+  // `sessions.length` across all clients — otherwise once total sessions
+  // across every workspace reach MAX_TABS, the button vanishes everywhere,
+  // even for workspaces with plenty of room.
   const newChatBtn = document.getElementById('sidebar-new-chat');
-  if (newChatBtn) newChatBtn.classList.toggle('hidden', sessions.length >= MAX_TABS);
+  if (newChatBtn) newChatBtn.classList.toggle('hidden', shown.length >= MAX_TABS);
 
   // Keep the active-workspace header in sync with the rendered list.
   if (typeof updateActiveClientHeader === 'function') updateActiveClientHeader();
@@ -293,8 +314,10 @@ function getNextSessionName() {
 }
 
 async function createNewSession() {
-  // Check tab limit
-  if (sessions.length >= MAX_TABS) {
+  // Check tab limit for the ACTIVE WORKSPACE only (matches the button's
+  // visibility check in renderTabs) — not the global session count across
+  // every client.
+  if (visibleSessions().length >= MAX_TABS) {
     return;
   }
   returnToChatView();

@@ -20,7 +20,11 @@
  * explain why a deliverable can't start yet.
  */
 
-import { getMemoryManager, nearestScopeForCurrentSession, visibleScopesForCurrentSession } from './memory-tools';
+import {
+  getMemoryManager,
+  nearestScopeForCurrentSession,
+  visibleScopesForCurrentSession,
+} from './memory-tools';
 import type { DeliverableStatus } from '../memory/index';
 
 // ============ create_campaign ============
@@ -33,7 +37,10 @@ export function getCreateCampaignToolDefinition() {
     input_schema: {
       type: 'object' as const,
       properties: {
-        name: { type: 'string', description: 'Short name for the campaign, e.g. "Q3 Product Launch"' },
+        name: {
+          type: 'string',
+          description: 'Short name for the campaign, e.g. "Q3 Product Launch"',
+        },
         brief: {
           type: 'string',
           description: 'What this campaign is about and what success looks like',
@@ -73,15 +80,18 @@ export function getAddDeliverableToolDefinition() {
         description: { type: 'string', description: 'What needs to be done' },
         lane: {
           type: 'string',
-          description: 'Operator lane this deliverable belongs to, e.g. "design", "product", "brand", "social"',
+          description:
+            'Operator lane this deliverable belongs to, e.g. "design", "product", "brand", "social"',
         },
         assigned_specialist: {
           type: 'string',
-          description: 'Named specialist (from the active lane) to dispatch this to via the subagent tool',
+          description:
+            'Named specialist (from the active lane) to dispatch this to via the subagent tool',
         },
         depends_on: {
           type: 'number',
-          description: 'Id of another deliverable in this campaign that must be "done" before this one can start',
+          description:
+            'Id of another deliverable in this campaign that must be "done" before this one can start',
         },
       },
       required: ['campaign_id', 'title'],
@@ -93,14 +103,7 @@ export async function handleAddDeliverableTool(input: unknown): Promise<string> 
   const memory = getMemoryManager();
   if (!memory) return JSON.stringify({ error: 'Memory not initialized' });
 
-  const {
-    campaign_id,
-    title,
-    description,
-    lane,
-    assigned_specialist,
-    depends_on,
-  } = input as {
+  const { campaign_id, title, description, lane, assigned_specialist, depends_on } = input as {
     campaign_id: number;
     title: string;
     description?: string;
@@ -152,7 +155,8 @@ export function getUpdateDeliverableStatusToolDefinition() {
         },
         result_ref: {
           type: 'string',
-          description: 'Optional: a summary of the result, or "content_draft:<id>" linking to a saved draft',
+          description:
+            'Optional: a summary of the result, or "content_draft:<id>" linking to a saved draft',
         },
       },
       required: ['deliverable_id', 'status'],
@@ -181,7 +185,9 @@ export async function handleUpdateDeliverableStatusTool(input: unknown): Promise
   const visible = visibleScopesForCurrentSession(memory);
   const campaign = memory.getCampaign(deliverable.campaign_id);
   if (!campaign || !visible.includes(campaign.scope)) {
-    return JSON.stringify({ error: `Deliverable #${deliverable_id} not found in the active workspace.` });
+    return JSON.stringify({
+      error: `Deliverable #${deliverable_id} not found in the active workspace.`,
+    });
   }
 
   const result = memory.setDeliverableStatus(deliverable_id, status, result_ref);
@@ -202,7 +208,8 @@ export function getGetCampaignToolDefinition() {
       properties: {
         campaign_id: {
           type: 'number',
-          description: 'The campaign to read. Omit to list all campaigns visible in the active workspace.',
+          description:
+            'The campaign to read. Omit to list all campaigns visible in the active workspace.',
         },
       },
       required: [],

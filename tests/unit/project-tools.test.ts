@@ -112,7 +112,7 @@ describe('Project Tools', () => {
     });
 
     it('succeeds: saves to DB and calls AgentManager.flagProjectSwitch', async () => {
-      const result = await handleSetProjectTool({ path: '/Users/kenkai/my-project' });
+      const result = await handleSetProjectTool({ path: '/Users/zilliqa/my-project' });
       const parsed = JSON.parse(result);
       expect(parsed.success).toBe(true);
       expect(parsed.path).toBeDefined();
@@ -131,7 +131,7 @@ describe('Project Tools', () => {
         return true;
       });
 
-      const result = await handleSetProjectTool({ path: '/Users/kenkai/my-project' });
+      const result = await handleSetProjectTool({ path: '/Users/zilliqa/my-project' });
       const parsed = JSON.parse(result);
       expect(parsed.error).toContain('Database not found');
     });
@@ -153,20 +153,20 @@ describe('Project Tools', () => {
     });
 
     it('returns hasProject: true with path when active project exists', async () => {
-      mockGet.mockReturnValue({ working_directory: '/Users/kenkai/my-project' });
+      mockGet.mockReturnValue({ working_directory: '/Users/zilliqa/my-project' });
 
       const result = await handleGetProjectTool();
       const parsed = JSON.parse(result);
       expect(parsed.success).toBe(true);
       expect(parsed.hasProject).toBe(true);
-      expect(parsed.path).toBe('/Users/kenkai/my-project');
+      expect(parsed.path).toBe('/Users/zilliqa/my-project');
       expect(parsed.exists).toBe(true);
     });
 
     it('returns warning when active project path has been deleted', async () => {
-      mockGet.mockReturnValue({ working_directory: '/Users/kenkai/deleted-project' });
+      mockGet.mockReturnValue({ working_directory: '/Users/zilliqa/deleted-project' });
       mockExistsSync.mockImplementation((p: unknown) => {
-        if (typeof p === 'string' && p === '/Users/kenkai/deleted-project') return false;
+        if (typeof p === 'string' && p === '/Users/zilliqa/deleted-project') return false;
         return true;
       });
 

@@ -1,0 +1,60 @@
+{
+  "id": "ltin",
+  "name": "LTIN",
+  "sync_mode": "live",
+  "repo_url": "https://github.com/r3toAI/LTIN-comms-brain",
+  "facts": [
+    {
+      "subject": "voice",
+      "content": "A sovereign institution speaking to regulators, banks, and standards bodies — sober, structural, standards-first. Cares about legal accountability, jurisdiction, and proof; would never hype, never self-certify legitimacy, never claim a layer before it ships. More formal, more buttoned-up, and more polished than Zilliqa's register; confident on shipped facts, carefully hedged on roadmap items. Shared spine with Zilliqa: 'open by default, accountable by design' — sober beats hype, and if a regulator would wince, rewrite it. Signature lines: 'Products win quarters; standards win decades', 'Be the source in the footnote, not the footnote', 'Our root is a standard, not a login'."
+    },
+    {
+      "subject": "tone",
+      "content": "X (LTIN): short thesis/standards/proof/vision posts, Tue-Thu mornings plus mid-afternoon, sober authority register. LinkedIn (LTIN): long-form authority essays ('why start at identity', standards-authority pieces) — loosen less than you think. LTIN cites Zilliqa only as 'the flagship deployment of LTIN's platform', never as an equal narrator, never merging the two streams in one output."
+    },
+    {
+      "subject": "instincts",
+      "content": "Twin-narrative single-pillar test (never skip): before publishing, ask which single pillar a piece serves — LTIN carries authority (sovereignty, standards, identity, governance), Zilliqa carries category (mediation, permissionless onchain finance). 'Both streams' -> split into two outputs; 'neither' -> kill it. Proof discipline: content without proof is noise, every claim traces to a shipped component; a regulator or standards body citing LTIN is proof, a product launch is not. QVI status is the single point of catastrophic failure — regulatory/GLEIF-accreditation claims stay gated until secured, never claimed ahead of shipping. Stealth topics, never public until proven: Alatau/Kazakhstan trade hub, China/EU corridors, agentic AI (MCP/x402), academic partners, SCION/SSFN, GSMA Verifiable Calling. Spokespeople: AL - Andres Luther (narrative/comms lead, approves evergreen copy), AZ - Alexander Zahnd (program lead, vLEI Issuer/GLEIF-QVI path), SU - Sacha Uhlmann (mediation layer/protocol lead)."
+    },
+    {
+      "subject": "banned_words",
+      "content": "revolutionary, game-changing, the future of, disrupt, 10x, synergy, circle back, zilliqa vs solana tps, why zilliqa chose liechtenstein, zilliqa enables liechtenstein's sovereign vision, mediation not settlement, settlement stays where it is"
+    }
+  ],
+  "lessons": [
+    {
+      "subject": "positioning evolved hard — use the May–June 2026 material, not June 2025",
+      "content": "The earliest strategy asset (June 2025) frames LTIN generically as 'the regulatory-compliant blockchain infrastructure leader' — renewable energy, data sovereignty, competing with AWS/Infura. The May–June 2026 board decks are a completely different, sharper strategy: twin narrative (LTIN authority / Zilliqa category), the vLEI value chain, mediation-above-settlement, ZIL as meter, revenue-vs-subsidy proof. Default to the 2026 material for all positioning and proof; treat the 2025 doc as historical context only — publishing the old framing would sound generic and merge the streams the new strategy works hard to keep apart."
+    },
+    {
+      "subject": "gate confidential material before it reaches public content",
+      "content": "Memory synthesized from internal board decks (several marked confidential) surfaces the richest material — stakeholder maps, opposition architecture, stealth track, ZIL economics — but most of it is internal only. When drafting public content, pull the principle and mechanism, but gate anything naming unshipped partners, numbers, or stealth items (Alatau, China/EU corridors, agentic AI, academic partners, SCION/SSFN, GSMA). Leaking a stealth item or an unshipped partner number would break proof discipline before anchors are validated."
+    }
+  ],
+  "agents": [
+    {
+      "packId": "atelier",
+      "agentName": "copywriter"
+    },
+    {
+      "packId": "atelier",
+      "agentName": "brand-voice-keeper"
+    },
+    {
+      "packId": "atelier",
+      "agentName": "narrative-architect"
+    },
+    {
+      "packId": "salon",
+      "agentName": "campaign-strategist"
+    },
+    {
+      "packId": "salon",
+      "agentName": "community-manager"
+    },
+    {
+      "packId": "salon",
+      "agentName": "engagement-manager"
+    }
+  ]
+}

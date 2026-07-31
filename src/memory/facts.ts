@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3';
+import crypto from 'crypto';
 import { embedFactAsync } from './semantic';
 
 // ============ Update / sensitivity ============
@@ -16,6 +17,27 @@ export interface Fact {
   last_accessed_at: string | null;
   created_at: string;
   updated_at: string;
+  /**
+   * sha256(content) hex digest, kept in sync by saveFact on every insert/update
+   * (see computeFactContentHash). Lets a caller compare "would this write
+   * actually change anything?" without a round-trip UPDATE — the content-hash
+   * dedup used by docs-import's mirrorMemoryDir (src/memory/atelier-bridge.ts)
+   * to skip re-saving/re-embedding an unchanged file. Only populated by
+   * queries that explicitly select it (getFactsByCategory, getFact); null on
+   * a pre-migration row that hasn't been re-saved since the column was added.
+   */
+  content_hash: string | null;
+}
+
+/**
+ * sha256(content) hex digest — the content-hash dedup key stored in
+ * facts.content_hash. Exported so a caller (mirrorMemoryDir) can compute a
+ * candidate's hash locally and compare it against a previously-stored fact's
+ * content_hash WITHOUT calling saveFact, entirely skipping the write (and the
+ * re-embed it triggers) when nothing actually changed.
+ */
+export function computeFactContentHash(content: string): string {
+  return crypto.createHash('sha256').update(content, 'utf-8').digest('hex');
 }
 
 /**
@@ -73,14 +95,15 @@ export function saveFact(
     )
     .get(scope, category, subject) as { id: number } | undefined;
 
+  const contentHash = computeFactContentHash(content);
   let factId: number;
 
   if (existing) {
     db.prepare(
       `
-        UPDATE facts SET content = ?, updated_at = (strftime('%Y-%m-%dT%H:%M:%fZ')) WHERE id = ?
+        UPDATE facts SET content = ?, content_hash = ?, updated_at = (strftime('%Y-%m-%dT%H:%M:%fZ')) WHERE id = ?
       `
-    ).run(content, existing.id);
+    ).run(content, contentHash, existing.id);
     factId = existing.id;
     // Only touch the flag when explicitly provided — preserve manual UI settings otherwise
     if (sensitive !== undefined) {
@@ -88,10 +111,10 @@ export function saveFact(
     }
   } else {
     const stmt = db.prepare(`
-        INSERT INTO facts (category, subject, content, scope, sensitive)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO facts (category, subject, content, content_hash, scope, sensitive)
+        VALUES (?, ?, ?, ?, ?, ?)
       `);
-    const result = stmt.run(category, subject, content, scope, sensitive ? 1 : 0);
+    const result = stmt.run(category, subject, content, contentHash, scope, sensitive ? 1 : 0);
     factId = result.lastInsertRowid as number;
   }
 
@@ -137,6 +160,11 @@ export function updateFact(
   if (fields.content !== undefined) {
     sets.push('content = ?');
     values.push(fields.content);
+    // Keep content_hash in sync with content so a later content-hash dedup
+    // comparison (mirrorMemoryDir) never sees a stale hash for a fact edited
+    // through this path.
+    sets.push('content_hash = ?');
+    values.push(computeFactContentHash(fields.content));
   }
   if (fields.sensitive !== undefined) {
     sets.push('sensitive = ?');
@@ -193,8 +221,8 @@ export function promoteFact(
   if (existing) {
     // Merge: the promoted (more-recent) content wins at the target, drop source.
     db.prepare(
-      "UPDATE facts SET content = ?, updated_at = (strftime('%Y-%m-%dT%H:%M:%fZ')) WHERE id = ?"
-    ).run(src.content, existing.id);
+      "UPDATE facts SET content = ?, content_hash = ?, updated_at = (strftime('%Y-%m-%dT%H:%M:%fZ')) WHERE id = ?"
+    ).run(src.content, computeFactContentHash(src.content), existing.id);
     db.prepare('DELETE FROM facts WHERE id = ?').run(src.id);
     cache.contextCacheValid = false;
     embedFactAsync(db, existing.id);
@@ -231,7 +259,7 @@ export function setFactSensitive(
 export function getFact(db: Database.Database, id: number): Fact | null {
   const row = db
     .prepare(
-      `SELECT id, category, subject, content, scope, importance, last_accessed_at, created_at, updated_at
+      `SELECT id, category, subject, content, scope, importance, last_accessed_at, created_at, updated_at, content_hash
        FROM facts WHERE id = ?`
     )
     .get(id) as Fact | undefined;
@@ -268,11 +296,18 @@ function formatFactLine(fact: Fact): string {
  * Sorts by importance DESC, truncates at FACTS_CHAR_BUDGET, and includes
  * a usage header with memory pressure warning when >80% full.
  * Uses the cache to avoid re-computing when nothing has changed.
+ *
+ * `visibleScopes` is required at the type level (not optional) so a caller
+ * within this codebase can't silently forget to scope this call — an omitted
+ * scope list used to look like a valid call while dumping every scope's
+ * facts unfiltered. (Legacy JS/test callers that still pass no argument keep
+ * working identically via the wholesale-cache path below; only typed src/
+ * callers are now forced to pass one explicitly.)
  */
 export function getFactsForContext(
   db: Database.Database,
   cache: FactsCache,
-  visibleScopes?: string[]
+  visibleScopes: string[]
 ): string {
   // Scoped path (chat-engine fallback when embeddings are unavailable): filter to
   // the selected context's scopes so this wholesale dump can't leak personal or
@@ -464,16 +499,91 @@ export function searchFacts(db: Database.Database, query: string, category?: str
 }
 
 /**
+ * Get all facts for a category restricted to a set of scopes, via the
+ * `idx_facts_category_scope` composite index — an indexed `WHERE category = ?
+ * AND scope IN (...)` lookup instead of a full-table `getAllFacts()` +
+ * in-memory filter. Backs scoped resolution paths that used to scan every
+ * fact on every call: enablement (src/agent/enablement.ts), agent overrides
+ * (src/agent/agent-overrides.ts), and how-to-act (src/agent/how-to-act.ts).
+ * Returns [] when `scopes` is empty (never falls through to an unfiltered
+ * query — same "nothing visible" contract as getFactsForContext).
+ */
+export function getFactsByCategoryAndScopes(
+  db: Database.Database,
+  category: string,
+  scopes: string[]
+): Fact[] {
+  if (scopes.length === 0) return [];
+  const placeholders = scopes.map(() => '?').join(', ');
+  return db
+    .prepare(
+      `SELECT id, category, subject, content, scope, importance, last_accessed_at, created_at, updated_at
+       FROM facts
+       WHERE category = ? AND scope IN (${placeholders})`
+    )
+    .all(category, ...scopes) as Fact[];
+}
+
+/**
  * Get all facts for a given category.
  */
 export function getFactsByCategory(db: Database.Database, category: string): Fact[] {
   const stmt = db.prepare(`
-      SELECT id, category, subject, content, scope, importance, last_accessed_at, created_at, updated_at
+      SELECT id, category, subject, content, scope, importance, last_accessed_at, created_at, updated_at, content_hash
       FROM facts
       WHERE category = ?
       ORDER BY subject, updated_at DESC
     `);
   return stmt.all(category) as Fact[];
+}
+
+/**
+ * Brain-freshness snapshot for a client's imported docs (the
+ * `atelier-memory` facts under `docs/%` written by docs-import.ts's
+ * mirrorDocsDir — see src/memory/atelier-bridge.ts). Used by the ingestion
+ * observability IPC/UI (clients:memoryStatus) to show fact count, how many
+ * are actually embedded/recallable vs still pending, and how long ago the
+ * brain was last touched — not just the one-shot file-copy counts
+ * ImportDocsResult already surfaces.
+ */
+export interface ClientDocsMemoryStatus {
+  /** Total atelier-memory facts under docs/% for this scope (chunks count individually). */
+  factCount: number;
+  /** Of those, how many have a non-null embedding (recallable via semantic search). */
+  embeddedCount: number;
+  /** factCount - embeddedCount — awaiting embedding (see semantic.ts's embedFactsBatch/backfillMissingEmbeddings). */
+  pendingCount: number;
+  /** MAX(updated_at) across those facts, or null when there are none yet. */
+  lastSyncedAt: string | null;
+}
+
+/**
+ * Query a scope's (e.g. `client:acme`) doc-ingestion memory status. A single
+ * query — COUNT(*) for the total, COUNT(embedding) for the non-null subset
+ * (SQLite's COUNT(col) skips NULLs), MAX(updated_at) for freshness — no
+ * schema change needed.
+ */
+export function getClientDocsMemoryStatus(
+  db: Database.Database,
+  scope: string
+): ClientDocsMemoryStatus {
+  const row = db
+    .prepare(
+      `SELECT
+         COUNT(*) as factCount,
+         COUNT(embedding) as embeddedCount,
+         MAX(updated_at) as lastSyncedAt
+       FROM facts
+       WHERE scope = ? AND category = 'atelier-memory' AND subject LIKE 'docs/%'`
+    )
+    .get(scope) as { factCount: number; embeddedCount: number; lastSyncedAt: string | null };
+
+  return {
+    factCount: row.factCount,
+    embeddedCount: row.embeddedCount,
+    pendingCount: row.factCount - row.embeddedCount,
+    lastSyncedAt: row.lastSyncedAt,
+  };
 }
 
 /**

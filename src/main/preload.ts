@@ -64,6 +64,15 @@ contextBridge.exposeInMainWorld('pocketAgent', {
       syncMode?: 'live' | 'manual';
       repoUrl?: string | null;
     }) => ipcRenderer.invoke('clients:create', input),
+    update: (
+      id: string,
+      fields: {
+        name?: string;
+        syncMode?: 'live' | 'manual';
+        repoUrl?: string | null;
+        accentColor?: string | null;
+      }
+    ) => ipcRenderer.invoke('clients:update', id, fields),
     getSetupString: (id: string) => ipcRenderer.invoke('clients:getSetupString', id),
     previewSetupString: (raw: string) => ipcRenderer.invoke('clients:previewSetupString', raw),
     join: (raw: string) => ipcRenderer.invoke('clients:join', raw),
@@ -74,6 +83,7 @@ contextBridge.exposeInMainWorld('pocketAgent', {
       subtree?: string;
       ingestToMemory?: boolean;
     }) => ipcRenderer.invoke('clients:importDocs', input),
+    memoryStatus: (clientId: string) => ipcRenderer.invoke('clients:memoryStatus', clientId),
   },
   projects: {
     list: (clientId: string) => ipcRenderer.invoke('projects:list', clientId),
@@ -101,7 +111,9 @@ contextBridge.exposeInMainWorld('pocketAgent', {
     // failure is the real risk (roadmap live-sync UI follow-up), so this is
     // the one thing worth an unprompted toast; success stays quiet (status
     // bar timestamp only).
-    onError: (callback: (info: { clientId: string; action: 'pull' | 'push'; error: string }) => void) => {
+    onError: (
+      callback: (info: { clientId: string; action: 'pull' | 'push'; error: string }) => void
+    ) => {
       const listener = (
         _event: Electron.IpcRendererEvent,
         info: { clientId: string; action: 'pull' | 'push'; error: string }
@@ -180,6 +192,11 @@ contextBridge.exposeInMainWorld('pocketAgent', {
   // ─── Write-Audit Log (roadmap item 8) ──────────────────────────────────
   auditLog: {
     list: (limit?: number) => ipcRenderer.invoke('auditLog:list', limit),
+  },
+
+  // ─── Routing Decision Log (mode switch / skill load / subagent spawn) ──
+  routingLog: {
+    list: (limit?: number) => ipcRenderer.invoke('routingLog:list', limit),
   },
 
   // ─── App (Windows, Navigation, Info) ─────────────────────────────────
@@ -634,6 +651,7 @@ contextBridge.exposeInMainWorld('pocketAgent', {
     download: () => ipcRenderer.invoke('updater:downloadUpdate'),
     install: () => ipcRenderer.invoke('updater:installUpdate'),
     getStatus: () => ipcRenderer.invoke('updater:getStatus'),
+    getReleasesUrl: (): Promise<string> => ipcRenderer.invoke('updater:getReleasesUrl'),
     onStatus: (
       callback: (status: {
         status: string;
@@ -732,6 +750,17 @@ contextBridge.exposeInMainWorld('pocketAgent', {
       return () => ipcRenderer.removeListener('model:changed', listener);
     },
   },
+
+  // ─── Debug (dev-only, opt-in — see src/main/ipc/debug-ipc.ts) ─────────
+  // Main only registers these handlers when !app.isPackaged AND
+  // POCKET_AGENT_DEBUG_CAPTURE=1; otherwise these calls reject with
+  // "No handler registered". Always safe to expose the bridge itself.
+  debug: {
+    capture: (windowId: string, name?: string) =>
+      ipcRenderer.invoke('debug:capture', windowId, name),
+    resize: (windowId: string, width: number, height: number) =>
+      ipcRenderer.invoke('debug:resize', windowId, width, height),
+  },
 });
 
 // Session type
@@ -764,6 +793,8 @@ interface Client {
   repo_url: string | null;
   last_pulled_at: string | null;
   last_pushed_at: string | null;
+  /** User's brand-color override (hex), or null to use the id-derived default. */
+  accent_color: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -869,6 +900,15 @@ declare global {
           syncMode?: 'live' | 'manual';
           repoUrl?: string | null;
         }) => Promise<{ success: boolean; client?: Client; error?: string }>;
+        update: (
+          id: string,
+          fields: {
+            name?: string;
+            syncMode?: 'live' | 'manual';
+            repoUrl?: string | null;
+            accentColor?: string | null;
+          }
+        ) => Promise<{ success: boolean; client?: Client; error?: string }>;
         getSetupString: (
           id: string
         ) => Promise<{ success: boolean; setupString?: string; error?: string }>;
@@ -896,12 +936,19 @@ declare global {
           result?: {
             copiedFiles: string[];
             skippedReservedPaths: string[];
+            prunedFiles: string[];
             ingestedFiles: number;
           };
           error?: string;
           secretScan?: { offending: Array<{ path: string; rule: string }> };
           canceled?: boolean;
         }>;
+        memoryStatus: (clientId: string) => Promise<{
+          factCount: number;
+          embeddedCount: number;
+          pendingCount: number;
+          lastSyncedAt: string | null;
+        } | null>;
       };
 
       projects: {
@@ -1033,6 +1080,20 @@ declare global {
             tool: 'write' | 'edit' | 'saveFact' | 'updateFact';
             target: string;
             digest: string;
+          }>
+        >;
+      };
+
+      routingLog: {
+        list: (limit?: number) => Promise<
+          Array<{
+            ts: string;
+            sessionId: string;
+            kind: 'mode_switch' | 'skill_load' | 'subagent_spawn';
+            target: string;
+            lane?: string;
+            outcome: 'accepted' | 'rejected';
+            detail?: string;
           }>
         >;
       };
@@ -1823,6 +1884,7 @@ declare global {
           progress?: { percent: number };
           error?: string;
         }>;
+        getReleasesUrl: () => Promise<string>;
         onStatus: (
           callback: (status: {
             status: string;
@@ -1893,6 +1955,15 @@ declare global {
           }) => void
         ) => () => void;
         onModelChanged: (callback: (model: string) => void) => () => void;
+      };
+
+      debug: {
+        capture: (windowId: string, name?: string) => Promise<string>;
+        resize: (
+          windowId: string,
+          width: number,
+          height: number
+        ) => Promise<{ x: number; y: number; width: number; height: number }>;
       };
     };
   }

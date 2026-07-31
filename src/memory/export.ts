@@ -57,7 +57,7 @@ export function exportMemory(db: Database.Database): MemoryExport {
  */
 export function exportMemoryMarkdown(data: MemoryExport): string {
   const lines: string[] = [];
-  lines.push('# Pocket Agent Memory Export');
+  lines.push('# r3to.os Memory Export');
   lines.push(`_Exported ${data.exportedAt}_`);
   lines.push('');
 

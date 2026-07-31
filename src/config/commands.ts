@@ -15,7 +15,7 @@ export const DEFAULT_COMMANDS: DefaultCommand[] = [
     filename: 'create-workflow.md',
     content: `---
 name: create-workflow
-description: Create a new workflow command for Pocket Agent
+description: Create a new workflow command for r3to.os
 ---
 
 # Create a New Workflow

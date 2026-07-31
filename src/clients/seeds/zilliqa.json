@@ -1,0 +1,60 @@
+{
+  "id": "zilliqa",
+  "name": "Zilliqa",
+  "sync_mode": "live",
+  "repo_url": "https://github.com/r3toAI/Zilliqa-comms-brain",
+  "facts": [
+    {
+      "subject": "voice",
+      "content": "Understated, evidence-first, institutional — the restraint is the brand. Never claims ahead of what's shipped; proof does the persuading ('No claim without something shipped behind it'). Say the mechanism, not the magic: explain concretely how something works, no mystique. Speaks to regulated institutional finance in precise vocabulary (settlement, mediation, credentials, policy, compliance, validation fees). Short, declarative, structurally parallel sentences; the semicolon and the comma-fronted conditional are the punctuation signature (em dash is occasional, not the tell). Economics stated plainly, never hyped. Point of view: 'we' for commitments/intent, 'you' for the builder/partner, third person/neutral for mechanism explanations. Figurative range is minimal — almost entirely literal, no jokes, no winking."
+    },
+    {
+      "subject": "tone",
+      "content": "Category identity: 'the named leader of permissionless onchain finance' is approved in Zilliqa voice, and 'creates a new category' as vision — but proof discipline stays fierce: claim the category, never an unshipped capability as done. By surface: homepage hero is confident/compact (fragments allowed); roadmap is disciplined/evidence-led (every milestone pairs a deliverable with its proof); FAQ is plain/reassuring (reader's-words questions, literal answers); technical pillars are explanatory and precise even at length; CTAs are calm and literal ('Start Building', 'Partner With Us') — never urgency theater."
+    },
+    {
+      "subject": "instincts",
+      "content": "Locked Zilliqa x LTIN ground truth: role split is LTIN issues the vLEI credential -> Zilliqa's mediation layer enforces it before settlement -> settlement is joint, on any chain. Never merge the LTIN and Zilliqa narratives in one output; Zilliqa cites LTIN only as 'the sovereign substrate' (subordinate cross-ref), never as an equal narrator. The mediation layer is a blockchain in its own right — it mediates (checks credential + policy before settlement) AND can also facilitate settlement, agnostic to the settlement network, non-custodial; never say it 'steps aside' or 'settles nothing'. Figures: Zilliqa-solo leads with confirmed current numbers (~$33T stablecoin transfers FY2025) and attributes any projection; joint/LTIN-aligned assets use the BCG $16T-by-2030 figure instead. Milestone dates are published as accountability commitments ('dates you can hold us to'), not blanket-confidential. Never present-tense LTIN's GLEIF accreditation as done, though 'the vLEI is a GLEIF-governed, ISO 17442 credential' is approved."
+    },
+    {
+      "subject": "banned_words",
+      "content": "revolutionary, game-changing, cutting-edge, world-class, unleash, supercharge, the best, the leading, the #1, sign up now, mediation not settlement, settlement stays where it is, validation not settlement per transaction, settles nothing, clears no trades, cannot be the layer that settles, steps aside, zilliqa vs solana tps, why zilliqa chose liechtenstein"
+    }
+  ],
+  "lessons": [
+    {
+      "subject": "canon reconciliation must sweep every surface",
+      "content": "When a claim or wedge is reconciled and phrases are banned, the sweep must cover every surface the campaign lives on, not just repo markdown. A banned-phrase check against only local files missed the same retired language ('settles nothing', 'clears no trades', 'steps aside', 'cannot be the layer that settles') sitting live in the master content-calendar Google Doc, which lags repo canon by weeks. Re-run banned-phrase sweeps against the Doc export whenever ground truth changes."
+    },
+    {
+      "subject": "reconciled canon to LTIN's authoritative OneDrive positioning docs",
+      "content": "Derived instincts drift from the principals' own source docs over weeks — the board decks used to draft this brand's memory were a SUPERSEDED source that still carried CEO-retired language. When a canon dispute arises, go to the source-owner's approved docs (LTIN's AL-approved OneDrive positioning set) before picking a side; don't arbitrate from secondary/derived notes."
+    }
+  ],
+  "agents": [
+    {
+      "packId": "atelier",
+      "agentName": "copywriter"
+    },
+    {
+      "packId": "atelier",
+      "agentName": "brand-voice-keeper"
+    },
+    {
+      "packId": "atelier",
+      "agentName": "narrative-architect"
+    },
+    {
+      "packId": "salon",
+      "agentName": "campaign-strategist"
+    },
+    {
+      "packId": "salon",
+      "agentName": "community-manager"
+    },
+    {
+      "packId": "salon",
+      "agentName": "engagement-manager"
+    }
+  ]
+}

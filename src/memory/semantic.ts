@@ -11,8 +11,47 @@
  */
 
 import type Database from 'better-sqlite3';
-import { cosineSimilarity, deserializeVector, embedText, serializeVector } from './embeddings';
+import {
+  cosineSimilarity,
+  deserializeVector,
+  embedText,
+  embedTextBatch,
+  serializeVector,
+} from './embeddings';
 import { scopeSpecificity } from './scope';
+
+/** Attempts for `retryEmbedding` before giving up and leaving embedding=NULL. */
+const EMBED_RETRY_ATTEMPTS = 3;
+/** Base delay for `retryEmbedding`'s exponential backoff (doubles each attempt). */
+const EMBED_RETRY_BASE_DELAY_MS = 200;
+
+/**
+ * Retry an embedding call up to `attempts` times with exponential backoff
+ * (200ms, 400ms, ...) before giving up. A transient failure (a slow-loading
+ * model, a one-off ONNX runtime hiccup, a momentary OOM under load) shouldn't
+ * permanently strand a row at embedding=NULL the way a single failed
+ * `embedText`/`embedTextBatch` call used to — only a fn that keeps failing on
+ * every attempt does. Exported so callers/tests can reuse or verify the exact
+ * policy (see `embedFactsBatch` and the single-row path in `embedAndStore`).
+ */
+export async function retryEmbedding<T>(
+  fn: () => Promise<T>,
+  attempts: number = EMBED_RETRY_ATTEMPTS
+): Promise<T> {
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    try {
+      return await fn();
+    } catch (e) {
+      lastErr = e;
+      if (attempt < attempts - 1) {
+        const delayMs = EMBED_RETRY_BASE_DELAY_MS * 2 ** attempt;
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      }
+    }
+  }
+  throw lastErr;
+}
 
 /** A scored row used internally during retrieval. */
 interface ScoredRow<T> {
@@ -63,7 +102,12 @@ function scoreFactRows(rows: FactRow[], queryEmbedding: Float32Array): ScoredRow
 
 /**
  * Embed arbitrary text and store the serialized vector into `table.embedding`
- * for the given row id. Fire-and-forget friendly: errors are logged, not thrown.
+ * for the given row id. Fire-and-forget friendly: errors are logged, not
+ * thrown. Retries the embedding call (see `retryEmbedding`) before degrading
+ * to leaving `embedding` unset (NULL) — a row left at NULL after exhausting
+ * retries is picked up by a future `backfillMissingEmbeddings` run, and is
+ * always safely skipped (never a hard error) by every reader in this file
+ * (`scoreRows`/`scoreFactRows` filter out rows with no usable vector).
  */
 async function embedAndStore(
   db: Database.Database,
@@ -73,11 +117,14 @@ async function embedAndStore(
 ): Promise<void> {
   try {
     if (!text || text.trim().length === 0) return;
-    const vector = await embedText(text);
+    const vector = await retryEmbedding(() => embedText(text));
     const blob = serializeVector(vector);
     db.prepare(`UPDATE ${table} SET embedding = ? WHERE id = ?`).run(blob, id);
   } catch (e) {
-    console.warn(`[Semantic] Failed to embed ${table}#${id}:`, e);
+    console.warn(
+      `[Semantic] Failed to embed ${table}#${id} after ${EMBED_RETRY_ATTEMPTS} attempts:`,
+      e
+    );
   }
 }
 
@@ -130,9 +177,103 @@ export function embedSoulAspectAsync(db: Database.Database, id: number): void {
   void embedSoulAspect(db, id);
 }
 
+/** Default batch size for `embedFactsBatch` — one model forward pass per this many facts. */
+const DEFAULT_EMBED_BATCH_SIZE = 16;
+
+export interface EmbedFactsBatchResult {
+  /** Facts successfully embedded and written this call. */
+  embedded: number;
+  /** Facts whose batch failed even after retries — left at embedding=NULL for a future call. */
+  failed: number;
+}
+
+/**
+ * Embed a set of existing fact rows (by id) in batches of `batchSize`, one
+ * model call per batch instead of one per row — far faster than the
+ * previous sequential `embedFact`-per-row loop (measured live at ~3.6
+ * rows/sec; a single batched call amortizes model overhead across up to
+ * `batchSize` rows). Each batch's writes commit in one `db.transaction()`, so
+ * a batch either fully lands or fully doesn't (no half-written batch).
+ *
+ * Resumable by construction: this only ever touches EXISTING rows passed in
+ * via `ids` (never inserts), so re-calling it — e.g. after a crash mid-run,
+ * or via a fresh `backfillMissingEmbeddings` — with `ids` re-selected from
+ * `WHERE embedding IS NULL` naturally skips whatever already got embedded;
+ * there's no way to produce a duplicate row here. A batch that fails even
+ * after `retryEmbedding`'s retries is logged and left at embedding=NULL
+ * (never thrown) so one bad batch never aborts the rest of the run.
+ */
+export async function embedFactsBatch(
+  db: Database.Database,
+  ids: number[],
+  batchSize: number = DEFAULT_EMBED_BATCH_SIZE
+): Promise<EmbedFactsBatchResult> {
+  let embedded = 0;
+  let failed = 0;
+
+  for (let i = 0; i < ids.length; i += batchSize) {
+    const batchIds = ids.slice(i, i + batchSize);
+    const placeholders = batchIds.map(() => '?').join(',');
+    const rows = db
+      .prepare(`SELECT id, category, subject, content FROM facts WHERE id IN (${placeholders})`)
+      .all(...batchIds) as Array<{
+      id: number;
+      category: string;
+      subject: string;
+      content: string;
+    }>;
+
+    // Preserve the id<->text association through embedTextBatch's positional
+    // output; skip rows with nothing to embed (matches embedFact's behavior).
+    const entries = rows
+      .map((r) => ({ id: r.id, text: `${r.category} ${r.subject} ${r.content}`.trim() }))
+      .filter((e) => e.text.length > 0);
+    if (entries.length === 0) continue;
+
+    try {
+      const vectors = await retryEmbedding(() => embedTextBatch(entries.map((e) => e.text)));
+      const writeBatch = db.transaction(() => {
+        const stmt = db.prepare('UPDATE facts SET embedding = ? WHERE id = ?');
+        for (let j = 0; j < entries.length; j++) {
+          stmt.run(serializeVector(vectors[j]!), entries[j]!.id);
+        }
+      });
+      writeBatch();
+      embedded += entries.length;
+    } catch (e) {
+      const idsStr = entries.map((e) => e.id).join(',');
+      console.warn(
+        `[Semantic] Batch embed failed for ${entries.length} fact(s) (ids ${idsStr}) after ${EMBED_RETRY_ATTEMPTS} attempts; left as embedding=NULL for a future backfill:`,
+        e
+      );
+      failed += entries.length;
+    }
+  }
+
+  return { embedded, failed };
+}
+
+/**
+ * Count of fact rows still missing an embedding — the "pending" count for
+ * ingestion observability (surfaced via IPC/UI in a follow-up task). A
+ * non-zero count after a backfill run means some batch failed even after
+ * retries (see embedFactsBatch's `failed`) and is waiting for the next run.
+ */
+export function getPendingFactEmbeddingCount(db: Database.Database): number {
+  const row = db.prepare('SELECT COUNT(*) as count FROM facts WHERE embedding IS NULL').get() as {
+    count: number;
+  };
+  return row.count;
+}
+
 /**
  * Backfill embeddings for any facts/soul/rollup rows whose embedding IS NULL.
- * Runs sequentially in the background; safe to call on startup.
+ * Facts are embedded in batches (see embedFactsBatch); soul aspects and
+ * rollups stay on the sequential per-row path (their volumes are small —
+ * dozens, not thousands — unlike facts, which is what the docs-import
+ * pipeline can produce thousands of at once). Safe to call on startup, and
+ * safe to re-call after a partial/crashed run — already-embedded rows are
+ * simply excluded from the next call's `WHERE embedding IS NULL` selection.
  */
 export async function backfillMissingEmbeddings(db: Database.Database): Promise<void> {
   const facts = db.prepare('SELECT id FROM facts WHERE embedding IS NULL').all() as Array<{
@@ -149,7 +290,15 @@ export async function backfillMissingEmbeddings(db: Database.Database): Promise<
   if (total === 0) return;
 
   console.log(`[Semantic] Backfilling embeddings for ${total} row(s)...`);
-  for (const f of facts) await embedFact(db, f.id);
+  if (facts.length > 0) {
+    const result = await embedFactsBatch(
+      db,
+      facts.map((f) => f.id)
+    );
+    console.log(
+      `[Semantic] Facts backfill: ${result.embedded} embedded, ${result.failed} failed (left for a future retry)`
+    );
+  }
   for (const s of souls) await embedSoulAspect(db, s.id);
   for (const r of rollups) await embedRollup(db, r.id, r.content);
   console.log('[Semantic] Embedding backfill complete');
@@ -200,13 +349,17 @@ function formatFactRowLine(row: FactRow): string {
  * Retrieve the most relevant facts for a query embedding, formatted for context
  * injection within a character budget. Returns '' when nothing is embedded yet
  * (caller should fall back to the wholesale importance-sorted dump).
+ *
+ * `visibleScopes` is required at the type level (not optional), same rationale
+ * as getFactsForContext: a caller that forgets to scope this call should fail
+ * to compile, not silently retrieve facts from every scope.
  */
 export function retrieveRelevantFacts(
   db: Database.Database,
   queryEmbedding: Float32Array,
   k: number,
   budgetChars: number,
-  visibleScopes?: string[],
+  visibleScopes: string[],
   minScore = 0.25
 ): string {
   const { clause, params } = scopeFilter(visibleScopes);

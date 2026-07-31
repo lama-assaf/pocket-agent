@@ -69,7 +69,7 @@ async function updateStats() {
     if (!_appVersion) {
       try { _appVersion = await window.pocketAgent.app.getVersion(); } catch (e) { /* ignore */ }
     }
-    const prefix = _appVersion ? `Pocket Agent v${_appVersion}` : 'Pocket Agent';
+    const prefix = _appVersion ? `r3to.os v${_appVersion}` : 'r3to.os';
     const stats = await window.pocketAgent.agent.getStats(currentSessionId);
     if (stats) {
       let parts = [`${stats.messageCount} msgs`];

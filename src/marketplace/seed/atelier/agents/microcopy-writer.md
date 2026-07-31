@@ -1,7 +1,7 @@
 ---
 name: microcopy-writer
 description: Writes ui microcopy including button labels, empty states, error messages, tooltips, form labels, onboarding strings, and confirmation dialogs. Use whenever the user needs ui strings, microcopy, error messages, button text, or any short interface text that must be clear, actionable, and on-brand.
-tools: ["Read", "Grep", "Glob", "Write", "Edit"]
+tools: ['Read', 'Grep', 'Glob', 'Write', 'Edit']
 model: opus
 ---
 

@@ -1,12 +1,12 @@
-# Pocket Agent - Features & Systems Index
+# r3to.os - Features & Systems Index
 
-**Quick reference guide to all features, tools, and systems in Pocket Agent**
+**Quick reference guide to all features, tools, and systems in r3to.os**
 
 ---
 
 ## 🚀 QUICK START
 
-**New to Pocket Agent?** Start with:
+**New to r3to.os?** Start with:
 1. [Client Workspaces](#client-workspaces-brand-brains) - Pick a client, everything scopes to it
 2. [Chat Tools](#chat-tools) - What you can do conversationally
 3. [Memory System](#memory-system) - How it remembers you
@@ -79,11 +79,13 @@ Each row also carries the post's direct URL, lead/thread text, and notable repli
 
 **Sources:**
 - `manual` — paste numbers straight from a platform's own dashboard, no API key needed (default, zero-config path)
-- `mcp` — automated ingestion; currently wired for **LinkedIn** only (`src/integrations/linkedin/sync.ts`, org URN stored per-scope as a fact). X/Twitter has no automated sync yet — manual entry only.
+- `mcp` — automated ingestion, wired for two channels:
+  - **LinkedIn** (`src/integrations/linkedin/sync.ts`) — a dedicated REST client against LinkedIn's Community Management API, behind this app's own OAuth app; org URN stored per-scope as a fact.
+  - **X/Twitter** (`src/integrations/x/sync.ts`) — no dedicated client/OAuth; discovers and calls whichever X-capable marketplace MCP server the workspace already has bridged in (`x-api`, `x-api-bearer`, `twitter-community`, etc. — the same servers the content-posting tooling uses), matching the tooling already supported for that channel rather than a second credential path. Handle stored per-scope as a fact.
 
 **UI:** Analytics panel (`ui/chat/analytics-panel.js`) — overall + per-channel + per-campaign summaries, per-post drill-down, "record a snapshot" form (prefillable from a posted content draft).
 
-[DB tables](#database) — `post_analytics`. [IPC](#-architecture) — `src/main/ipc/analytics-ipc.ts` (record/list/history), `src/main/ipc/linkedin-ipc.ts` (org URN config + sync-now).
+[DB tables](#database) — `post_analytics`. [IPC](#-architecture) — `src/main/ipc/analytics-ipc.ts` (record/list/history), `src/main/ipc/linkedin-ipc.ts` (org URN config + sync-now), `src/main/ipc/x-ipc.ts` (handle config + sync-now).
 
 ---
 

@@ -173,7 +173,9 @@ async function renderClientPicker() {
   cards.push(`
     <div class="cv-card cv-card--fixed ${isActive('personal', null, null) ? 'active' : ''}"
          data-kind="personal">
-      <div class="cv-card-main" data-select="personal">
+      <div class="cv-card-main" data-select="personal" role="button" tabindex="0"
+           aria-pressed="${isActive('personal', null, null) ? 'true' : 'false'}"
+           aria-label="Switch to Personal workspace">
         <span class="cv-avatar cv-avatar--personal">P</span>
         <span class="cv-card-meta">
           <span class="cv-card-name">Personal</span>
@@ -187,7 +189,9 @@ async function renderClientPicker() {
   cards.push(`
     <div class="cv-card cv-card--fixed ${isActive('world', null, null) ? 'active' : ''}"
          data-kind="world">
-      <div class="cv-card-main" data-select="world">
+      <div class="cv-card-main" data-select="world" role="button" tabindex="0"
+           aria-pressed="${isActive('world', null, null) ? 'true' : 'false'}"
+           aria-label="Switch to Agency workspace">
         <span class="cv-avatar cv-avatar--world">A</span>
         <span class="cv-card-meta">
           <span class="cv-card-name">Agency</span>
@@ -205,6 +209,10 @@ async function renderClientPicker() {
   // link") icons already on this footer.
   const importIcon =
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M12 12v5m-2.5-2.5H14.5"/></g></svg>';
+  // "Brain status" — see cvShowMemoryStatus. Pulse glyph distinct from the
+  // other footer icons (book/link/folder-plus already taken).
+  const brainStatusIcon =
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M3 12h4l2-7 4 14 2-7h6"/></svg>';
   for (const c of clients) {
     const projects = projectsByClient[c.id] || [];
     const clientActive = isActive('client', c.id, null);
@@ -222,10 +230,28 @@ async function renderClientPicker() {
       ? `<button class="cv-card-memory" data-share="${cvEscape(c.id)}">${linkIcon}<span>Copy setup link</span></button>`
       : '';
     const importBtn = `<button class="cv-card-memory" data-import="${cvEscape(c.id)}">${importIcon}<span>Import docs / open as vault</span></button>`;
+    const brainStatusBtn = `<button class="cv-card-memory" data-brain-status="${cvEscape(c.id)}">${brainStatusIcon}<span>Brain status</span></button>`;
+    // Per-card identity color preview (the picker shows every client at once,
+    // so it can't rely on the single global --client-accent layer that the
+    // sidebar/composer/Brain panel use for the ACTIVE workspace) — same
+    // override-or-derived resolution, just computed per card here instead of
+    // written to :root.
+    const cardPair = window.ClientAccent
+      ? window.ClientAccent.resolveAccentPair(
+          window.ClientAccent.isValidHex(c.accent_color)
+            ? c.accent_color
+            : window.ClientAccent.defaultAccentFor(c.id)
+        )
+      : null;
+    const cardAccentStyle = cardPair
+      ? ` style="--card-accent:${cvEscape(cardPair.readable)};--on-card-accent:${cvEscape(cardPair.onAccent)}"`
+      : '';
     cards.push(`
       <div class="cv-card ${clientActive ? 'active' : ''}" data-kind="client">
-        <div class="cv-card-main" data-select="client" data-client="${cvEscape(c.id)}">
-          <span class="cv-avatar">${cvEscape(cvInitials(c.name))}</span>
+        <div class="cv-card-main" data-select="client" data-client="${cvEscape(c.id)}"
+             role="button" tabindex="0" aria-pressed="${clientActive ? 'true' : 'false'}"
+             aria-label="Switch to ${cvEscape(c.name)} workspace">
+          <span class="cv-avatar"${cardAccentStyle}>${cvEscape(cvInitials(c.name))}</span>
           <span class="cv-card-meta">
             <span class="cv-card-name">${cvEscape(c.name)}</span>
             <span class="cv-card-sub">${projects.length} project${projects.length === 1 ? '' : 's'} · ${cvEscape(c.sync_mode)}${syncBadge}</span>
@@ -235,7 +261,7 @@ async function renderClientPicker() {
           ${chips}
           <button class="cv-project-chip cv-project-chip--new" data-new-project="${cvEscape(c.id)}">+ Project</button>
         </div>
-        <div class="cv-card-foot">${memoryLink('client', c.id)}${shareBtn}${importBtn}</div>
+        <div class="cv-card-foot">${memoryLink('client', c.id)}${shareBtn}${importBtn}${brainStatusBtn}</div>
       </div>`);
   }
 
@@ -268,25 +294,43 @@ function cvRelativeTime(ms) {
   return `${days}d ago`;
 }
 
+// Shared activation for a [data-select] element (card-main or project chip).
+function _cvActivateSelect(el) {
+  playNormalClick();
+  const kind = el.dataset.select;
+  if (kind === 'personal') cvSelectWorkspace(CV_PERSONAL);
+  else if (kind === 'world')
+    cvSelectWorkspace({ contextType: 'world', clientId: null, projectKey: null });
+  else if (kind === 'client')
+    cvSelectWorkspace({ contextType: 'client', clientId: el.dataset.client, projectKey: null });
+  else if (kind === 'project')
+    cvSelectWorkspace({
+      contextType: 'project',
+      clientId: el.dataset.client,
+      projectKey: el.dataset.project,
+    });
+}
+
 // Event delegation for the picker grid (cards + project chips + new project).
 function _cvBindGrid(grid) {
   grid.querySelectorAll('[data-select]').forEach((el) => {
     el.addEventListener('click', (e) => {
       e.stopPropagation();
-      playNormalClick();
-      const kind = el.dataset.select;
-      if (kind === 'personal') cvSelectWorkspace(CV_PERSONAL);
-      else if (kind === 'world')
-        cvSelectWorkspace({ contextType: 'world', clientId: null, projectKey: null });
-      else if (kind === 'client')
-        cvSelectWorkspace({ contextType: 'client', clientId: el.dataset.client, projectKey: null });
-      else if (kind === 'project')
-        cvSelectWorkspace({
-          contextType: 'project',
-          clientId: el.dataset.client,
-          projectKey: el.dataset.project,
-        });
+      _cvActivateSelect(el);
     });
+    // .cv-card-main is a <div> (role="button", not a native button), so
+    // Enter/Space activation has to be wired manually. Project chips ARE
+    // native <button>s and already get this for free — skip them here so
+    // Enter doesn't fire the handler twice (native click + this listener).
+    if (el.tagName !== 'BUTTON') {
+      el.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+          e.preventDefault();
+          e.stopPropagation();
+          _cvActivateSelect(el);
+        }
+      });
+    }
   });
   grid.querySelectorAll('[data-memory]').forEach((el) => {
     el.addEventListener('click', (e) => {
@@ -316,13 +360,21 @@ function _cvBindGrid(grid) {
       cvImportDocs(el.dataset.import);
     });
   });
+  grid.querySelectorAll('[data-brain-status]').forEach((el) => {
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      playNormalClick();
+      cvShowMemoryStatus(el.dataset.brainStatus);
+    });
+  });
 }
 
 // ---- Selection ----
 
-// Apply a workspace: persist it, reveal chat, and land in a chat that belongs to
-// the workspace — an existing one if present, else a fresh chat that inherits the
-// workspace's memory context.
+// Apply a workspace: persist it, then land on its per-client home screen
+// (brain health, lane quick-entry, recent chats, quick links) rather than
+// dropping straight into an empty chat composer or auto-picking a session.
+// "New Chat" and any recent chat both stay one click away from there.
 async function cvSelectWorkspace(ws) {
   setActiveWorkspaceState(ws);
   try {
@@ -331,53 +383,20 @@ async function cvSelectWorkspace(ws) {
     /* ignore */
   }
 
-  hideClientsView();
-  if (typeof returnToChatView === 'function') returnToChatView();
-
-  const active = getActiveWorkspace();
-  const matching = (typeof sessions !== 'undefined' ? sessions : []).filter((s) =>
-    sessionMatchesWorkspace(s, active)
-  );
-
-  if (matching.some((s) => s.id === currentSessionId)) {
-    // Current chat already belongs here — just refresh the filtered sidebar.
-    if (typeof renderTabs === 'function') renderTabs();
-  } else if (matching.length > 0) {
-    if (typeof switchSession === 'function') await switchSession(matching[0].id);
-  } else {
-    await cvCreateWorkspaceSession(active);
-  }
-
-  updateActiveClientHeader();
+  // Resolve the new workspace's header/breadcrumb/accent and session list
+  // FIRST, then flip the view in one synchronous step (hide picker, show
+  // Home) — avoids a flash of the picker briefly re-collapsing/expanding the
+  // sidebar between two panel-style views, and means Home's header avatar
+  // (which mirrors the sidebar's) is already correct on first render.
+  await updateActiveClientHeader();
   if (typeof refreshProjectSelector === 'function') await refreshProjectSelector();
-}
+  if (typeof renderTabs === 'function') renderTabs();
 
-// Create a new chat that inherits the workspace's memory context (no forced
-// rename — the picker flow should feel instant).
-async function cvCreateWorkspaceSession(ws) {
-  try {
-    const result = await window.pocketAgent.sessions.create(
-      typeof getNextSessionName === 'function' ? getNextSessionName() : 'New'
-    );
-    if (!result.success || !result.session) {
-      if (typeof _cvToast === 'function') _cvToast(result.error || 'Failed to create chat', 'error');
-      return;
-    }
-    await applyWorkspaceToSession(result.session.id, ws);
-    Object.assign(result.session, wsToSessionFields(ws));
-    sessions.push(result.session);
-    currentSessionId = result.session.id;
-    localStorage.setItem('currentSessionId', currentSessionId);
-    if (typeof renderTabs === 'function') renderTabs();
-    if (typeof disableAutoAnimate === 'function') disableAutoAnimate();
-    messagesDiv.innerHTML = '';
-    if (typeof enableAutoAnimate === 'function') enableAutoAnimate();
-    if (typeof showEmptyState === 'function') showEmptyState();
-    if (typeof updateStats === 'function') updateStats();
-    if (typeof updateModeUIForSession === 'function') updateModeUIForSession(result.session.id);
-    if (input) input.focus();
-  } catch (err) {
-    console.error('[ClientPicker] Failed to create workspace chat:', err);
+  hideClientsView();
+  if (typeof showWorkspaceHomeView === 'function') {
+    showWorkspaceHomeView();
+  } else if (typeof returnToChatView === 'function') {
+    returnToChatView();
   }
 }
 
@@ -429,6 +448,28 @@ async function updateActiveClientHeader() {
   } else {
     const client = clients.find((c) => c.id === ws.clientId);
     avatarEl.textContent = cvInitials(client ? client.name : ws.clientId);
+  }
+
+  // Brand-only sidebar tools (Campaigns, Analytics) dim when Personal is
+  // active — they still work, they just don't apply to a private workspace.
+  const sidebarEl = document.getElementById('sidebar');
+  if (sidebarEl) sidebarEl.classList.toggle('workspace-personal', ws.contextType === 'personal');
+
+  // Workbench breadcrumb — every panel (Brain, Agents, Content, Campaigns,
+  // Analytics, Routines, Personalize, Settings) shows which workspace it's
+  // scoped to, so switching between them never loses that context.
+  document.querySelectorAll('.workbench-scope').forEach((el) => {
+    el.textContent = label ? `${label} \u203a ` : '';
+  });
+
+  // Client-identity accent: --client-accent flows into whichever skin is
+  // active (sidebar header, composer focus ring, Brain panel chrome,
+  // breadcrumb) so switching brands is felt through color. Personal always
+  // clears the override (see client-accent.js) — it never reads as a brand.
+  if (window.ClientAccent) {
+    window.ClientAccent.resolveAndApplyAccent(ws, clients).catch((err) => {
+      console.error('[ClientAccent] Failed to resolve/apply accent:', err);
+    });
   }
 }
 
@@ -612,15 +653,20 @@ function cvShowImportResult(clientId, sourceDir, res) {
 
   let bodyHtml;
   if (res && res.success) {
-    const r = res.result || { copiedFiles: [], skippedReservedPaths: [], ingestedFiles: 0 };
+    const r = res.result || { copiedFiles: [], skippedReservedPaths: [], prunedFiles: [], ingestedFiles: 0 };
+    const prunedFiles = r.prunedFiles || [];
     const skippedList = r.skippedReservedPaths.length
       ? `<ul class="cv-import-list">${r.skippedReservedPaths.map((p) => `<li>${cvEscape(p)}</li>`).join('')}</ul>`
+      : '';
+    const prunedRow = prunedFiles.length
+      ? `<li><strong>${prunedFiles.length}</strong> stale file${prunedFiles.length === 1 ? '' : 's'} removed (deleted at source)</li>`
       : '';
     bodyHtml = `
       <p class="cv-import-summary">Imported from <code>${cvEscape(sourceDir)}</code>:</p>
       <ul class="cv-import-stats">
         <li><strong>${r.copiedFiles.length}</strong> file${r.copiedFiles.length === 1 ? '' : 's'} copied</li>
         <li><strong>${r.skippedReservedPaths.length}</strong> skipped (reserved export path)</li>
+        ${prunedRow}
         <li><strong>${r.ingestedFiles}</strong> file${r.ingestedFiles === 1 ? '' : 's'} ingested into memory</li>
       </ul>
       ${skippedList}
@@ -643,6 +689,85 @@ function cvShowImportResult(clientId, sourceDir, res) {
   overlay.innerHTML = `
     <div class="modal cv-prompt cv-import-result">
       <div class="modal-header"><div class="modal-title"><h2 id="cv-import-title">Import docs</h2></div></div>
+      <div class="modal-body">
+        ${bodyHtml}
+        <div class="cv-prompt-actions">
+          <button class="cv-prompt-ok">Close</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  const close = () => {
+    focusTrapDeactivate();
+    overlay.remove();
+  };
+  overlay.querySelector('.cv-prompt-ok').addEventListener('click', close);
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) close();
+  });
+  requestAnimationFrame(() => {
+    overlay.classList.add('show');
+    focusTrapActivate(overlay, { onEscape: close });
+  });
+}
+
+// ---- Brain status (ingestion observability) ----
+//
+// Unlike cvShowImportResult (a one-shot report from the last import run),
+// this queries live brain state at any time: how many imported-doc facts
+// exist, how many are actually embedded/recallable vs still pending, and how
+// long ago the brain was last touched. Backed by clients:memoryStatus
+// (src/main/ipc/clients-memory-status-ipc.ts -> MemoryManager
+// .getClientDocsMemoryStatus), reusing the same modal-overlay convention.
+function cvMemoryStatusRelativeTime(iso) {
+  if (!iso) return null;
+  const ms = Date.now() - new Date(iso).getTime();
+  if (Number.isNaN(ms) || ms < 0) return null;
+  return cvRelativeTime(ms);
+}
+
+async function cvShowMemoryStatus(clientId) {
+  if (!clientId) return;
+
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay cv-prompt-overlay';
+  overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-modal', 'true');
+  overlay.setAttribute('aria-labelledby', 'cv-brain-status-title');
+
+  let bodyHtml = '<p class="cv-import-summary">Loading brain status…</p>';
+  try {
+    const status = await window.pocketAgent.clients.memoryStatus(clientId);
+    if (!status) {
+      bodyHtml =
+        '<p class="cv-import-summary cv-import-summary--error">Memory isn\'t available right now (agent not initialized).</p>';
+    } else if (status.factCount === 0) {
+      bodyHtml =
+        '<p class="cv-import-summary">No imported docs in memory yet. Use "Import docs / open as vault" to bring some in.</p>';
+    } else {
+      const lastSynced = cvMemoryStatusRelativeTime(status.lastSyncedAt);
+      const pendingRow =
+        status.pendingCount > 0
+          ? `<li><strong>${status.pendingCount}</strong> pending embedding (not yet recallable)</li>`
+          : '<li>All facts are embedded and recallable</li>';
+      bodyHtml = `
+        <ul class="cv-import-stats">
+          <li><strong>${status.factCount}</strong> imported-doc fact${status.factCount === 1 ? '' : 's'} in memory</li>
+          <li><strong>${status.embeddedCount}</strong> embedded (recallable)</li>
+          ${pendingRow}
+          <li>Last synced: ${lastSynced ? cvEscape(lastSynced) : 'unknown'}</li>
+        </ul>`;
+    }
+  } catch (err) {
+    console.error('[ClientPicker] Failed to load memory status:', err);
+    bodyHtml =
+      '<p class="cv-import-summary cv-import-summary--error">Failed to load brain status.</p>';
+  }
+
+  overlay.innerHTML = `
+    <div class="modal cv-prompt cv-import-result">
+      <div class="modal-header"><div class="modal-title"><h2 id="cv-brain-status-title">Brain status</h2></div></div>
       <div class="modal-body">
         ${bodyHtml}
         <div class="cv-prompt-actions">

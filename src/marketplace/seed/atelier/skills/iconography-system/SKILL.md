@@ -27,6 +27,7 @@ within the grid, leave consistent optical padding (usually 2px on each side, so 
 ### stroke
 
 if outline style:
+
 - consistent stroke width across the set (1.5px or 2px at 24px is typical)
 - consistent stroke caps (round or butt, not mixed)
 - consistent stroke joins (round or miter, not mixed)

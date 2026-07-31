@@ -55,9 +55,46 @@ async function setAgentMode(mode) {
   });
 }
 
+const LANE_IDS = ['design', 'product', 'brand', 'social'];
+
 function updateModeButtons(mode) {
   const select = document.getElementById('mode-select');
-  if (select) select.value = mode;
+  // A lane mode isn't one of mode-select's own options — leave it on its
+  // last utility value rather than forcing an invalid selection into it.
+  if (select && !LANE_IDS.includes(mode)) select.value = mode;
+
+  document.querySelectorAll('.lane-btn').forEach((btn) => {
+    const active = btn.dataset.lane === mode;
+    btn.classList.toggle('active', active);
+    btn.setAttribute('aria-pressed', String(active));
+  });
+}
+
+// Locks (or unlocks) #mode-select + #lane-switcher in the DOM directly, no
+// history round-trip. Shared by updateModeUIForSession (session load/switch,
+// where we don't yet know if there's history) and messaging.js's sendMessage
+// (where we just sent the first message, so we already know: lock now).
+function applyModeLock(locked) {
+  const select = document.getElementById('mode-select');
+  const laneSwitcher = document.getElementById('lane-switcher');
+  if (select) {
+    select.classList.toggle('locked', locked);
+    // `.locked` only sets pointer-events: none, which blocks mouse input
+    // but not a keyboard-focused element's native behavior (arrow keys
+    // still change a focused <select>). `disabled` is what actually
+    // removes keyboard operability too.
+    select.disabled = locked;
+  }
+  if (laneSwitcher) {
+    laneSwitcher.classList.toggle('locked', locked);
+    laneSwitcher.querySelectorAll('.lane-btn').forEach((btn) => {
+      // Same gap as above: pointer-events: none doesn't stop a focused
+      // button from firing `click` on Enter/Space, so a keyboard user
+      // could still switch lanes after the session locks. `disabled`
+      // closes that and correctly drops the button out of tab order.
+      btn.disabled = locked;
+    });
+  }
 }
 
 async function updateModeUIForSession(sessionId) {
@@ -66,13 +103,11 @@ async function updateModeUIForSession(sessionId) {
     currentAgentMode = mode || 'coder';
     updateModeButtons(currentAgentMode);
 
-    // Lock select if session has messages
-    const select = document.getElementById('mode-select');
-    if (select) {
-      const history = await window.pocketAgent.agent.getHistory(1, sessionId);
-      const hasMessages = history && history.length > 0;
-      select.classList.toggle('locked', hasMessages);
-    }
+    // Lock select + lane switcher if session has messages (same contract:
+    // the agent can still switch itself via switch_agent, users can't after
+    // the conversation has started).
+    const history = await window.pocketAgent.agent.getHistory(1, sessionId);
+    applyModeLock(history && history.length > 0);
   } catch (err) {
     console.error('Failed to update mode UI for session:', err);
   }

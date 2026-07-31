@@ -48,17 +48,17 @@ async function checkAndShowOnboarding() {
 function getPlatformText(platform) {
   if (platform === 'darwin') {
     return {
-      storageInfo: "Pocket Agent uses your Mac's Keychain to securely store API keys. You may be prompted for your Mac password.",
+      storageInfo: "r3to.os uses your Mac's Keychain to securely store API keys. You may be prompted for your Mac password.",
       storageFallback: 'Could not access Keychain. Keys will be stored unencrypted.',
     };
   } else if (platform === 'win32') {
     return {
-      storageInfo: 'Pocket Agent uses Windows Credential Store to securely store API keys.',
+      storageInfo: 'r3to.os uses Windows Credential Store to securely store API keys.',
       storageFallback: 'Could not access Credential Store. Keys will be stored unencrypted.',
     };
   }
   return {
-    storageInfo: 'Pocket Agent uses your system keyring to securely store API keys. You may be prompted for your keyring password.',
+    storageInfo: 'r3to.os uses your system keyring to securely store API keys. You may be prompted for your keyring password.',
     storageFallback: 'Could not access system keyring. Keys will be stored unencrypted.',
   };
 }
@@ -216,8 +216,18 @@ function obGoBackFromAuth() {
 
 function obToggleOptional(header) {
   const content = header.nextElementSibling;
-  header.classList.toggle('expanded');
-  content.classList.toggle('show');
+  const expanded = header.classList.toggle('expanded');
+  content.classList.toggle('show', expanded);
+  header.setAttribute('aria-expanded', String(expanded));
+}
+
+// Enter/Space activation for .ob-optional-header — it's a <div role="button">
+// (styled as a disclosure toggle, not a real <button>), so keyboard
+// activation has to be wired explicitly.
+function obToggleOptionalKey(event, header) {
+  if (event.key !== 'Enter' && event.key !== ' ' && event.key !== 'Spacebar') return;
+  event.preventDefault();
+  obToggleOptional(header);
 }
 
 /**
@@ -259,7 +269,7 @@ async function obStartOpenAIOAuth() {
   try {
     const result = await window.pocketAgent.openaiAuth.startOAuth();
     if (result.success) {
-      obShowStep('ob-step-name');
+      obShowStep('ob-step-team');
     } else {
       _obToast(result.error || 'Failed to start OpenAI sign-in', 'error');
     }
@@ -288,7 +298,7 @@ async function obCompleteOAuth() {
       // Other providers can be added later from the auth step's collapsible
       // section or from Settings. Keeping this step focused on the OAuth
       // verification only avoids re-prompting users who just want to sign in.
-      obShowStep('ob-step-name');
+      obShowStep('ob-step-team');
     } else {
       _obToast(result.error || 'Invalid code. Please try again.', 'error');
     }
@@ -377,7 +387,7 @@ async function obValidateAndSave() {
     // in the main process — the settings:set IPC re-resolves the model and
     // restarts the agent on every provider key change.
 
-    obShowStep('ob-step-name');
+    obShowStep('ob-step-team');
   } catch (err) {
     _obToast(err.message || 'Validation failed', 'error');
     btn.disabled = false;
@@ -421,11 +431,9 @@ async function obFinishSetup() {
 
 const OB_STEP_ORDER = [
   'ob-step-welcome', 'ob-step-keychain', 'ob-step-permissions', 'ob-step-auth',
-  'ob-step-oauth-code',
-  'ob-step-name', 'ob-step-location', 'ob-step-occupation',
-  'ob-step-birthday', 'ob-step-agent-name',
-  'ob-step-goals', 'ob-step-struggles', 'ob-step-funfacts',
-  'ob-step-cli', 'ob-step-team', 'ob-step-success',
+  'ob-step-oauth-code', 'ob-step-team',
+  'ob-step-profile', 'ob-step-agent-name',
+  'ob-step-cli', 'ob-step-success',
 ];
 
 // Nav config: stepId → { back: stepId|fn|null, skip: stepId|fn|null }
@@ -435,18 +443,18 @@ const OB_NAV_CONFIG = {
   'ob-step-permissions': { back: 'ob-step-keychain', skip: 'ob-step-auth' },
   'ob-step-auth': { back: () => obGoBackFromAuth(), skip: null },
   'ob-step-oauth-code': { back: () => obCancelOAuth(), skip: null },
-  'ob-step-name': { back: null, skip: 'ob-step-location' },
-  'ob-step-location': { back: 'ob-step-name', skip: 'ob-step-occupation' },
-  'ob-step-occupation': { back: 'ob-step-location', skip: 'ob-step-birthday' },
-  'ob-step-birthday': { back: 'ob-step-occupation', skip: 'ob-step-agent-name' },
-  'ob-step-agent-name': { back: 'ob-step-birthday', skip: 'ob-step-personality' },
-  'ob-step-personality': { back: 'ob-step-agent-name', skip: 'ob-step-goals' },
-  'ob-step-goals': { back: 'ob-step-personality', skip: 'ob-step-struggles' },
-  'ob-step-struggles': { back: 'ob-step-goals', skip: 'ob-step-funfacts' },
-  'ob-step-funfacts': { back: 'ob-step-struggles', skip: 'ob-step-cli' },
-  'ob-step-cli': { back: 'ob-step-funfacts', skip: 'ob-step-team' },
-  'ob-step-team': { back: 'ob-step-cli', skip: 'ob-step-success' },
+  'ob-step-team': { back: 'ob-step-auth', skip: 'ob-step-profile' },
+  'ob-step-profile': { back: 'ob-step-team', skip: 'ob-step-agent-name' },
+  'ob-step-agent-name': { back: 'ob-step-profile', skip: 'ob-step-cli' },
+  'ob-step-cli': { back: 'ob-step-agent-name', skip: 'ob-step-success' },
   'ob-step-success': { back: null, skip: null },
+};
+
+// Per-step Skip label override — defaults to "Skip". The workspace step's
+// skip IS a real, first-class choice (stay Personal), not a lesser option,
+// so it reads as one instead of implying the user is skipping something.
+const OB_SKIP_LABELS = {
+  'ob-step-team': 'Stay Personal',
 };
 
 function obUpdateUI(stepId) {
@@ -483,6 +491,7 @@ function obUpdateUI(stepId) {
   if (skipEl) {
     if (nav.skip) {
       skipEl.classList.remove('hidden');
+      skipEl.textContent = OB_SKIP_LABELS[stepId] || 'Skip';
       skipEl.onclick = typeof nav.skip === 'function' ? nav.skip : () => obShowStep(nav.skip);
     } else {
       skipEl.classList.add('hidden');
@@ -500,9 +509,8 @@ obShowStep = function(stepId) {
 
   // Auto-focus text inputs on personalization steps
   const focusMap = {
-    'ob-step-name': 'ob-name-input',
-    'ob-step-location': 'ob-location-input',
-    'ob-step-occupation': 'ob-occupation-input',
+    'ob-step-team': 'ob-first-client-name',
+    'ob-step-profile': 'ob-name-input',
     'ob-step-agent-name': 'ob-agent-name-input',
   };
   if (focusMap[stepId]) {
@@ -515,54 +523,28 @@ obShowStep = function(stepId) {
 
 // ---- Personalization save functions ----
 
-async function obSaveName() {
-  const value = document.getElementById('ob-name-input').value.trim();
-  if (value) await window.pocketAgent.settings.set('profile.name', value);
-  obShowStep('ob-step-location');
-}
-
-async function obSaveLocation() {
-  const value = document.getElementById('ob-location-input').value.trim();
-  const timezone = document.getElementById('ob-timezone-value').value;
-  if (value) await window.pocketAgent.settings.set('profile.location', value);
-  if (timezone) await window.pocketAgent.settings.set('profile.timezone', timezone);
-  obShowStep('ob-step-occupation');
-}
-
-async function obSaveOccupation() {
-  const value = document.getElementById('ob-occupation-input').value.trim();
-  if (value) await window.pocketAgent.settings.set('profile.occupation', value);
-  obShowStep('ob-step-birthday');
-}
-
-async function obSaveBirthday() {
-  const month = document.getElementById('ob-birthday-month').value;
-  const day = document.getElementById('ob-birthday-day').value;
-  if (month && day) await window.pocketAgent.settings.set('profile.birthday', `${month} ${day}`);
+// Condensed profile step: name + role/title + primary goals — the business
+// context the rest of the app actually uses. Location/timezone, birthday,
+// struggles, and fun facts are no longer captured here; they're still
+// editable in the Personalize panel (Profile / World tabs) for anyone who
+// wants to fill them in later. Writes to the same profile.name /
+// profile.occupation / personalize.goals settings keys the old multi-step
+// chain used, so SettingsManager.getFormattedProfile() and
+// getFormattedUserContext() (the system-prompt personalization pipeline)
+// keep working unchanged.
+async function obSaveProfile() {
+  const name = document.getElementById('ob-name-input').value.trim();
+  const role = document.getElementById('ob-role-input').value.trim();
+  const goals = document.getElementById('ob-goals-input').value.trim();
+  if (name) await window.pocketAgent.settings.set('profile.name', name);
+  if (role) await window.pocketAgent.settings.set('profile.occupation', role);
+  if (goals) await window.pocketAgent.settings.set('personalize.goals', goals);
   obShowStep('ob-step-agent-name');
 }
 
 async function obSaveAgentName() {
   const value = document.getElementById('ob-agent-name-input').value.trim();
   if (value) await window.pocketAgent.settings.set('personalize.agentName', value);
-  obShowStep('ob-step-goals');
-}
-
-async function obSaveGoals() {
-  const value = document.getElementById('ob-goals-input').value.trim();
-  if (value) await window.pocketAgent.settings.set('personalize.goals', value);
-  obShowStep('ob-step-struggles');
-}
-
-async function obSaveStruggles() {
-  const value = document.getElementById('ob-struggles-input').value.trim();
-  if (value) await window.pocketAgent.settings.set('personalize.struggles', value);
-  obShowStep('ob-step-funfacts');
-}
-
-async function obSaveFunFacts() {
-  const value = document.getElementById('ob-funfacts-input').value.trim();
-  if (value) await window.pocketAgent.settings.set('personalize.funFacts', value);
   obShowStep('ob-step-cli');
 }
 
@@ -570,10 +552,58 @@ function obSkipToSuccess() {
   obShowStep('ob-step-team');
 }
 
-// ---- Join your team's shared brains (roadmap item 9) ----
+// ---- Workspace step: create your first client, or join a teammate's ----
 //
+// Both halves of this step are entirely optional — Personal is always the
+// default and a solo user can skip straight through. Creating a client and
+// joining a teammate's are independent actions (not sequential steps), so
+// each has its own button; either one (or Skip) advances to personalization.
+
+// Slugify a display name into a safe client id, e.g. "Aurelia Skincare" ->
+// "aurelia-skincare". Falls back to a timestamp suffix if the name has no
+// usable characters (e.g. all emoji/punctuation).
+function _obSlugify(name) {
+  const base = name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return base || `client-${Date.now()}`;
+}
+
+async function obCreateFirstClient() {
+  const btn = document.getElementById('ob-create-client-btn');
+  const nameEl = document.getElementById('ob-first-client-name');
+  const name = nameEl ? nameEl.value.trim() : '';
+
+  if (!name) {
+    _obToast('Enter a client name first, or skip to stay Personal', 'error');
+    return;
+  }
+
+  const original = btn.textContent;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="ob-spinner"></span> Creating...';
+
+  try {
+    const result = await window.pocketAgent.clients.create({ id: _obSlugify(name), name });
+    if (!result || !result.success) {
+      _obToast((result && result.error) || 'Could not create that client', 'error');
+      btn.disabled = false;
+      btn.textContent = original;
+      return;
+    }
+    _obToast(`${name} is ready — its brain is isolated from Personal and every other client`, 'success');
+    obShowStep('ob-step-profile');
+  } catch (err) {
+    _obToast(err.message || 'Failed to create client', 'error');
+    btn.disabled = false;
+    btn.textContent = original;
+  }
+}
+
 // Entirely optional: a personal-only user can skip straight through (both
-// fields blank is a valid, common case — Continue always advances). Saving
+// fields blank is a valid, common case — Join always advances). Saving
 // the token alone (no setup link) is useful on its own: it's the same
 // `github.token` setting the Clients picker's "Join a Client" / "Copy setup
 // link" actions read later.
@@ -585,7 +615,7 @@ async function obJoinTeam() {
   const setupString = setupEl ? setupEl.value.trim() : '';
 
   if (!token && !setupString) {
-    obShowStep('ob-step-success');
+    obShowStep('ob-step-profile');
     return;
   }
 
@@ -601,7 +631,7 @@ async function obJoinTeam() {
       if (!res || !res.success) {
         _obToast((res && res.error) || 'Could not join that client — check the link and try again', 'error');
         btn.disabled = false;
-        btn.textContent = 'Continue';
+        btn.textContent = 'Join';
         return;
       }
       _obToast(
@@ -611,65 +641,11 @@ async function obJoinTeam() {
     } else {
       _obToast('GitHub token saved', 'success');
     }
-    obShowStep('ob-step-success');
+    obShowStep('ob-step-profile');
   } catch (err) {
     _obToast(err.message || 'Failed to join team brain', 'error');
     btn.disabled = false;
-    btn.textContent = 'Continue';
-  }
-}
-
-// ---- Location autocomplete ----
-
-let _obLocationLookupTimeout = null;
-
-function _obSetupLocationAutocomplete() {
-  const input = document.getElementById('ob-location-input');
-  const dropdown = document.getElementById('ob-location-dropdown');
-  if (!input || !dropdown) return;
-
-  input.addEventListener('input', (e) => {
-    const query = e.target.value.trim();
-    if (_obLocationLookupTimeout) clearTimeout(_obLocationLookupTimeout);
-    if (query.length < 2) { dropdown.classList.remove('show'); return; }
-
-    _obLocationLookupTimeout = setTimeout(async () => {
-      try {
-        const results = await window.pocketAgent.location.lookup(query);
-        if (results.length === 0) { dropdown.classList.remove('show'); return; }
-        dropdown.innerHTML = results.map(r => `
-          <div class="ob-autocomplete-item" data-display="${r.display}" data-timezone="${r.timezone}">
-            <div class="city">${r.city}</div>
-            <div class="details">${r.province ? r.province + ', ' : ''}${r.country} - ${r.timezone}</div>
-          </div>
-        `).join('');
-        dropdown.querySelectorAll('.ob-autocomplete-item').forEach(item => {
-          item.addEventListener('click', () => {
-            input.value = item.dataset.display;
-            document.getElementById('ob-timezone-value').value = item.dataset.timezone;
-            dropdown.classList.remove('show');
-          });
-        });
-        dropdown.classList.add('show');
-      } catch (e) { console.error('[Onboarding] Error looking up location:', e); }
-    }, 300);
-  });
-
-  document.addEventListener('click', (e) => {
-    if (!input.contains(e.target) && !dropdown.contains(e.target)) dropdown.classList.remove('show');
-  });
-  input.addEventListener('keydown', (e) => { if (e.key === 'Escape') dropdown.classList.remove('show'); });
-}
-
-// ---- Birthday day picker ----
-
-function _obSetupBirthdayPicker() {
-  const daySelect = document.getElementById('ob-birthday-day');
-  if (!daySelect) return;
-  for (let i = 1; i <= 31; i++) {
-    const opt = document.createElement('option');
-    opt.value = i; opt.textContent = i;
-    daySelect.appendChild(opt);
+    btn.textContent = 'Join';
   }
 }
 
@@ -682,7 +658,7 @@ const _obCliCommands = {
     ? [
         '$installDir = Join-Path $env:LOCALAPPDATA "pocket-agent-cli"',
         'New-Item -ItemType Directory -Force -Path $installDir | Out-Null',
-        '$release = Invoke-RestMethod "https://api.github.com/repos/KenKaiii/pocket-agent-cli/releases/latest"',
+        '$release = Invoke-RestMethod "https://api.github.com/repos/lama-assaf/pocket-agent-cli/releases/latest"',
         '$asset = $release.assets | Where-Object { $_.name -like "*windows*amd64*" } | Select-Object -First 1',
         'if (-not $asset) { throw "No Windows release asset found" }',
         '$zipPath = Join-Path $env:TEMP "pocket_cli.zip"',
@@ -693,7 +669,7 @@ const _obCliCommands = {
         'if ($userPath -notlike "*$installDir*") { [Environment]::SetEnvironmentVariable("Path", "$userPath;$installDir", "User") }',
         'Write-Output "Installed to $installDir"',
       ].join('; ')
-    : 'curl -fsSL https://raw.githubusercontent.com/KenKaiii/pocket-agent-cli/main/scripts/install.sh -o /tmp/pocket-cli-install.sh && sed -i "" "s/^.*exec .*$//" /tmp/pocket-cli-install.sh && bash /tmp/pocket-cli-install.sh && rm -f /tmp/pocket-cli-install.sh',
+    : 'curl -fsSL https://raw.githubusercontent.com/lama-assaf/pocket-agent-cli/main/scripts/install.sh -o /tmp/pocket-cli-install.sh && sed -i "" "s/^.*exec .*$//" /tmp/pocket-cli-install.sh && bash /tmp/pocket-cli-install.sh && rm -f /tmp/pocket-cli-install.sh',
 };
 
 async function obInstallCli() {
@@ -706,7 +682,9 @@ async function obInstallCli() {
     await window.pocketAgent.shell.runCommand(_obCliCommands.install);
     _obToast('Pocket CLI installed', 'success');
     btn.innerHTML = OB_ICONS.check + ' Installed';
-    setTimeout(() => obShowStep('ob-step-team'), 1500);
+    // CLI is the last step before Success (ob-step-team now runs right after
+    // auth, not here) — advance forward to finish, not back to Workspace.
+    setTimeout(() => obShowStep('ob-step-success'), 1500);
   } catch (err) {
     _obToast(err.message || 'Installation failed. You can install later from Settings.', 'error');
     btn.disabled = false;
@@ -717,6 +695,24 @@ async function obInstallCli() {
 // ---- Enter key handlers & init ----
 
 document.addEventListener('DOMContentLoaded', () => {
+  // Top-nav Back/Skip are <a> with no href (their onclick is assigned per-step
+  // in obUpdateUI) — an <a> without href is not keyboard-focusable and does
+  // not respond to Enter/Space by default, so "Skip" (== Stay Personal on the
+  // workspace step) was unreachable without a mouse. Make them real keyboard
+  // controls once, here, rather than duplicating this at every onclick
+  // assignment site.
+  ['ob-nav-back', 'ob-nav-skip'].forEach((id) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.setAttribute('role', 'button');
+    el.setAttribute('tabindex', '0');
+    el.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' && e.key !== ' ' && e.key !== 'Spacebar') return;
+      e.preventDefault();
+      if (typeof el.onclick === 'function') el.onclick(e);
+    });
+  });
+
   const anthropicInput = document.getElementById('ob-anthropic-key');
   if (anthropicInput) {
     anthropicInput.addEventListener('keydown', (e) => {
@@ -730,19 +726,15 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Enter key for personalization text inputs
+  // Enter key for personalization text inputs (single-line fields only —
+  // the goals textarea needs Enter to insert newlines, not submit).
   const enterKeyMap = {
-    'ob-name-input': obSaveName,
-    'ob-occupation-input': obSaveOccupation,
+    'ob-name-input': obSaveProfile,
+    'ob-role-input': obSaveProfile,
     'ob-agent-name-input': obSaveAgentName,
-    'ob-location-input': obSaveLocation,
   };
   Object.entries(enterKeyMap).forEach(([id, fn]) => {
     const el = document.getElementById(id);
     if (el) el.addEventListener('keydown', (e) => { if (e.key === 'Enter') fn(); });
   });
-
-  // Setup location autocomplete and birthday picker
-  _obSetupLocationAutocomplete();
-  _obSetupBirthdayPicker();
 });

@@ -67,7 +67,10 @@ async function getJson(
   const response = await fetchImpl(url, { headers: authHeaders(accessToken) });
   if (!response.ok) {
     const body = await response.text().catch(() => '');
-    throw new LinkedInApiError(`LinkedIn API request failed (${response.status}): ${body}`, response.status);
+    throw new LinkedInApiError(
+      `LinkedIn API request failed (${response.status}): ${body}`,
+      response.status
+    );
   }
   return (await response.json()) as Record<string, unknown>;
 }
@@ -84,7 +87,7 @@ export function parsePostsResponse(json: Record<string, unknown>): LinkedInPost[
         typeof commentaryField === 'string'
           ? commentaryField
           : typeof (commentaryField as { text?: unknown } | undefined)?.text === 'string'
-            ? ((commentaryField as { text: string }).text)
+            ? (commentaryField as { text: string }).text
             : '';
       return {
         urn: typeof el.id === 'string' ? el.id : '',
@@ -106,7 +109,8 @@ export function parseShareStatisticsResponse(json: Record<string, unknown>): Lin
     // what post_analytics needs (aggregate totals are computed in-app).
     if (!shareUrn) continue;
     const stats = (el.totalShareStatistics ?? {}) as Record<string, unknown>;
-    const num = (key: string): number => (typeof stats[key] === 'number' ? (stats[key] as number) : 0);
+    const num = (key: string): number =>
+      typeof stats[key] === 'number' ? (stats[key] as number) : 0;
     out.push({
       shareUrn,
       impressions: num('impressionCount'),

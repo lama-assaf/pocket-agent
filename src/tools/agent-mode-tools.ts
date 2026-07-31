@@ -7,6 +7,7 @@
 
 import { ALL_MODE_IDS, AGENT_MODES, isValidModeId } from '../agent/agent-modes';
 import type { AgentModeId, OnHandoffCallback } from '../agent/agent-modes';
+import { recordRoutingDecision } from '../utils/routing-log';
 
 // Callback set by AgentManager to handle the actual mode switch
 let switchModeCallback:
@@ -77,13 +78,31 @@ export function getSwitchAgentTool(): AgentModeTool {
     handler: async (input: Record<string, unknown>): Promise<string> => {
       const mode = input.mode as string;
       const reason = (input.reason as string) || 'Mode switch requested';
+      // Best-effort session id for logging even on the "no session" rejection
+      // path below — recordRoutingDecision degrades gracefully on 'unknown'.
+      const sessionIdForLog = getSessionIdCallback?.() || 'unknown';
 
       if (!isValidModeId(mode)) {
+        const detail = `Invalid mode. Valid modes: ${ALL_MODE_IDS.join(', ')}`;
+        recordRoutingDecision({
+          sessionId: sessionIdForLog,
+          kind: 'mode_switch',
+          target: mode,
+          outcome: 'rejected',
+          detail,
+        });
         return `Error: Invalid mode "${mode}". Valid modes: ${ALL_MODE_IDS.join(', ')}`;
       }
 
       const sessionId = getSessionIdCallback?.();
       if (!sessionId) {
+        recordRoutingDecision({
+          sessionId: sessionIdForLog,
+          kind: 'mode_switch',
+          target: mode,
+          outcome: 'rejected',
+          detail: 'No active session context for mode switch',
+        });
         return 'Error: No active session context for mode switch';
       }
 
@@ -92,16 +111,38 @@ export function getSwitchAgentTool(): AgentModeTool {
       if (currentMode) {
         const currentConfig = AGENT_MODES[currentMode];
         if (!currentConfig.canHandoffTo.includes(mode as AgentModeId)) {
-          return `Cannot switch directly from ${currentMode} to ${mode}. Available targets from ${currentMode}: ${currentConfig.canHandoffTo.join(', ')}`;
+          const detail = `Cannot switch directly from ${currentMode} to ${mode}. Available targets from ${currentMode}: ${currentConfig.canHandoffTo.join(', ')}`;
+          recordRoutingDecision({
+            sessionId,
+            kind: 'mode_switch',
+            target: mode,
+            outcome: 'rejected',
+            detail,
+          });
+          return detail;
         }
       }
 
       if (!switchModeCallback) {
+        recordRoutingDecision({
+          sessionId,
+          kind: 'mode_switch',
+          target: mode,
+          outcome: 'rejected',
+          detail: 'Mode switching not initialized',
+        });
         return 'Error: Mode switching not initialized';
       }
 
       try {
         const result = await switchModeCallback(sessionId, mode as AgentModeId, reason);
+        recordRoutingDecision({
+          sessionId,
+          kind: 'mode_switch',
+          target: mode,
+          outcome: 'accepted',
+          detail: reason,
+        });
 
         // Fire on_handoff callbacks
         const fromMode = currentMode || 'general';
@@ -123,6 +164,13 @@ export function getSwitchAgentTool(): AgentModeTool {
         return result;
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Unknown error';
+        recordRoutingDecision({
+          sessionId,
+          kind: 'mode_switch',
+          target: mode,
+          outcome: 'rejected',
+          detail: msg,
+        });
         return `Error switching mode: ${msg}`;
       }
     },

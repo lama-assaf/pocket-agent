@@ -542,6 +542,15 @@ body:not(.onboarding-active) #chat-view {
   text-decoration: underline;
 }
 
+/* Ring itself now comes from the global :focus-visible rule (ui/shared/ui.css)
+   — these act as buttons (role="button", no href) and are keyboard-operable
+   via the DOMContentLoaded handler in onboarding.js. Only the corner radius
+   needs restating (default is square) so the ring isn't a sharp rectangle
+   against these small pill-ish nav links. */
+.ob-top-nav a:focus-visible {
+  border-radius: 3px;
+}
+
 .ob-top-nav .ob-nav-spacer {
   flex: 1;
 }
@@ -633,91 +642,12 @@ body:not(.onboarding-active) #chat-view {
 
 /* Focus / placeholder styling comes from shared/forms.css. */
 
-/* Location autocomplete (onboarding) */
-.ob-autocomplete-wrapper {
-  position: relative;
-  width: 100%;
-}
-
-.ob-autocomplete-wrapper input {
-  width: 100%;
-}
-
-.ob-autocomplete-dropdown {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  background: var(--surface-panel);
-  border: 1px solid var(--border-subtle);
-  border-top: none;
-  border-radius: 0 0 var(--radius-control) var(--radius-control);
-  max-height: 200px;
-  overflow-y: auto;
-  z-index: 100;
-  display: none;
-}
-
-.ob-autocomplete-dropdown.show {
-  display: block;
-}
-
-.ob-autocomplete-item {
-  padding: 10px 12px;
-  cursor: pointer;
-  font-size: 13px;
-  border-bottom: 1px solid var(--border-subtle);
-  transition: background 0.1s ease;
-}
-
-.ob-autocomplete-item:last-child {
-  border-bottom: none;
-}
-
-.ob-autocomplete-item:hover {
-  background: var(--surface-card);
-}
-
-.ob-autocomplete-item .city {
-  color: var(--text-primary);
-  font-weight: 500;
-}
-
-.ob-autocomplete-item .details {
-  color: var(--text-muted);
-  font-size: 11px;
-  margin-top: 2px;
-}
-
-/* Birthday selects */
-.ob-birthday-row {
-  display: flex;
-  gap: 12px;
-}
-
-.ob-birthday-row select {
-  flex: 1;
-  padding: 12px 14px;
-  background: var(--surface-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-panel);
-  color: var(--text-primary);
-  font-size: 14px;
-  font-family: inherit;
-  outline: none;
-  transition: border-color 0.15s;
-  cursor: pointer;
-  appearance: none;
-  -webkit-appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24'%3E%3Cpath fill='none' stroke='%23888' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 12px center;
-  padding-right: 32px;
-}
-
-.ob-birthday-row select:focus {
-  border-color: var(--border-subtle);
-}
+/* Note: location autocomplete + birthday-select styles were removed from
+   here — onboarding no longer collects location/birthday (condensed into
+   the single ob-step-profile: name, role, goals). The equivalent markup
+   and styling still live in personalize-panel.css (.pz-autocomplete-*,
+   #pz-profile-birthday-*) for the Personalize panel's Profile tab, so no
+   capability was lost, just moved out of first-run. */
 
 /* CLI install info */
 /* Welcome text + step descriptions (same clean style) */
@@ -826,6 +756,7 @@ body:not(.onboarding-active) #chat-view {
   gap: 8px;
   margin-bottom: 16px;
   cursor: pointer;
+  border-radius: var(--radius-control);
 }
 
 .ob-optional-header h4 {

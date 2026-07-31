@@ -199,7 +199,7 @@ async function _cpnLoadCampaigns() {
 
     if (_cpnCampaigns.length === 0) {
       listEl.innerHTML = '';
-      if (emptyEl) emptyEl.classList.remove('hidden');
+      wbShowEmpty(emptyEl);
       return;
     }
     if (emptyEl) emptyEl.classList.add('hidden');
@@ -208,6 +208,8 @@ async function _cpnLoadCampaigns() {
   } catch (err) {
     console.error('[Campaigns] Failed to load campaigns:', err);
     _cpnShowToast('Failed to load campaigns', 'error');
+    listEl.innerHTML = '';
+    wbShowError(emptyEl, err.message || 'Unknown error', '_cpnLoadCampaigns()');
   }
 }
 

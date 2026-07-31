@@ -1,0 +1,42 @@
+/* Workbench inline state — shared error placeholder for panel data lists
+   (Brain facts/lessons/how-to-act, Agents, Content, Campaigns, Analytics,
+   Routines). Reuses the exact visual recipe each panel's own empty state
+   already uses (icon + message + small print, centered) so a failed fetch
+   reads as a sibling of the empty state, not a worse, unstyled fallback. */
+.wb-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.wb-state svg {
+  width: 48px;
+  height: 48px;
+  margin-bottom: 16px;
+  opacity: 0.3;
+}
+
+.wb-state p {
+  font-size: 14px;
+  margin-bottom: 4px;
+  color: var(--text-secondary);
+}
+
+.wb-state small {
+  font-size: 12px;
+  opacity: 0.7;
+  max-width: 320px;
+}
+
+.wb-state--error svg {
+  color: var(--error-readable);
+  opacity: 0.6;
+}
+
+.wb-state-retry {
+  margin-top: 14px;
+}

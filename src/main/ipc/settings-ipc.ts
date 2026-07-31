@@ -11,6 +11,7 @@ import { setupBirthdayCronJobs } from '../birthday';
 import {
   resolveBrainRepo,
   remirrorScope,
+  remirrorImportedDocsForScope,
   importAnalyticsForScope,
   importContentForScope,
 } from '../../clients/live-sync';
@@ -88,11 +89,11 @@ export function registerSettingsIPC(deps: IPCDependencies): void {
   });
 
   // ============ Scoped-memory sync (world + client brains) ============
-  // resolveBrainRepo / remirrorScope / importAnalyticsForScope /
-  // importContentForScope live in src/clients/live-sync.ts so the periodic
-  // background-pull timer and pull-on-client-switch (src/main/index.ts,
-  // src/main/ipc/sessions-ipc.ts) share this exact behavior instead of a
-  // second copy.
+  // resolveBrainRepo / remirrorScope / remirrorImportedDocsForScope /
+  // importAnalyticsForScope / importContentForScope live in
+  // src/clients/live-sync.ts so the periodic background-pull timer and
+  // pull-on-client-switch (src/main/index.ts, src/main/ipc/sessions-ipc.ts)
+  // share this exact behavior instead of a second copy.
 
   // Pull a scope's brain (clone on first use, else append-mostly reconcile).
   ipcMain.handle('sync:pull', async (_, scope: string) => {
@@ -102,6 +103,7 @@ export function registerSettingsIPC(deps: IPCDependencies): void {
     const result = await pullBrainRepo(repo);
     if (result.ok) {
       await remirrorScope(getMemory(), scope);
+      await remirrorImportedDocsForScope(getMemory(), scope);
       await importAnalyticsForScope(getMemory(), scope);
       await importContentForScope(getMemory(), scope);
       // World has no client row to stamp — only real clients track sync status.
@@ -135,6 +137,7 @@ export function registerSettingsIPC(deps: IPCDependencies): void {
       const result = await pullBrainRepo(repo);
       if (result.ok) {
         await remirrorScope(memory, client.id);
+        await remirrorImportedDocsForScope(memory, client.id);
         await importAnalyticsForScope(memory, client.id);
         await importContentForScope(memory, client.id);
         memory.touchClientPulled(client.id);
@@ -293,6 +296,7 @@ export function registerSettingsIPC(deps: IPCDependencies): void {
     const pullResult = await pullBrainRepo(repo);
     if (pullResult.ok) {
       await remirrorScope(memory, id);
+      await remirrorImportedDocsForScope(memory, id);
       await importAnalyticsForScope(memory, id);
       await importContentForScope(memory, id);
       memory.touchClientPulled(id);

@@ -71,7 +71,9 @@ const CLIENT_INFO = { name: 'pocket-agent', version: '1.0.0' };
 const HANDSHAKE_TIMEOUT_MS = 15_000;
 
 function extractResultText(result: unknown): McpCallResult {
-  const r = result as { content?: Array<{ type?: string; text?: string }>; isError?: boolean } | undefined;
+  const r = result as
+    | { content?: Array<{ type?: string; text?: string }>; isError?: boolean }
+    | undefined;
   const parts = (r?.content ?? [])
     .filter((c) => c && (c.type === undefined || c.type === 'text') && typeof c.text === 'string')
     .map((c) => c.text as string);
@@ -87,7 +89,10 @@ export class StdioMcpClient implements McpClient {
   private child: ChildProcessWithoutNullStreams | null = null;
   private buffer = '';
   private nextId = 1;
-  private pending = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void }>();
+  private pending = new Map<
+    number,
+    { resolve: (v: unknown) => void; reject: (e: Error) => void }
+  >();
   private crashHandlers: Array<(reason: string) => void> = [];
   private crashed = false;
   private stderrTail: string[] = [];
@@ -139,7 +144,11 @@ export class StdioMcpClient implements McpClient {
     }
   }
 
-  private send(method: string, params?: Record<string, unknown>, timeoutMs = 30_000): Promise<unknown> {
+  private send(
+    method: string,
+    params?: Record<string, unknown>,
+    timeoutMs = 30_000
+  ): Promise<unknown> {
     if (!this.child || this.crashed) {
       return Promise.reject(new Error('MCP server is not running'));
     }
@@ -157,7 +166,8 @@ export class StdioMcpClient implements McpClient {
         const tail = this.stderrTail.join('').trim().slice(-500);
         reject(
           new Error(
-            `MCP request "${method}" timed out after ${timeoutMs}ms` + (tail ? ` — recent stderr: ${tail}` : '')
+            `MCP request "${method}" timed out after ${timeoutMs}ms` +
+              (tail ? ` — recent stderr: ${tail}` : '')
           )
         );
       }, timeoutMs);
@@ -228,7 +238,9 @@ export class StdioMcpClient implements McpClient {
     );
     // Fire-and-forget notification — no response expected, per MCP spec.
     try {
-      this.child.stdin.write(JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }) + '\n');
+      this.child.stdin.write(
+        JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }) + '\n'
+      );
     } catch {
       // Non-fatal: some servers don't require the notification to proceed.
     }
@@ -310,7 +322,11 @@ export class HttpMcpClient implements McpClient {
     }
   }
 
-  private async post(method: string, params: Record<string, unknown>, timeoutMs: number): Promise<unknown> {
+  private async post(
+    method: string,
+    params: Record<string, unknown>,
+    timeoutMs: number
+  ): Promise<unknown> {
     if (this.closed) throw new Error('MCP HTTP client is closed');
     const id = this.nextId++;
     const controller = new AbortController();

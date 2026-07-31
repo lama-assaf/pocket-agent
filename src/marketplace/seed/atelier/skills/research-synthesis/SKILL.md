@@ -16,6 +16,7 @@ never synthesize from a sample if the full set is available. patterns you notice
 ### 2. tag, don't paraphrase
 
 go through and tag statements. tags include:
+
 - job-to-be-done (what they're trying to accomplish)
 - frustration (what's blocking them)
 - workaround (what they do today)
@@ -32,6 +33,7 @@ group tagged statements by the shape of the underlying need, not the surface voc
 ### 4. count
 
 for each cluster:
+
 - how many distinct participants voiced this
 - how strongly (passing mention vs. animated frustration)
 - whether it came up unprompted or only when probed

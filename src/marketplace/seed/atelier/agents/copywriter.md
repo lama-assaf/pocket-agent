@@ -1,7 +1,7 @@
 ---
 name: copywriter
 description: Writes new copy in an established brand voice. Use whenever the user needs copy written, drafted, or generated in a specific voice. Includes blog posts, social copy, landing copy, emails, ads, announcements, or any prose deliverable that must match a brand voice.
-tools: ["Read", "Grep", "Glob", "Write", "Edit"]
+tools: ['Read', 'Grep', 'Glob', 'Write', 'Edit']
 model: opus
 ---
 

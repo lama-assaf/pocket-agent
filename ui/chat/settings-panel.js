@@ -13,6 +13,7 @@ function returnToChatView() {
 function _dismissOtherPanels(keepId) {
   const panels = {
     'settings-view': 'sidebar-settings-btn',
+    'workspace-home-view': 'sidebar-home-btn',
     'brain-view': 'sidebar-brain-btn',
     'agents-view': 'sidebar-agents-btn',
     'content-view': 'sidebar-content-btn',
@@ -164,6 +165,7 @@ async function _stgLoadSettings() {
     _stgUpdateOpenAIAuthStatus();
     _stgUpdateKimiAuthStatus();
     _stgUpdateLinkedInAuthStatus();
+    _stgUpdateGitHubAuthStatus();
     _stgUpdateDeleteButtons();
   } catch (err) {
     console.error('[Settings] Failed to load settings:', err);
@@ -322,6 +324,7 @@ function _stgSetupAutoSave() {
     'telegram.botToken', 'telegram.allowedUserIds', 'telegram.defaultChatId',
     'chat.adminKey',
     'linkedin.clientId', 'linkedin.clientSecret',
+    'github.clientId', 'github.token',
   ];
 
   const inputs = root.querySelectorAll('input, select');
@@ -396,7 +399,7 @@ async function stgSaveKey(inputId) {
 }
 
 function _stgUpdateDeleteButtons() {
-  const keyIds = ['anthropic.apiKey', 'openai.apiKey', 'moonshot.apiKey', 'glm.apiKey', 'xiaomi.apiKey', 'minimax.apiKey', 'deepseek.apiKey', 'telegram.botToken', 'linkedin.clientSecret'];
+  const keyIds = ['anthropic.apiKey', 'openai.apiKey', 'moonshot.apiKey', 'glm.apiKey', 'xiaomi.apiKey', 'minimax.apiKey', 'deepseek.apiKey', 'telegram.botToken', 'linkedin.clientSecret', 'github.token'];
   for (const keyId of keyIds) {
     const deleteBtn = document.getElementById(`${keyId}-delete`);
     if (deleteBtn) {
@@ -924,6 +927,143 @@ async function stgHandleLinkedInAuth() {
   await _stgUpdateLinkedInAuthStatus();
 }
 
+// ---- GitHub (device flow, for client/world brain sync) ----
+
+async function _stgUpdateGitHubAuthStatus() {
+  const statusEl = document.getElementById('github-auth-status');
+  const button = document.getElementById('github-oauth-btn');
+  if (!statusEl || !button) return;
+  try {
+    const status = await window.pocketAgent.githubAuth.getAuthStatus();
+    statusEl.textContent = status.connected ? `Connected as @${status.user.login}` : 'Not connected';
+    statusEl.className = `auth-badge ${status.connected ? 'connected' : ''}`;
+    button.textContent = status.connected ? 'Disconnect' : 'Connect GitHub';
+    button.disabled = !status.connected && !status.hasClientId;
+    if (status.connected) {
+      const codeSection = document.getElementById('github-device-code-section');
+      if (codeSection) codeSection.classList.add('hidden');
+    }
+  } catch {
+    statusEl.textContent = 'Unable to verify';
+    statusEl.className = 'auth-badge';
+  }
+}
+
+async function stgSaveGitHubClientId() {
+  const input = document.getElementById('github.clientId');
+  const value = input.value.trim();
+  try {
+    const result = await window.pocketAgent.settings.set('github.clientId', value);
+    if (result && result.success === false) throw new Error(result.error || 'Save failed');
+    _stgSettings['github.clientId'] = value;
+    _stgShowToast('GitHub Client ID saved', 'success');
+    await _stgUpdateGitHubAuthStatus();
+  } catch (err) {
+    console.error('[Settings] Failed to save GitHub Client ID:', err);
+    _stgShowToast("Oops, couldn't save that", 'error');
+  }
+}
+
+// Advanced fallback: a hand-pasted Personal Access Token, for anyone who
+// can't/won't use "Connect GitHub" (e.g. no OAuth App configured yet, or a
+// fine-grained PAT scoped tighter than device flow's `repo`). Writes to the
+// EXACT SAME github.token setting the device flow writes to — sync.ts can't
+// tell the two apart, by design (see docs/design/github-connect.md).
+async function stgSaveGitHubPat() {
+  const input = document.getElementById('github.token');
+  const token = input.value.trim();
+  if (!token) { _stgShowToast('Paste a token first', 'error'); return; }
+  try {
+    await window.pocketAgent.settings.set('github.token', token);
+    await window.pocketAgent.settings.set('github.authMethod', 'pat');
+    _stgShowToast('GitHub token saved', 'success');
+    _stgStopGitHubPolling();
+    document.getElementById('github-device-code-section')?.classList.add('hidden');
+    // Reloads settings.getAll() (returns the encrypted field masked as
+    // '••••••••', never the real value) so the input shows the same
+    // "key saved" placeholder every other API key field uses, instead of
+    // manually re-deriving that state here.
+    await _stgLoadSettings();
+  } catch (err) {
+    console.error('[Settings] Failed to save GitHub token:', err);
+    _stgShowToast("Oops, couldn't save that", 'error');
+  }
+}
+
+async function stgDeleteGitHubPat() {
+  try {
+    await window.pocketAgent.settings.set('github.token', '');
+    await window.pocketAgent.settings.set('github.authMethod', '');
+    _stgShowToast('GitHub token removed', 'success');
+    await _stgLoadSettings();
+  } catch (err) {
+    console.error('[Settings] Failed to delete GitHub token:', err);
+    _stgShowToast("Oops, couldn't delete that", 'error');
+  }
+}
+
+async function stgHandleGitHubAuth() {
+  const status = await window.pocketAgent.githubAuth.getAuthStatus();
+  if (status.connected) {
+    await window.pocketAgent.githubAuth.disconnect();
+    _stgStopGitHubPolling();
+    document.getElementById('github-device-code-section')?.classList.add('hidden');
+    await _stgUpdateGitHubAuthStatus();
+    return;
+  }
+  const button = document.getElementById('github-oauth-btn');
+  button.disabled = true;
+  button.textContent = 'Waiting…';
+  // startOAuth() resolves as soon as the device code is ready (it does NOT
+  // wait for the user to actually finish authorizing) — see
+  // src/auth/github-oauth.ts's startFlow() doc comment. Completion is
+  // detected by polling isOAuthPending() below, same pattern this file
+  // already uses for Kimi (_stgStartKimiPolling).
+  const result = await window.pocketAgent.githubAuth.startOAuth();
+  if (result.userCode) {
+    document.getElementById('github-device-code-section').classList.remove('hidden');
+    document.getElementById('github-user-code').textContent = result.userCode;
+    const link = document.getElementById('github-verification-url');
+    link.href = result.verificationUri;
+    link.textContent = result.verificationUri;
+    button.textContent = 'Waiting for authorization…';
+    _stgStartGitHubPolling();
+    return;
+  }
+  if (!result.success) _stgShowToast(result.error || 'GitHub connection failed', 'error');
+  await _stgUpdateGitHubAuthStatus();
+}
+
+let _stgGitHubPollInterval = null;
+
+function _stgStartGitHubPolling() {
+  _stgStopGitHubPolling();
+  _stgGitHubPollInterval = setInterval(async () => {
+    try {
+      const isPending = await window.pocketAgent.githubAuth.isOAuthPending();
+      if (isPending) return;
+      _stgStopGitHubPolling();
+      document.getElementById('github-device-code-section')?.classList.add('hidden');
+      await _stgUpdateGitHubAuthStatus();
+      const status = await window.pocketAgent.githubAuth.getAuthStatus();
+      if (status.connected) {
+        _stgShowToast(`Connected to GitHub as @${status.user.login}`, 'success');
+      } else {
+        _stgShowToast('GitHub authorization failed, was denied, or timed out', 'error');
+      }
+    } catch {
+      // Ignore polling errors — same as Kimi's polling loop.
+    }
+  }, 3000);
+}
+
+function _stgStopGitHubPolling() {
+  if (_stgGitHubPollInterval) {
+    clearInterval(_stgGitHubPollInterval);
+    _stgGitHubPollInterval = null;
+  }
+}
+
 // ---- Kimi (Moonshot) OAuth ----
 
 let _stgKimiPollInterval = null;
@@ -1085,13 +1225,13 @@ const _stgCliCommands = {
   which: _STG_CLI_IS_WINDOWS ? '(Get-Command pocket -ErrorAction SilentlyContinue).Source' : 'which pocket',
   version: (pocketPath) => _STG_CLI_IS_WINDOWS ? null : `strings "${pocketPath}" | grep -E '^v[0-9]+\\.[0-9]+\\.[0-9]+$' | head -1`,
   fetchLatest: _STG_CLI_IS_WINDOWS
-    ? 'Invoke-RestMethod https://api.github.com/repos/KenKaiii/pocket-agent-cli/releases/latest | ConvertTo-Json -Depth 10'
-    : 'curl -fsSL https://api.github.com/repos/KenKaiii/pocket-agent-cli/releases/latest',
+    ? 'Invoke-RestMethod https://api.github.com/repos/lama-assaf/pocket-agent-cli/releases/latest | ConvertTo-Json -Depth 10'
+    : 'curl -fsSL https://api.github.com/repos/lama-assaf/pocket-agent-cli/releases/latest',
   install: _STG_CLI_IS_WINDOWS
     ? [
         '$installDir = Join-Path $env:LOCALAPPDATA "pocket-agent-cli"',
         'New-Item -ItemType Directory -Force -Path $installDir | Out-Null',
-        '$release = Invoke-RestMethod "https://api.github.com/repos/KenKaiii/pocket-agent-cli/releases/latest"',
+        '$release = Invoke-RestMethod "https://api.github.com/repos/lama-assaf/pocket-agent-cli/releases/latest"',
         '$asset = $release.assets | Where-Object { $_.name -like "*windows*amd64*" } | Select-Object -First 1',
         'if (-not $asset) { throw "No Windows release asset found" }',
         '$zipPath = Join-Path $env:TEMP "pocket_cli.zip"',
@@ -1102,7 +1242,7 @@ const _stgCliCommands = {
         'if ($userPath -notlike "*$installDir*") { [Environment]::SetEnvironmentVariable("Path", "$userPath;$installDir", "User") }',
         'Write-Output "Installed to $installDir"',
       ].join('; ')
-    : 'curl -fsSL https://raw.githubusercontent.com/KenKaiii/pocket-agent-cli/main/scripts/install.sh -o /tmp/pocket-cli-install.sh && sed -i "" "s/^.*exec .*$//" /tmp/pocket-cli-install.sh && bash /tmp/pocket-cli-install.sh && rm -f /tmp/pocket-cli-install.sh',
+    : 'curl -fsSL https://raw.githubusercontent.com/lama-assaf/pocket-agent-cli/main/scripts/install.sh -o /tmp/pocket-cli-install.sh && sed -i "" "s/^.*exec .*$//" /tmp/pocket-cli-install.sh && bash /tmp/pocket-cli-install.sh && rm -f /tmp/pocket-cli-install.sh',
 };
 
 async function _stgInitPocketCli() {
@@ -1419,17 +1559,22 @@ async function _stgLoadMcpServers() {
 // Only meaningful once the gates pass (enabled+configured+scopeEnabled) —
 // a gated-off server is always 'not_started' since it's never spawned.
 function _stgMcpRuntimePill(server) {
-  const title = server.runtimeError ? ` title="${_stgMcpEscapeAttr(server.runtimeError)}"` : '';
+  // aria-label mirrors title so the underlying error reaches assistive tech
+  // too, not just sighted hover — a bare "Failed" pill gives a keyboard/screen
+  // reader user no way to find out what actually went wrong.
+  const attrs = server.runtimeError
+    ? ` title="${_stgMcpEscapeAttr(server.runtimeError)}" aria-label="${_stgMcpEscapeAttr(server.runtimeError)}"`
+    : '';
   switch (server.runtimeStatus) {
     case 'running':
-      return `<span class="status success"${title}>Running</span>`;
+      return `<span class="status success"${attrs}>Running</span>`;
     case 'starting':
-      return `<span class="status info"${title}>Starting…</span>`;
+      return `<span class="status info"${attrs}>Starting…</span>`;
     case 'failed':
-      return `<span class="status error"${title}>Failed</span>`;
+      return `<span class="status error"${attrs}>Failed</span>`;
     case 'not_started':
     default:
-      return `<span class="status"${title}>Not started</span>`;
+      return `<span class="status"${attrs}>Not started</span>`;
   }
 }
 
@@ -1488,12 +1633,18 @@ function _stgMcpServerRowHtml(server) {
   const toggle = server.toggleable
     ? `<div class="toggle ${server.enabled ? 'active' : ''}" onclick="playNormalClick(); _stgToggleMcpServer('${_stgMcpEscapeAttr(server.id)}')"></div>`
     : `<div class="toggle active disabled-toggle" title="Always on"></div>`;
+  // aria-describedby ties each credential field back to the row's own
+  // description (which is where catalog authors document where to get each
+  // key — see e.g. src/marketplace/seed/*/mcp-configs/mcp-servers.json's
+  // _comment) instead of leaving a bare var-name placeholder as the only clue.
+  const descId = `mcp-desc-${_stgMcpEscapeAttr(server.id)}`;
+  const describedBy = server.description ? ` aria-describedby="${descId}"` : '';
   const envForm = server.toggleable && server.requiredEnv.length
     ? `
       <div class="mcp-server-env">
         ${server.requiredEnv.map((name) => `
           <div class="key-input">
-            <input type="password" class="mcp-env-input" data-server-id="${_stgMcpEscapeAttr(server.id)}" data-env-name="${_stgMcpEscapeAttr(name)}" placeholder="${_stgMcpEscapeHtml(name)}">
+            <input type="password" class="mcp-env-input" data-server-id="${_stgMcpEscapeAttr(server.id)}" data-env-name="${_stgMcpEscapeAttr(name)}" placeholder="${_stgMcpEscapeHtml(name)}" aria-label="${_stgMcpEscapeAttr(name)} credential for ${_stgMcpEscapeAttr(server.name)}"${describedBy}>
           </div>
         `).join('')}
         <button class="skills-setup-btn btn-compact" onclick="playNormalClick(); _stgSaveMcpServerEnv('${_stgMcpEscapeAttr(server.id)}')">Save credentials</button>
@@ -1509,7 +1660,7 @@ function _stgMcpServerRowHtml(server) {
         ${_stgMcpStatusPill(server)}
         ${toggle}
       </div>
-      ${server.description ? `<div class="mcp-server-desc">${_stgMcpEscapeHtml(server.description)}</div>` : ''}
+      ${server.description ? `<div class="mcp-server-desc" id="${descId}">${_stgMcpEscapeHtml(server.description)}</div>` : ''}
       ${envForm}
       ${_stgMcpReauthRowHtml(server)}
       ${_stgMcpScopeRowHtml(server)}
@@ -1693,11 +1844,40 @@ function _stgHandleUpdateStatus(status) {
       if (infoBox) infoBox.classList.remove('hidden');
       if (infoText) infoText.textContent = `Version ${status.info?.version || 'unknown'} is ready to install. Click "Install & Restart" to update.`;
       break;
+    case 'unsupported':
+      // Unsigned macOS build: Squirrel.Mac/electron-updater cannot verify or
+      // apply an update to it, so there's nothing to check/download/install
+      // here - point testers at manually grabbing the latest DMG instead.
+      statusEl.className = 'status warning'; statusEl.textContent = 'Manual updates only';
+      checkBtn.disabled = true; checkBtn.textContent = 'Manual updates only';
+      if (infoBox) infoBox.classList.remove('hidden');
+      if (infoText) _stgRenderManualUpdateLink(infoText);
+      break;
     case 'error':
       statusEl.className = 'status error'; statusEl.textContent = 'Error';
       if (infoBox) infoBox.classList.remove('hidden');
       if (infoText) infoText.textContent = status.error || 'An error occurred while checking for updates.';
       break;
+  }
+}
+
+let _stgReleasesUrl = 'https://github.com/lama-assaf/pocket-agent/releases/latest';
+
+function _stgRenderManualUpdateLink(infoTextEl) {
+  const link = document.createElement('a');
+  link.href = _stgReleasesUrl;
+  link.target = '_blank';
+  link.className = 'key-link';
+  link.textContent = 'Download the latest DMG';
+  infoTextEl.textContent = "This build isn't signed, so it can't auto-update. ";
+  infoTextEl.appendChild(link);
+  infoTextEl.append(' from GitHub Releases and replace the app.');
+
+  if (window.pocketAgent?.updater?.getReleasesUrl) {
+    window.pocketAgent.updater
+      .getReleasesUrl()
+      .then((url) => { if (url) { _stgReleasesUrl = url; link.href = url; } })
+      .catch(() => {});
   }
 }
 

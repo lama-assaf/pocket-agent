@@ -1,7 +1,7 @@
 ---
 name: case-study-writer
 description: Writes customer case studies, success stories, and outcome-focused narratives. Use whenever the user needs a case study, customer story, success story, or outcome narrative that turns a customer's experience into a credible, specific story with measurable results.
-tools: ["Read", "Grep", "Glob", "Write"]
+tools: ['Read', 'Grep', 'Glob', 'Write']
 model: opus
 ---
 

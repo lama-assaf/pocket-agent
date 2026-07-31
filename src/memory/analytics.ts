@@ -14,7 +14,7 @@
  * `external_ref` identifies "the post" on its platform (a URL or platform
  * post id) and is the grouping key alongside scope+channel; `content_post_id`
  * optionally links back to the content_posts audit-log row that made the
- * post, when analytics are being recorded for something Pocket Agent itself
+ * post, when analytics are being recorded for something r3to.os itself
  * published (never required — a human can also log analytics for a post
  * that was never drafted/posted through this app).
  */
@@ -39,8 +39,31 @@ export interface PostAnalytics {
   video_views: number;
   source: PostAnalyticsSource;
   raw_json: string | null;
+  post_url: string | null;
+  thread_text: string;
+  top_comments: string | null;
+  /** Shared asset URLs (images/files/media) attached to the post. Always an array (never null) — parsed back from JSON storage by every read path in this module. */
+  media_urls: string[];
   captured_at: string;
   created_at: string;
+}
+
+/** Raw shape a `post_analytics` row has coming out of better-sqlite3, before `media_urls` is JSON-parsed into an array (see `parseAnalyticsRow`). */
+type PostAnalyticsRow = Omit<PostAnalytics, 'media_urls'> & { media_urls: string | null };
+
+/** Parse a raw DB row's `media_urls` JSON column back into a string array (`[]` when null, empty, or malformed — never throws). */
+function parseAnalyticsRow(row: PostAnalyticsRow): PostAnalytics {
+  let mediaUrls: string[] = [];
+  if (row.media_urls) {
+    try {
+      const parsed: unknown = JSON.parse(row.media_urls);
+      if (Array.isArray(parsed))
+        mediaUrls = parsed.filter((u): u is string => typeof u === 'string');
+    } catch {
+      mediaUrls = [];
+    }
+  }
+  return { ...row, media_urls: mediaUrls };
 }
 
 export interface RecordPostAnalyticsInput {
@@ -57,18 +80,29 @@ export interface RecordPostAnalyticsInput {
   videoViews?: number;
   source?: PostAnalyticsSource;
   rawJson?: string | null;
+  /** Direct link to the post on its platform (e.g. the X/tweet URL). */
+  postUrl?: string | null;
+  /** The first thread post / opening tweet text — the lead content of the post or thread. */
+  threadText?: string;
+  /** Notable replies on the post; stringified to JSON internally so callers pass a plain array. */
+  topComments?: Array<{ author: string; text: string; likes: number }> | null;
+  /** Shared asset URLs (images/files/media) attached to the post; stringified to JSON internally so callers pass a plain array. */
+  mediaUrls?: string[] | null;
   /** ISO timestamp this snapshot was captured at; defaults to now. Lets a backfill import record historical snapshots honestly. */
   capturedAt?: string;
 }
 
 /** Insert one analytics snapshot. Never upserts — see module doc for why this is append-only. */
-export function recordPostAnalytics(db: Database.Database, input: RecordPostAnalyticsInput): number {
+export function recordPostAnalytics(
+  db: Database.Database,
+  input: RecordPostAnalyticsInput
+): number {
   const stmt = db.prepare(`
     INSERT INTO post_analytics (
       scope, channel, external_ref, content_post_id, title,
       impressions, likes, comments, shares, clicks, video_views,
-      source, raw_json, captured_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, (strftime('%Y-%m-%dT%H:%M:%fZ'))))
+      source, raw_json, post_url, thread_text, top_comments, media_urls, captured_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, (strftime('%Y-%m-%dT%H:%M:%fZ'))))
   `);
   const result = stmt.run(
     input.scope,
@@ -84,6 +118,10 @@ export function recordPostAnalytics(db: Database.Database, input: RecordPostAnal
     input.videoViews ?? 0,
     input.source ?? 'manual',
     input.rawJson ?? null,
+    input.postUrl ?? null,
+    input.threadText ?? '',
+    input.topComments ? JSON.stringify(input.topComments) : null,
+    input.mediaUrls ? JSON.stringify(input.mediaUrls) : null,
     input.capturedAt ?? null
   );
   return result.lastInsertRowid as number;
@@ -104,11 +142,13 @@ export function getPostAnalyticsForScopes(
   const scopeClause = visibleScopes.map(() => '?').join(', ');
   const channelClause = channel ? 'AND channel = ?' : '';
   const params = channel ? [...visibleScopes, channel] : visibleScopes;
-  return db
-    .prepare(
-      `SELECT * FROM post_analytics WHERE scope IN (${scopeClause}) ${channelClause} ORDER BY captured_at DESC, id DESC`
-    )
-    .all(...params) as PostAnalytics[];
+  return (
+    db
+      .prepare(
+        `SELECT * FROM post_analytics WHERE scope IN (${scopeClause}) ${channelClause} ORDER BY captured_at DESC, id DESC`
+      )
+      .all(...params) as PostAnalyticsRow[]
+  ).map(parseAnalyticsRow);
 }
 
 /**
@@ -127,9 +167,10 @@ export function getLatestPostAnalyticsForScopes(
   const scopeClause = visibleScopes.map(() => '?').join(', ');
   const channelClause = channel ? 'AND channel = ?' : '';
   const params = channel ? [...visibleScopes, channel] : visibleScopes;
-  return db
-    .prepare(
-      `
+  return (
+    db
+      .prepare(
+        `
       SELECT pa.* FROM post_analytics pa
       JOIN (
         SELECT scope, channel, external_ref, MAX(id) AS max_id
@@ -139,8 +180,9 @@ export function getLatestPostAnalyticsForScopes(
       ) latest ON pa.id = latest.max_id
       ORDER BY pa.captured_at DESC, pa.id DESC
       `
-    )
-    .all(...params) as PostAnalytics[];
+      )
+      .all(...params) as PostAnalyticsRow[]
+  ).map(parseAnalyticsRow);
 }
 
 /** Full snapshot history for one specific post, newest first. */
@@ -150,13 +192,15 @@ export function getPostAnalyticsHistory(
   channel: string,
   externalRef: string
 ): PostAnalytics[] {
-  return db
-    .prepare(
-      `SELECT * FROM post_analytics
+  return (
+    db
+      .prepare(
+        `SELECT * FROM post_analytics
        WHERE scope = ? AND channel = ? AND external_ref = ?
        ORDER BY captured_at DESC, id DESC`
-    )
-    .all(scope, channel, externalRef) as PostAnalytics[];
+      )
+      .all(scope, channel, externalRef) as PostAnalyticsRow[]
+  ).map(parseAnalyticsRow);
 }
 
 export function deletePostAnalytics(db: Database.Database, id: number): boolean {
@@ -265,7 +309,9 @@ export function summarizeAnalytics(
   return {
     totalPosts: rows.length,
     ...totals,
-    engagementRate: totals.impressions ? (totals.likes + totals.comments + totals.shares) / totals.impressions : 0,
+    engagementRate: totals.impressions
+      ? (totals.likes + totals.comments + totals.shares) / totals.impressions
+      : 0,
     byChannel,
     topPosts,
   };
@@ -298,7 +344,9 @@ export function filterAnalyticsForContentPosts(
   if (refs.length === 0) return [];
   const idSet = new Set(refs.map((r) => r.id));
   const refKeySet = new Set(
-    refs.filter((r) => r.externalRef).map((r) => `${r.scope}\u0000${r.channel}\u0000${r.externalRef}`)
+    refs
+      .filter((r) => r.externalRef)
+      .map((r) => `${r.scope}\u0000${r.channel}\u0000${r.externalRef}`)
   );
   return rows.filter(
     (row) =>

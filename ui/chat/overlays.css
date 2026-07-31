@@ -232,6 +232,11 @@
   border-top: 1px solid var(--border-subtle);
   flex-shrink: 0;
 }
+/* outline: none here is a low-specificity, class-only reset — it does NOT
+   defeat the global :focus-visible ring (ui/shared/ui.css) or its forms.css
+   companion for textareas, both of which win the cascade tie by having an
+   extra type-selector token. The ring shows on keyboard focus; this rule
+   just keeps the browser's own default outline from double-drawing under it. */
 .plan-feedback-input {
   display: block;
   width: 100%;

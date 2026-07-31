@@ -15,7 +15,7 @@ This is the in-repo documentation set, linked from the app's **Docs** menu item.
 | [MCP integrations](./mcp.md) | The Model Context Protocol marketplace, built-in vs. marketplace servers, credentials |
 | [CLI](./cli.md) | The standalone `pocket` CLI, install/update from Settings |
 | [Settings](./settings.md) | Every settings category and what it controls |
-| [Updating (unsigned macOS builds)](./updating-unsigned.md) | Why in-app auto-install can't work unsigned on macOS, how a release ships, and how testers update manually |
+| [Updating (unsigned macOS builds)](./updating-unsigned.md) | Why the in-app updater is disabled on unsigned macOS builds, how a release ships, and how testers update manually |
 
 ## The short version
 

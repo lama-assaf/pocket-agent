@@ -41,7 +41,7 @@ This changes the agent's working directory. The path will be:
 
 Use when the user wants to work from a specific project directory.
 
-Example: { "path": "/Users/kenkai/Documents/my-project" }`,
+Example: { "path": "/Users/zilliqa/Documents/my-project" }`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -139,7 +139,7 @@ async function handleSetProject(args: Record<string, unknown>): Promise<string> 
 
   const db = getDb();
   if (!db) {
-    return JSON.stringify({ error: 'Database not found. Please start Pocket Agent first.' });
+    return JSON.stringify({ error: 'Database not found. Please start r3to.os first.' });
   }
 
   try {

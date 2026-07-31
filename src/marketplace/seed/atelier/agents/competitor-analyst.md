@@ -1,7 +1,7 @@
 ---
 name: competitor-analyst
 description: Researches and analyzes competitive products, pricing, positioning, and feature gaps. Use whenever the user mentions competitor analysis, market research, competitive landscape, positioning vs competitors, feature comparison, or wants to understand who else is in their space.
-tools: ["Read", "Grep", "Glob", "Write", "WebFetch", "WebSearch"]
+tools: ['Read', 'Grep', 'Glob', 'Write', 'WebFetch', 'WebSearch']
 model: opus
 ---
 

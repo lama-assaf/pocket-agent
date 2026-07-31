@@ -8,7 +8,11 @@ import { ipcMain } from 'electron';
 import type { IPCDependencies } from './types';
 import { resolveVisibleScopes, resolveNearestScope } from '../../memory/scope';
 import type { SessionContext } from '../../memory/sessions';
-import type { RecordPostAnalyticsInput, AnalyticsSummary, PostAnalytics } from '../../memory/analytics';
+import type {
+  RecordPostAnalyticsInput,
+  AnalyticsSummary,
+  PostAnalytics,
+} from '../../memory/analytics';
 
 // Not a real session — the Analytics panel has no "current chat" while
 // browsing, so this only builds the `chat:<id>` link of the visible-scope

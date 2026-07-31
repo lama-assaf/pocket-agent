@@ -260,7 +260,9 @@ function applyResult(
     // facts — silently rewriting a brand's voice via a background
     // compaction pass. Drop those upserts outright; only delete_ids are
     // scope-checked below because upserts create NEW rows (no id to check).
-    const upserts = (result.facts.upsert ?? []).filter((f) => !PROTECTED_CATEGORIES.has(f.category));
+    const upserts = (result.facts.upsert ?? []).filter(
+      (f) => !PROTECTED_CATEGORIES.has(f.category)
+    );
     // Only delete ids the model was actually shown for THIS scope. A hallucinated
     // or cross-scope id can't reach memory.deleteFact() (which deletes by raw id),
     // so consolidation of one scope can never delete another brand's/personal fact.

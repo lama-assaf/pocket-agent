@@ -3,7 +3,12 @@ const { autoUpdater } = electronUpdater;
 type UpdateInfo = electronUpdater.UpdateInfo;
 type ProgressInfo = electronUpdater.ProgressInfo;
 import { BrowserWindow, ipcMain, app } from 'electron';
+import { execFileSync } from 'node:child_process';
+import path from 'node:path';
 import { SettingsManager } from '../settings';
+
+/** Where to point testers when auto-update can't run (unsigned mac builds). */
+export const RELEASES_URL = 'https://github.com/lama-assaf/pocket-agent/releases/latest';
 
 export interface UpdateStatus {
   status:
@@ -14,7 +19,8 @@ export interface UpdateStatus {
     | 'downloading'
     | 'downloaded'
     | 'error'
-    | 'dev-mode';
+    | 'dev-mode'
+    | 'unsupported';
   info?: UpdateInfo;
   progress?: { percent: number; bytesPerSecond: number; transferred: number; total: number };
   error?: string;
@@ -24,6 +30,10 @@ let currentStatus: UpdateStatus = { status: 'idle' };
 let settingsWindow: BrowserWindow | null = null;
 let chatWindow: BrowserWindow | null = null;
 let isInitialized = false;
+let periodicCheckTimer: ReturnType<typeof setInterval> | null = null;
+
+/** How often to re-check for updates while the app is running. */
+const PERIODIC_CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000; // 4 hours
 
 /**
  * Get the current update status
@@ -45,6 +55,29 @@ function sendStatusToRenderer(): void {
 }
 
 /**
+ * macOS's native Squirrel.Mac updater (what electron-updater's MacUpdater
+ * shells out to) refuses to apply an update to a running app it can't
+ * verify the code signature of — an unsigned build throws "Could not get
+ * code signature for running application" the moment it tries. We build
+ * unsigned dmg/zip only (no Apple Developer signing — see RELEASE.md), so
+ * detect that up front and never let autoUpdater touch it.
+ */
+function isMacBuildSigned(): boolean {
+  if (process.platform !== 'darwin') return true; // not applicable off mac
+  try {
+    // app.getPath('exe') -> .../<App>.app/Contents/MacOS/<App>; the signature
+    // lives on the .app bundle two levels up.
+    const appBundlePath = path.resolve(app.getPath('exe'), '..', '..', '..');
+    execFileSync('codesign', ['--verify', '--deep', '--strict', appBundlePath], {
+      stdio: 'ignore',
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Initialize the auto-updater
  */
 export function initializeUpdater(): void {
@@ -54,10 +87,24 @@ export function initializeUpdater(): void {
     return;
   }
 
+  if (!isMacBuildSigned()) {
+    // Single log line, no retries, no error spam — this is expected for every
+    // build we currently ship. The renderer shows a "download the latest DMG"
+    // link instead of a restart affordance (see settings-panel.js).
+    console.log(
+      '[Updater] Unsigned macOS build — auto-update is unavailable; get new versions from GitHub Releases.'
+    );
+    currentStatus = { status: 'unsupported' };
+    return;
+  }
+
   isInitialized = true;
 
-  // Configure updater
-  autoUpdater.autoDownload = false;
+  // Configure updater: download silently in the background once an update
+  // is found so the renderer only ever needs to show "restart to apply" —
+  // never a forced/silent restart. autoInstallOnAppQuit still applies the
+  // update for free if the user quits before clicking "Install & Restart".
+  autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
 
   // Set up event handlers
@@ -117,7 +164,7 @@ export function initializeUpdater(): void {
     } else if (msg.includes('read-only volume')) {
       currentStatus = {
         status: 'error',
-        error: 'Move Pocket Agent to Applications folder to enable updates.',
+        error: 'Move r3to.os to Applications folder to enable updates.',
       };
     } else if (
       msg.includes('net::ERR_') ||
@@ -142,8 +189,7 @@ export function initializeUpdater(): void {
   });
 
   // Check for updates on startup if auto-update is enabled
-  const autoUpdateEnabled = SettingsManager.get('updates.autoCheck') !== 'false';
-  if (autoUpdateEnabled) {
+  if (SettingsManager.get('updates.autoCheck') !== 'false') {
     // Delay initial check to avoid slowing down startup
     setTimeout(() => {
       checkForUpdates().catch((err) => {
@@ -151,12 +197,31 @@ export function initializeUpdater(): void {
       });
     }, 10000); // 10 second delay
   }
+
+  // Re-check periodically for the lifetime of the process, re-reading the
+  // setting each tick so toggling it in Settings takes effect without a
+  // restart. A long-running desktop app can sit open for days; a
+  // startup-only check would leave testers on a stale build the whole time.
+  if (periodicCheckTimer) clearInterval(periodicCheckTimer);
+  periodicCheckTimer = setInterval(() => {
+    if (SettingsManager.get('updates.autoCheck') === 'false') return;
+    checkForUpdates().catch((err) => {
+      console.error('[Updater] Periodic check failed:', err);
+    });
+  }, PERIODIC_CHECK_INTERVAL_MS);
 }
 
 /**
  * Check for updates
  */
 export async function checkForUpdates(): Promise<UpdateStatus> {
+  if (currentStatus.status === 'unsupported') {
+    // Nothing to (re)check - this build can never self-update. Keep the
+    // status stable instead of relabelling it 'dev-mode'.
+    sendStatusToRenderer();
+    return currentStatus;
+  }
+
   if (!isInitialized || !app.isPackaged) {
     currentStatus = { status: 'dev-mode', error: 'Updates only work in packaged app' };
     sendStatusToRenderer();
@@ -238,5 +303,9 @@ export function setupUpdaterIPC(): void {
 
   ipcMain.handle('updater:getStatus', () => {
     return currentStatus;
+  });
+
+  ipcMain.handle('updater:getReleasesUrl', () => {
+    return RELEASES_URL;
   });
 }

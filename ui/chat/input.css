@@ -8,6 +8,12 @@
 
 .input-container {
   flex: 1;
+  /* A flex item won't shrink below its content's natural (min-content) width
+     without this — the toolbar row's icon buttons + two <select>s never
+     wrap or shrink, so without min-width:0 this container (and the composer)
+     silently overflowed the window at narrow widths (~560px and below,
+     worst at 390px) instead of respecting #input-area's padding. */
+  min-width: 0;
   display: flex;
   flex-direction: column;
   position: relative;
@@ -29,7 +35,12 @@
 
 .input-container:focus-within {
   border-color: transparent;
-  box-shadow: var(--shadow-card);
+  /* --client-accent-readable tints the composer's focus ring with the active
+     workspace's identity color, layered on top of the skin's own
+     --shadow-card (not replacing it) — falls back to nothing extra when
+     unset (Personal, by design). This is the surface a user stares at while
+     typing, so it's the highest-value place for a brand switch to register. */
+  box-shadow: var(--shadow-card), 0 0 0 2px var(--client-accent-readable, transparent);
 }
 
 .input-container:has(.slide-up-panel.open):focus-within {
@@ -88,6 +99,9 @@
   color: var(--text-muted);
 }
 
+/* The composer shows focus on the PARENT (.input-container:focus-within's
+   client-accent-tinted box-shadow above) — the textarea itself must stay
+   ring-free or keyboard focus would double up two indicators on one control. */
 #message-input:focus,
 #message-input:focus-visible {
   border: none;
@@ -257,6 +271,13 @@
   min-width: 0;
 }
 
+/* The ID selector above always beats the global `input:focus-visible` rule
+   in ui/shared/ui.css, so the ring needs restating here explicitly. */
+#search-input:focus-visible {
+  outline: 2px solid var(--client-accent-readable, var(--accent-readable, var(--accent)));
+  outline-offset: 2px;
+}
+
 #search-input::placeholder {
   color: var(--text-muted);
 }
@@ -358,16 +379,23 @@
   border-color: transparent;
 }
 
-/* Focus/active state intentionally inherits the default border (no extra ring).
-   Re-asserting border-radius prevents native macOS WebKit from squaring the
-   corners while the <select> is focused/open. */
+/* Mouse-focus/active state intentionally inherits the default border (no
+   extra ring) — re-asserting border-radius prevents native macOS WebKit from
+   squaring the corners while the <select> is focused/open. Keyboard focus
+   (:focus-visible below) still gets the standard ring; it's a later rule at
+   equal specificity so it wins the tie for the `outline` property. */
 .mode-select:focus,
-.mode-select:focus-visible,
 .mode-select:active {
   border-color: transparent;
   border-radius: var(--radius-control);
   box-shadow: none;
   outline: none;
+}
+
+.mode-select:focus-visible {
+  border-radius: var(--radius-control);
+  outline: 2px solid var(--client-accent-readable, var(--accent-readable, var(--accent)));
+  outline-offset: 2px;
 }
 
 .mode-select option {
@@ -377,7 +405,8 @@
   font-weight: 500;
 }
 
-.mode-select.locked {
+.mode-select.locked,
+.mode-select:disabled {
   opacity: 0.6;
   pointer-events: none;
   cursor: default;
@@ -392,6 +421,7 @@
 .input-toolbar-btns {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 4px;
   padding: 4px 4px 2px;
 }
@@ -436,6 +466,104 @@
   position: absolute;
   top: -4px;
   right: -4px;
+}
+
+/* Operator lane switcher — design/product/brand/social. One dedicated row
+   above the utility toolbar so the app's sellable structure (marketplace
+   lanes) reads as first-class, not one option among nine in a <select>. */
+.lane-switcher {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 4px 0;
+}
+
+.lane-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 10px 0 8px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  color: var(--text-subtle);
+  font-family: 'Cal Sans', sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease;
+}
+
+/* --lane-*-readable (theme-loader.js) falls back to the theme's readable
+   heading color on surfaces where the raw hue can't clear ~3:1 (WCAG AA for
+   UI components) — see ui/shared/theme-loader.js. */
+.lane-btn[data-lane="design"] { --lane-color: var(--lane-design-readable, var(--lane-design)); }
+.lane-btn[data-lane="product"] { --lane-color: var(--lane-product-readable, var(--lane-product)); }
+.lane-btn[data-lane="brand"] { --lane-color: var(--lane-brand-readable, var(--lane-brand)); }
+.lane-btn[data-lane="social"] { --lane-color: var(--lane-social-readable, var(--lane-social)); }
+
+.lane-btn:hover:not(:disabled) {
+  background: var(--surface-control-hover);
+  border-color: color-mix(in srgb, var(--lane-color) 40%, transparent);
+  color: var(--text-heading);
+}
+
+.lane-btn.active {
+  background: color-mix(in srgb, var(--lane-color) 16%, var(--surface-control));
+  border-color: color-mix(in srgb, var(--lane-color) 55%, transparent);
+  color: var(--lane-color);
+}
+
+.lane-btn svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+/* Below ~560px the composer can't fit four labeled pills plus the toolbar
+   row beneath it — drop to icon-only (title attribute still gives the name
+   on hover/long-press) rather than truncating or wrapping. */
+@media (max-width: 560px) {
+  .lane-btn-label {
+    display: none;
+  }
+  .lane-btn {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  /* #input-area's padding formula (calc(max(80px, (100% - 720px) / 2)))
+     never drops below an 80px gutter on each side, on the assumption the
+     composer is always centered under a wide window. At narrow widths that
+     floor eats so much space the toolbar row (3 icon buttons + 2 <select>s)
+     has nowhere to go — confirmed clipping past the window edge at 390px
+     before this rule. min-width:0 above lets the container shrink instead
+     of overflowing; this shrinks the gutter to match. */
+  #input-area {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+}
+
+.lane-switcher.locked .lane-btn,
+.lane-btn:disabled {
+  opacity: 0.6;
+  pointer-events: none;
+  cursor: default;
+}
+
+/* Global rule (ui/shared/ui.css) already gives every button a ring at the
+   right width/offset — this only pins the COLOR to the lane's own tint
+   instead of the client-identity accent, so keyboard users can tell which
+   lane is focused regardless of the active workspace's brand color. */
+.lane-btn:focus-visible {
+  outline-color: var(--lane-color, var(--accent-readable));
 }
 
 /* Slide-up panel */

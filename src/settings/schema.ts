@@ -280,14 +280,33 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
 
   // Scoped-memory sync (world + client brains over git)
   {
+    key: 'github.clientId',
+    defaultValue: '',
+    encrypted: false,
+    category: 'sync',
+    label: 'GitHub OAuth App Client ID',
+    description: 'Public client ID for a GitHub OAuth App with Device Flow enabled.',
+    type: 'string',
+  },
+  {
     key: 'github.token',
     defaultValue: '',
     encrypted: true,
     category: 'sync',
     label: 'GitHub Token',
     description:
-      'Personal access token used to pull/push world + client memory repos (private, read-write). Stored encrypted, never synced to any repo.',
+      'Access token used to pull/push world + client memory repos (private, read-write) — set via "Connect GitHub" (device flow, no shared/embedded credentials) or a manual Personal Access Token. Stored encrypted, never synced to any repo.',
     type: 'password',
+  },
+  {
+    key: 'github.authMethod',
+    defaultValue: '',
+    encrypted: false,
+    category: 'sync',
+    label: 'GitHub Auth Method',
+    description:
+      "How the current github.token was obtained ('oauth' | 'pat' | '') — cosmetic only, so Settings can show \"Connected as @user\" vs. \"Manual token configured\". src/clients/sync.ts never reads this.",
+    type: 'string',
   },
   {
     key: 'sync.world.repoUrl',
@@ -365,8 +384,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     encrypted: false,
     category: 'features',
     label: 'Operator Pack Rules',
-    description:
-      'Enable marketplace lane rules and the anti-AI-tone/banned-words guard on writes',
+    description: 'Enable marketplace lane rules and the anti-AI-tone/banned-words guard on writes',
     type: 'boolean',
   },
   {
@@ -376,7 +394,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     category: 'features',
     label: 'Tone Guard Hard Block',
     description:
-      "Block writes on a tone-guard hit instead of warning. Leave blank for the default " +
+      'Block writes on a tone-guard hit instead of warning. Leave blank for the default ' +
       '(blocks in lane modes — design/product/brand/social — warns elsewhere); set to ' +
       "'false' to opt OUT of blocking everywhere, or 'true' to opt IN to blocking everywhere.",
     type: 'string',
@@ -597,6 +615,16 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
       'Visual theme for the app (dracula, cream, light, dawn, midnight, nord, mocha, rosepine, gruvbox, solarized, onedark)',
     type: 'string',
   },
+  {
+    key: 'ui.worldAccentColor',
+    defaultValue: '',
+    encrypted: false,
+    category: 'appearance',
+    label: 'Agency (World) Brand Color',
+    description:
+      'User override for the Agency/World workspace identity accent (hex, e.g. #5b9dff). Empty means use the id-derived default. Clients store their own override in the clients table instead — this key exists because World has no client row.',
+    type: 'string',
+  },
 
   // Chat settings
   {
@@ -631,7 +659,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
   {
     key: 'personalize.description',
     defaultValue:
-      'You are a personal AI assistant who lives inside Pocket Agent. You help with whatever the user needs, remember everything, and keep things fun along the way.',
+      'You are a personal AI assistant who lives inside r3to.os. You help with whatever the user needs, remember everything, and keep things fun along the way.',
     encrypted: false,
     category: 'personalize',
     label: 'Agent Description',

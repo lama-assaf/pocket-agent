@@ -43,6 +43,18 @@
   box-shadow: none;
 }
 
+/* The global :focus-visible ring (ui/shared/ui.css) covers color/width —
+   this only pulls it INSET (-2px) so it doesn't get clipped against the
+   edge of these dense nav-rail lists (Brain, Settings, Personalize,
+   Routines). */
+.nav-item:focus-visible,
+.settings-nav-item:focus-visible,
+.brain-nav-item:focus-visible,
+.pz-nav-item:focus-visible,
+.routines-nav-item:focus-visible {
+  outline-offset: -2px;
+}
+
 /* Icons inside nav items (kept for any future use; the in-page menus
    were stripped of icons earlier — only the chat sidebar uses them). */
 .nav-item svg,

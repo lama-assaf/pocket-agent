@@ -86,9 +86,9 @@ export async function updatePack(source: PackSource, destDir: string): Promise<v
       strip: 1,
       filter: (p) =>
         /\/(agents|skills|commands|rules|memory|mcp-configs)\/|\/(VERSION|\.claude-plugin\/plugin\.json)$/.test(
-          `/${p}`,
+          `/${p}`
         ),
-    }),
+    })
   );
   // flatten .claude-plugin/plugin.json → plugin.json
   const nested = path.join(tmp, '.claude-plugin', 'plugin.json');

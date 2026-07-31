@@ -56,6 +56,35 @@ export async function embedText(text: string): Promise<Float32Array> {
 }
 
 /**
+ * Embed multiple texts in a single batched model call. transformers.js's
+ * feature-extraction pipeline accepts `string[]` natively (its `_call` passes
+ * `texts` straight through to the tokenizer with no reordering — see
+ * node_modules/@huggingface/transformers/src/pipelines/feature-extraction.js),
+ * so a batch of N texts produces one Tensor with `dims = [N, EMBEDDING_DIM]`
+ * and a flat `data` array of length `N * EMBEDDING_DIM`, in the SAME order as
+ * the input texts (verified against the installed 4.2.0 package before this
+ * was written). This is far faster than N sequential `embedText` calls (one
+ * model forward pass instead of N) — the difference measured live during a
+ * prior embedding backfill was ~3.6 rows/sec sequential.
+ *
+ * Returns `[]` for an empty input without invoking the model. Throws (like
+ * `embedText`) if the model fails to load or run — callers that want
+ * resilience against a bad batch should wrap this in retry/fallback logic
+ * (see semantic.ts's `embedFactsBatch`), not swallow errors here.
+ */
+export async function embedTextBatch(texts: string[]): Promise<Float32Array[]> {
+  if (texts.length === 0) return [];
+  const pipe = await getEmbedder();
+  const output = await pipe(texts, { pooling: 'mean', normalize: true });
+  const flat = Float32Array.from(output.data as Iterable<number>);
+  const vectors: Float32Array[] = [];
+  for (let i = 0; i < texts.length; i++) {
+    vectors.push(flat.slice(i * EMBEDDING_DIM, (i + 1) * EMBEDDING_DIM));
+  }
+  return vectors;
+}
+
+/**
  * Compute cosine similarity between two equal-length vectors.
  * Assumes inputs may not be normalized; computes the full cosine.
  * Returns 0 when either vector has zero magnitude or lengths differ.

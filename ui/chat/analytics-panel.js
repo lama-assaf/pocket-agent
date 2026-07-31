@@ -282,7 +282,7 @@ async function _antLoadForCampaign(campaignId) {
 
     if (rows.length === 0) {
       if (listEl) listEl.innerHTML = '';
-      if (emptyEl) emptyEl.classList.remove('hidden');
+      wbShowEmpty(emptyEl);
       return;
     }
     if (emptyEl) emptyEl.classList.add('hidden');
@@ -290,6 +290,14 @@ async function _antLoadForCampaign(campaignId) {
   } catch (err) {
     console.error('[Analytics] Failed to load campaign analytics:', err);
     _antShowToast('Failed to load campaign analytics', 'error');
+    if (listEl) listEl.innerHTML = '';
+    // Single-quoted and escaped (not JSON.stringify, which emits double
+    // quotes) because this expression is interpolated into an onclick="..."
+    // HTML attribute that is itself double-quote-delimited — embedding a
+    // literal `"` here would terminate the attribute early and break the
+    // button's markup.
+    const safeCampaignId = String(campaignId).replace(/'/g, "\\'");
+    wbShowError(emptyEl, err.message || 'Unknown error', `_antLoadForCampaign('${safeCampaignId}')`);
   }
 }
 
@@ -306,7 +314,7 @@ async function _antLoadPosts() {
 
     if (_antRows.length === 0) {
       listEl.innerHTML = '';
-      if (emptyEl) emptyEl.classList.remove('hidden');
+      wbShowEmpty(emptyEl);
       return;
     }
     if (emptyEl) emptyEl.classList.add('hidden');
@@ -315,6 +323,8 @@ async function _antLoadPosts() {
   } catch (err) {
     console.error('[Analytics] Failed to load posts:', err);
     _antShowToast('Failed to load analytics', 'error');
+    listEl.innerHTML = '';
+    wbShowError(emptyEl, err.message || 'Unknown error', '_antLoadPosts()');
   }
 }
 
@@ -451,7 +461,7 @@ function antShowRecordForm(prefill) {
 
   body.innerHTML = `
     <div class="ant-detail-head"><span class="ant-detail-title">Record a snapshot</span></div>
-    <div class="ant-detail-note">Paste numbers straight from X/LinkedIn's own analytics dashboard — no API key needed.</div>
+    <div class="ant-detail-note">Paste numbers straight from X/LinkedIn's own analytics dashboard — no API key needed. Each save adds a new snapshot in time rather than overwriting the last one, so re-entering a post's updated numbers builds a performance-over-time history instead of replacing it.</div>
     ${lockedNote}
     <label class="ant-edit-label" for="ant-new-channel">Channel</label>
     <input class="ant-edit-input" id="ant-new-channel" placeholder="twitter, linkedin…" value="${channelVal}" ${lockedAttrs} />

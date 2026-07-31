@@ -161,7 +161,18 @@ export function buildMcpServerStatusList(params: {
   config: McpMarketplaceConfig;
   resolveScope?: (packId: string, entryId: string) => { enabled: boolean; scope: string };
   /** Live runtime state lookup (roadmap item 5) — see McpServerStatus.runtimeStatus doc. Omitted defaults every entry to 'not_started'. */
-  resolveRuntime?: (id: string) => { status: McpServerStatus['runtimeStatus']; error: string | null };
+  resolveRuntime?: (id: string) => {
+    status: McpServerStatus['runtimeStatus'];
+    error: string | null;
+  };
+  /**
+   * External env values (e.g. the standalone `pocket` CLI's own config store,
+   * see src/config/pocket-cli-fallback.ts) merged UNDER each entry's stored
+   * env — stored/UI values always win. Purely additive: lets `configured`
+   * reflect credentials the user set outside this app's Settings UI. Omitted
+   * defaults to {} (unchanged Phase 3 behavior).
+   */
+  envFallback?: Record<string, string>;
 }): McpServerStatus[] {
   const out: McpServerStatus[] = [];
   const runtimeFor = (id: string): { status: McpServerStatus['runtimeStatus']; error?: string } => {
@@ -193,7 +204,7 @@ export function buildMcpServerStatusList(params: {
   for (const { packId, entry } of params.marketplace) {
     const id = marketplaceEntryId(packId, entry.id);
     const stored = params.config[id];
-    const env = stored?.env ?? {};
+    const env = { ...(params.envFallback ?? {}), ...(stored?.env ?? {}) };
     const scope = params.resolveScope?.(packId, entry.id) ?? { enabled: true, scope: 'default' };
     const runtime = runtimeFor(id);
     out.push({
@@ -264,15 +275,48 @@ export function buildEnabledResolvedServers(params: {
   marketplace: Array<{ packId: string; entry: McpCatalogEntry }>;
   config: McpMarketplaceConfig;
   scopeEnabled?: (packId: string, entryId: string) => boolean;
+  /**
+   * External env values (e.g. the standalone `pocket` CLI's own config
+   * store, see src/config/pocket-cli-fallback.ts) merged UNDER each entry's
+   * stored env — stored/UI values always win. Omitted defaults to {}
+   * (unchanged Phase 3 behavior).
+   */
+  envFallback?: Record<string, string>;
 }): Record<string, ResolvedMcpServer> {
   const out: Record<string, ResolvedMcpServer> = {};
   for (const { packId, entry } of params.marketplace) {
     const id = marketplaceEntryId(packId, entry.id);
     const stored = params.config[id];
-    if (!stored?.enabled) continue;
-    if (!isFullyConfigured(entry, stored.env)) continue;
+
+    // Explicit disable (a stored entry with enabled === false) always wins,
+    // whether that reflects a real user opt-out or just the not-yet-complete
+    // default row `mcp:setServerEnv` creates before every required credential
+    // is filled.
+    if (stored && stored.enabled === false) continue;
+
+    const env = { ...(params.envFallback ?? {}), ...(stored?.env ?? {}) };
+    if (!isFullyConfigured(entry, env)) continue;
+
+    // No stored entry at all means this server was never touched in this
+    // app's Settings UI. Zero-credential entries (extractRequiredEnv === [])
+    // must stay opt-in — trivially "configured" is not consent to run (and
+    // `[].every(...)` is vacuously true, so without this check every
+    // zero-env entry, e.g. hacker-news, would auto-enable unconditionally).
+    // Only bypass that opt-in when the entry actually requires credentials
+    // AND envFallback alone supplies every one of them (e.g. the `pocket`
+    // CLI's config.json already has X_CLIENT_ID/X_CLIENT_SECRET for x-api) —
+    // per the explicit product decision that this should auto-enable x-api
+    // with no manual toggle, regardless of its cost/pay-per-use riskNote.
+    if (!stored) {
+      const required = extractRequiredEnv(entry);
+      const fallback = params.envFallback ?? {};
+      const satisfiedByFallbackAlone =
+        required.length > 0 && required.every((name) => !!fallback[name]);
+      if (!satisfiedByFallbackAlone) continue;
+    }
+
     if (params.scopeEnabled && !params.scopeEnabled(packId, entry.id)) continue;
-    const resolved = resolveMcpServer(entry, stored.env);
+    const resolved = resolveMcpServer(entry, env);
     if (resolved) out[id] = resolved;
   }
   return out;

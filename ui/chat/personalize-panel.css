@@ -3,14 +3,10 @@
 #personalize-view { display: none; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
 #personalize-view.active { display: flex; }
 
-/* Header */
-#personalize-view .pz-header { background: var(--surface-panel); padding: 10px 16px; border-radius: var(--radius-control); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
-#personalize-view .pz-header h1 { font-family: 'Cal Sans', sans-serif; font-size: 14px; font-weight: 700; margin: 0; }
-#personalize-view .pz-header h1 span { color: var(--text-primary); }
-#personalize-view .pz-header-actions { display: flex; gap: 8px; }
-/* Header buttons inherit pill aesthetics from shared/buttons.css.
-   Naked <button> -> cinamon pill. .reboot starts dim (cinamon disabled),
-   gains a pulsing glow when .active. */
+/* Header — base look (.pz-header / .pz-header-actions) comes from
+   shared/panel-header.css. Header buttons inherit pill aesthetics from
+   shared/buttons.css. Naked <button> -> cinamon pill. .reboot starts dim
+   (cinamon disabled), gains a pulsing glow when .active. */
 #personalize-view .pz-header-actions button.reboot.active {
   animation: pzRebootGlow 2s ease-in-out infinite;
 }
@@ -84,6 +80,13 @@
 #personalize-view .pz-form-group .hint { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
 #personalize-view .pz-form-group select { padding: 8px 30px 8px 12px; background-color: var(--surface-card); color: var(--text-primary); border: 1px solid var(--border-subtle); border-radius: var(--radius-control); font-family: 'Roboto', sans-serif; font-size: 14px; outline: none; cursor: pointer; width: 100%; appearance: none; background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a1a1a6' stroke-width='2'%3e%3cpolyline points='6 9 12 15 18 9'/%3e%3c/svg%3e"); background-repeat: no-repeat; background-position: right 12px center; background-size: 16px; }
 #personalize-view .pz-form-group select:focus { border-color: var(--border-subtle); }
+/* The ID-scoped rule above always beats the global `select:focus-visible`
+   rule (ui/shared/ui.css) and its forms.css companion, so the ring needs
+   restating here explicitly. */
+#personalize-view .pz-form-group select:focus-visible {
+  outline: 2px solid var(--client-accent-readable, var(--accent-readable, var(--accent)));
+  outline-offset: 2px;
+}
 #personalize-view .pz-form-group select option { background: var(--surface-panel); color: var(--text-primary); }
 
 /* Autocomplete */

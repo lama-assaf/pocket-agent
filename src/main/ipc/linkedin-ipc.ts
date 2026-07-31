@@ -45,36 +45,46 @@ export function registerLinkedInIPC(deps: IPCDependencies): void {
   // "credentials entered but never signed in", "connected", and "token
   // expired/invalid" so the UI can show an exact, actionable state rather
   // than a generic error.
-  ipcMain.handle('linkedin:getAuthStatus', async (): Promise<{
-    hasAppCredentials: boolean;
-    connected: boolean;
-  }> => {
-    const { LinkedInOAuth } = await import('../../auth/linkedin-oauth');
-    const hasAppCredentials = LinkedInOAuth.hasAppCredentials();
-    if (!hasAppCredentials) return { hasAppCredentials: false, connected: false };
-    try {
-      const token = await Promise.race([
-        LinkedInOAuth.getAccessToken(),
-        new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000)),
-      ]);
-      return { hasAppCredentials: true, connected: token !== null };
-    } catch {
-      return { hasAppCredentials: true, connected: false };
+  ipcMain.handle(
+    'linkedin:getAuthStatus',
+    async (): Promise<{
+      hasAppCredentials: boolean;
+      connected: boolean;
+    }> => {
+      const { LinkedInOAuth } = await import('../../auth/linkedin-oauth');
+      const hasAppCredentials = LinkedInOAuth.hasAppCredentials();
+      if (!hasAppCredentials) return { hasAppCredentials: false, connected: false };
+      try {
+        const token = await Promise.race([
+          LinkedInOAuth.getAccessToken(),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000)),
+        ]);
+        return { hasAppCredentials: true, connected: token !== null };
+      } catch {
+        return { hasAppCredentials: true, connected: false };
+      }
     }
-  });
+  );
 
   // ── Per-scope org URN (which org page this client/world/project tracks) ──
 
-  ipcMain.handle('linkedin:getOrgUrn', async (_, context: SessionContext): Promise<string | null> => {
-    const memory = getMemory();
-    if (!memory) return null;
-    const scope = resolveNearestScope(context);
-    return getLinkedInOrgUrnForScope(memory, scope);
-  });
+  ipcMain.handle(
+    'linkedin:getOrgUrn',
+    async (_, context: SessionContext): Promise<string | null> => {
+      const memory = getMemory();
+      if (!memory) return null;
+      const scope = resolveNearestScope(context);
+      return getLinkedInOrgUrnForScope(memory, scope);
+    }
+  );
 
   ipcMain.handle(
     'linkedin:setOrgUrn',
-    async (_, orgUrn: string, context: SessionContext): Promise<{ success: boolean; error?: string }> => {
+    async (
+      _,
+      orgUrn: string,
+      context: SessionContext
+    ): Promise<{ success: boolean; error?: string }> => {
       const memory = getMemory();
       if (!memory) return { success: false, error: 'Memory not initialized' };
       const scope = resolveNearestScope(context);
@@ -114,7 +124,8 @@ export function registerLinkedInIPC(deps: IPCDependencies): void {
         return {
           ok: false,
           postsWritten: 0,
-          error: 'LinkedIn is not connected (or the session expired) — sign in again in Settings > LinkedIn.',
+          error:
+            'LinkedIn is not connected (or the session expired) — sign in again in Settings > LinkedIn.',
         };
       }
 

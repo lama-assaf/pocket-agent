@@ -21,28 +21,28 @@ Use when a user asks how their Discord or Telegram community is doing, wants to 
 
 ## health signals
 
-| signal | what it measures | watch for |
-|---|---|---|
-| lurker ratio | members who never post vs. total active members | a rising ratio means the server is becoming an audience, not a community |
-| new-member first-message rate | share of new joins who post anything in their first week | a falling rate means onboarding or the welcome flow isn't working |
-| churn signals | members leaving right after announcements, or threads going silent that used to have replies | leaves tied to announcements suggest the announcement itself pushed people out, not general drift |
-| response-time SLA | time between a member question and the first substantive reply | unanswered questions past SLA are the single fastest way to make a community feel abandoned |
+| signal                        | what it measures                                                                             | watch for                                                                                         |
+| ----------------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| lurker ratio                  | members who never post vs. total active members                                              | a rising ratio means the server is becoming an audience, not a community                          |
+| new-member first-message rate | share of new joins who post anything in their first week                                     | a falling rate means onboarding or the welcome flow isn't working                                 |
+| churn signals                 | members leaving right after announcements, or threads going silent that used to have replies | leaves tied to announcements suggest the announcement itself pushed people out, not general drift |
+| response-time SLA             | time between a member question and the first substantive reply                               | unanswered questions past SLA are the single fastest way to make a community feel abandoned       |
 
 ## re-engagement plays
 
-| play | use when |
-|---|---|
-| call-out thread | a specific topic or channel has gone quiet and needs a concrete prompt to restart it |
+| play             | use when                                                                                           |
+| ---------------- | -------------------------------------------------------------------------------------------------- |
+| call-out thread  | a specific topic or channel has gone quiet and needs a concrete prompt to restart it               |
 | member spotlight | lurker ratio is climbing and the community needs a reason to see itself as people, not an audience |
-| low-stakes poll | the server needs a fast, low-effort way to get quiet members posting again before a bigger ask |
+| low-stakes poll  | the server needs a fast, low-effort way to get quiet members posting again before a bigger ask     |
 
 ## 3-tier escalation ladder
 
-| tier | trigger | owner and timing |
-|---|---|---|
-| tier 1 | routine negativity — a complaint, a bad-day rant, ordinary friction | community manager handles directly, no escalation needed |
-| tier 2 | a negative comment gaining traction — e.g., 10+ reactions or replies and still climbing | escalate to the marketing lead within 2 hours |
-| tier 3 | viral negative content, or coordinated brigading | escalate to leadership immediately, no delay for confirmation |
+| tier   | trigger                                                                                 | owner and timing                                              |
+| ------ | --------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| tier 1 | routine negativity — a complaint, a bad-day rant, ordinary friction                     | community manager handles directly, no escalation needed      |
+| tier 2 | a negative comment gaining traction — e.g., 10+ reactions or replies and still climbing | escalate to the marketing lead within 2 hours                 |
+| tier 3 | viral negative content, or coordinated brigading                                        | escalate to leadership immediately, no delay for confirmation |
 
 Name the tier out loud in every escalation note. "This feels bad" is not a tier; match it to a trigger before deciding who gets pulled in.
 

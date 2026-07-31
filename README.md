@@ -1,21 +1,15 @@
-# 🐱 Pocket Agent
+# 🐱 r3to.os
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/KenKaiii/pocket-agent/main/assets/icon_rounded_1024.png" alt="Pocket Agent" width="200">
+  <img src="https://raw.githubusercontent.com/lama-assaf/pocket-agent/main/assets/icon_rounded_1024.png" alt="r3to.os" width="200">
 </p>
 
 <p align="center">
   <strong>Your AI that knows you — and every brand you work for.</strong>
 </p>
 
-<p align="center">
-  <a href="https://github.com/KenKaiii/pocket-agent/releases/latest"><img src="https://img.shields.io/github/v/release/KenKaiii/pocket-agent?include_prereleases&style=for-the-badge" alt="GitHub release"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge" alt="MIT License"></a>
-  <a href="https://youtube.com/@kenkaidoesai"><img src="https://img.shields.io/badge/YouTube-FF0000?style=for-the-badge&logo=youtube&logoColor=white" alt="YouTube"></a>
-  <a href="https://skool.com/kenkai"><img src="https://img.shields.io/badge/Skool-Community-7C3AED?style=for-the-badge" alt="Skool"></a>
-</p>
 
-**Pocket Agent** is an AI that lives in your menu bar 24/7. It remembers everything, learns how you work, and gets better over time.
+**r3to.os** is an AI that lives in your menu bar 24/7. It remembers everything, learns how you work, and gets better over time.
 
 Start in **Personal** — your private brain. Then, when you work with clients, give each brand its own **workspace**: an isolated brain with its own memory, voice, and guardrails that the agent reads and writes as you work — and that syncs to a git repo so your team shares one brain per client. One operator, every client's context in one place.
 
@@ -27,7 +21,7 @@ It's not just a chatbot. It extracts facts, runs automations while you sleep, dr
 
 Every AI assistant starts from zero. Every. Single. Time. And if you juggle multiple clients, they smear together into one generic blur.
 
-Pocket Agent keeps everything — and keeps it *separate*. Personal facts stay private. Each client gets its own brain — voice, positioning, do's and don'ts, lessons learned — that never leaks into another. Pick a client and the agent instantly knows how that brand talks and what it stands for. It uses semantic search to pull up stuff from months ago, and a "soul" system that learns *how* to work with you over time.
+r3to.os keeps everything — and keeps it *separate*. Personal facts stay private. Each client gets its own brain — voice, positioning, do's and don'ts, lessons learned — that never leaks into another. Pick a client and the agent instantly knows how that brand talks and what it stands for. It uses semantic search to pull up stuff from months ago, and a "soul" system that learns *how* to work with you over time.
 
 The more you use it, the more useful it becomes — for you, and for every brand you run.
 
@@ -40,7 +34,7 @@ Pick a client and everything scopes to it — memory, voice, and how it should a
 
 **Shareable brains.** Each brand's memory lives in a git repo. Publish your edits, pull a teammate's — your whole team works from one brain per client, reconciled automatically so nothing gets clobbered.
 
-**Joining a teammate's client.** From the Clients picker, click **Copy setup link** on any client with a repo configured — it copies a compact `pocketagent://join?...` string (repo + client id/name only, never a credential) that's safe to paste in Slack, email, or a notes app. A teammate pastes it via **Join a Client** and Pocket Agent creates the client and pulls its brain immediately (their own GitHub token, set in Settings, is what actually authenticates — the setup link never carries one). Each client's card shows when it was last pulled and flags itself **stale** after 24h with no pull; hit **Pull All** to sweep every live-sync client at once, or set a client's sync mode to `live` (the default) and Pocket Agent auto-pulls it on launch whenever a token is configured.
+**Joining a teammate's client.** From the Clients picker, click **Copy setup link** on any client with a repo configured — it copies a compact `pocketagent://join?...` string (repo + client id/name only, never a credential) that's safe to paste in Slack, email, or a notes app. A teammate pastes it via **Join a Client** and r3to.os creates the client and pulls its brain immediately (their own GitHub token, set in Settings, is what actually authenticates — the setup link never carries one). Each client's card shows when it was last pulled and flags itself **stale** after 24h with no pull; hit **Pull All** to sweep every live-sync client at once, or set a client's sync mode to `live` (the default) and r3to.os auto-pulls it on launch whenever a token is configured.
 
 ### Persistent memory that actually works
 Not just storing messages. It actively extracts and organizes knowledge about you. Projects you're working on. People you mention. Decisions you've made. Preferences you've expressed. All searchable. When you mention something from three months ago, it knows what you're talking about.
@@ -86,8 +80,8 @@ Edit the identity file to change how it talks. Make it formal, casual, terse, ve
 
 | Mac | Link |
 |-----|------|
-| Apple Silicon (M1/M2/M3/M4) | [Download](https://github.com/KenKaiii/pocket-agent/releases/latest) |
-| Intel | [Download](https://github.com/KenKaiii/pocket-agent/releases/latest) |
+| Apple Silicon (M1/M2/M3/M4) | [Download](https://github.com/lama-assaf/pocket-agent/releases/latest) |
+| Intel | [Download](https://github.com/lama-assaf/pocket-agent/releases/latest) |
 
 ### Setup
 
@@ -105,7 +99,7 @@ That's it.
 If you want to talk to it from your phone:
 
 1. Create a bot with [@BotFather](https://t.me/botfather) on Telegram
-2. Copy the token into Pocket Agent settings
+2. Copy the token into r3to.os settings
 3. Message your bot
 
 **Group chats:** You can add the bot to groups. Use `/link SessionName` to connect that group to a specific session. Each group can have its own isolated conversation.
@@ -162,8 +156,10 @@ Most people won't need this stuff, but it's there if you do.
 
 ## 🛠️ For developers
 
+**Requires Node.js 22 or 24** (either current LTS line — see `engines.node` in `package.json`). **Not Node 23 or 25** — those are odd-numbered, non-LTS "Current" releases that are already end-of-life; several of this repo's own dependencies (ESLint, Vitest) explicitly refuse to install under them and will print `EBADENGINE` warnings regardless of this repo's own version pin. Use [nvm](https://github.com/nvm-sh/nvm) / [fnm](https://github.com/Schniz/fnm) / [volta](https://volta.sh) to install and pin a supported version, e.g. `nvm install 22 && nvm use 22`.
+
 ```bash
-git clone https://github.com/KenKaiii/pocket-agent.git
+git clone https://github.com/lama-assaf/pocket-agent.git
 cd pocket-agent
 npm install
 npm run dev
@@ -171,12 +167,7 @@ npm run dev
 
 Stack: Electron + Claude Agent SDK + SQLite + TypeScript
 
----
-
-## 👥 Community
-
-- [YouTube @kenkaidoesai](https://youtube.com/@kenkaidoesai) - tutorials and demos
-- [Skool community](https://skool.com/kenkai) - come hang out
+`better-sqlite3` is a native module rebuilt per-runtime (Electron vs. plain Node) — see [docs/dev-setup.md](./docs/dev-setup.md) if `npm install`/tests ever fail with a `NODE_MODULE_VERSION` error.
 
 ---
 
@@ -191,5 +182,5 @@ MIT
 </p>
 
 <p align="center">
-  <a href="https://github.com/KenKaiii/pocket-agent/releases/latest"><img src="https://img.shields.io/badge/Download-Latest%20Release-blue?style=for-the-badge" alt="Download"></a>
+  <a href="https://github.com/lama-assaf/pocket-agent/releases/latest"><img src="https://img.shields.io/badge/Download-Latest%20Release-blue?style=for-the-badge" alt="Download"></a>
 </p>

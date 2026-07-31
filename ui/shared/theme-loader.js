@@ -16,7 +16,16 @@
     orange: '#ffb86c',
     'user-bubble': '#6272a4',
     'user-bubble-solid': '#6272a4',
-    'assistant-bubble': '#44475a'
+    'assistant-bubble': '#44475a',
+
+    // Operator lane hues (design/product/brand/social) — fixed across every
+    // skin (no theme currently overrides them; see ui/shared/variables.css).
+    // Kept here only so withDerivedPalette can compute a per-theme readable
+    // variant below — same graceful-degradation pattern as accent-readable.
+    'lane-design': '#5b9dff',
+    'lane-product': '#ffb86c',
+    'lane-brand': '#f0608a',
+    'lane-social': '#2dd4bf'
   };
 
   function expandHex(value) {
@@ -76,6 +85,16 @@
     p['success-readable'] = readableOnSurface(p.success, p['bg-primary'], p['text-primary']);
     p['warning-readable'] = readableOnSurface(p.warning, p['bg-primary'], p['text-primary']);
     p['error-readable'] = readableOnSurface(p.error, p['bg-primary'], p['text-primary']);
+    // Lane hues are fixed (not per-skin) but several fall well under 3:1
+    // against light-theme surfaces (e.g. --lane-product on Cream/Light/Dawn
+    // measures ~1.2–2.2:1). Fall back to the theme's own readable heading
+    // color on surfaces where the raw hue can't clear contrast, exactly like
+    // accent-readable above — identity color where it works, legible text
+    // everywhere else.
+    p['lane-design-readable'] = readableOnSurface(p['lane-design'], p['bg-primary'], p['text-primary']);
+    p['lane-product-readable'] = readableOnSurface(p['lane-product'], p['bg-primary'], p['text-primary']);
+    p['lane-brand-readable'] = readableOnSurface(p['lane-brand'], p['bg-primary'], p['text-primary']);
+    p['lane-social-readable'] = readableOnSurface(p['lane-social'], p['bg-primary'], p['text-primary']);
     return p;
   }
 
@@ -86,6 +105,17 @@
       root.style.setProperty('--' + key, next[key]);
     });
   }
+
+  // Shared color-math namespace so other renderer scripts (client-accent.js)
+  // can reuse the same contrast logic instead of re-deriving it — keeps a
+  // single WCAG contrast implementation for the whole app.
+  window.PocketColor = {
+    hexToRgb: hexToRgb,
+    luminance: luminance,
+    contrastRatio: contrastRatio,
+    bestOnColor: bestOnColor,
+    readableOnSurface: readableOnSurface
+  };
 
   window.addEventListener('DOMContentLoaded', function () {
     applyPalette(null);
@@ -98,6 +128,11 @@
       window.pocketAgent.themes.onSkinChanged(function (id) {
         var nextTheme = themes[id];
         applyPalette(nextTheme ? nextTheme.palette : null);
+        // --bg-primary just changed — a --client-accent that cleared 3:1
+        // contrast against the old skin's background may not against the new
+        // one. Recompute --client-accent-readable without re-fetching the
+        // workspace (client-accent.js keeps the last-applied hex around).
+        if (window.ClientAccent) window.ClientAccent.reapplyForSkinChange();
       });
     }).catch(function () {});
   });

@@ -8,7 +8,7 @@ const path = require('path');
  */
 function createDmg(appPath, outputPath, options = {}) {
   const {
-    volumeName = 'Pocket Agent',
+    volumeName = 'r3to.os',
     background = null,
     iconSize = 80,
     windowWidth = 540,

@@ -191,7 +191,7 @@ async function _cntLoadDrafts() {
 
     if (_cntDrafts.length === 0) {
       listEl.innerHTML = '';
-      if (emptyEl) emptyEl.classList.remove('hidden');
+      wbShowEmpty(emptyEl);
       return;
     }
     if (emptyEl) emptyEl.classList.add('hidden');
@@ -200,6 +200,8 @@ async function _cntLoadDrafts() {
   } catch (err) {
     console.error('[Content] Failed to load drafts:', err);
     _cntShowToast('Failed to load content queue', 'error');
+    listEl.innerHTML = '';
+    wbShowError(emptyEl, err.message || 'Unknown error', '_cntLoadDrafts()');
   }
 }
 

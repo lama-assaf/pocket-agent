@@ -7,7 +7,7 @@
 
 import fs from 'fs';
 import type { LaneId } from '../marketplace/types';
-import { rulesForLane, skillsForLane } from '../marketplace/registry';
+import { rulesForLane, skillsForLane, keywordIndexForLane } from '../marketplace/registry';
 import { voiceFileForContext } from '../clients/registry';
 import { howToActFacts, formatBrandVoice, hasVoiceFact } from './how-to-act';
 import type { SessionContext } from '../memory/sessions';
@@ -97,11 +97,19 @@ const KEYWORDS: Record<string, string[]> = {
  * Keyword-triggered context injector — when the user's message matches a
  * known keyword, surface the FULL text of the relevant lane skill/rule into
  * the system prompt (ported from Atelier/Salon's prompt-context hook).
+ *
+ * Keyword coverage merges two sources: the hardcoded KEYWORDS seed above
+ * (fallback for skills that don't declare their own) and each skill's own
+ * frontmatter `keywords:` field (src/marketplace/registry.ts's
+ * keywordIndexForLane) — so a newly-synced skill that declares its own
+ * triggers is picked up automatically, without a KEYWORDS edit here.
  */
 export function buildLaneContextInjection(userMessage: string, lane: LaneId): string {
   const msg = userMessage.toLowerCase();
   const refs = new Set<string>();
   for (const [kw, targets] of Object.entries(KEYWORDS))
+    if (msg.includes(kw)) targets.forEach((t) => refs.add(t));
+  for (const [kw, targets] of Object.entries(keywordIndexForLane(lane)))
     if (msg.includes(kw)) targets.forEach((t) => refs.add(t));
   if (!refs.size) return '';
 

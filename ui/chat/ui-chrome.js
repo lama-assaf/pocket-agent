@@ -51,17 +51,20 @@ function openRoutines() {
 
 async function openDocs() {
   try {
-    await window.pocketAgent.app.openExternal('https://pocketagent-web.vercel.app/docs');
+    await window.pocketAgent.app.openExternal('https://github.com/lama-assaf/pocket-agent/tree/main/docs');
   } catch (err) {
     console.error('Failed to open docs:', err);
   }
 }
 
 function openAbout() {
-  document.getElementById('about-modal').classList.add('show');
+  const modal = document.getElementById('about-modal');
+  modal.classList.add('show');
+  focusTrapActivate(modal, { onEscape: closeAbout });
 }
 
 function closeAbout() {
   document.getElementById('about-modal').classList.remove('show');
+  focusTrapDeactivate();
 }
 

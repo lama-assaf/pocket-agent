@@ -31,7 +31,7 @@ export interface SyncOptions {
 /** Which side wins for a single-owner file when both sides changed it. */
 export type SingleOwnerPreference = 'theirs' | 'ours';
 
-const DEFAULT_AUTHOR: GitIdentity = { name: 'Pocket Agent', email: 'agent@pocket.local' };
+const DEFAULT_AUTHOR: GitIdentity = { name: 'r3to.os', email: 'agent@pocket.local' };
 
 /** GitHub token auth: token as username with a throwaway password. */
 function authFor(token: string): { username: string; password: string } {

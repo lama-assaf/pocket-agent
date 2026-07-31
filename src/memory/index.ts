@@ -66,18 +66,20 @@ import {
   getFact as _getFact,
   getAllFacts as _getAllFacts,
   getFactsForContext as _getFactsForContext,
+  getFactsByCategoryAndScopes as _getFactsByCategoryAndScopes,
   getFactsMemoryUsage as _getFactsMemoryUsage,
   deleteFact as _deleteFact,
   deleteFactBySubject as _deleteFactBySubject,
   searchFacts as _searchFacts,
   getFactsByCategory as _getFactsByCategory,
   getFactCategories as _getFactCategories,
+  getClientDocsMemoryStatus as _getClientDocsMemoryStatus,
   decayFactImportance as _decayFactImportance,
   updateFact as _updateFact,
   setFactSensitive as _setFactSensitive,
   promoteFact as _promoteFact,
 } from './facts';
-import type { FactsCache, Fact } from './facts';
+import type { FactsCache, Fact, ClientDocsMemoryStatus } from './facts';
 import { embedText } from './embeddings';
 import {
   retrieveRelevantFacts as _retrieveRelevantFacts,
@@ -294,11 +296,15 @@ export class MemoryManager {
 
       -- Clients (brands): each is a shared memory scope with an on-disk brain.
       -- One agency, many brands — selecting a client in the UI scopes memory to it.
+      -- accent_color is the user's brand-color override (hex, e.g. "#5b9dff") for
+      -- the client-identity accent; null means "use the id-derived default" (see
+      -- ui/shared/client-accent.js). Personal has no row here and stays neutral.
       CREATE TABLE IF NOT EXISTS clients (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
         sync_mode TEXT NOT NULL DEFAULT 'live' CHECK(sync_mode IN ('live', 'manual')),
         repo_url TEXT,
+        accent_color TEXT,
         created_at TEXT DEFAULT ((strftime('%Y-%m-%dT%H:%M:%fZ'))),
         updated_at TEXT DEFAULT ((strftime('%Y-%m-%dT%H:%M:%fZ')))
       );
@@ -520,6 +526,11 @@ export class MemoryManager {
     // while on an existing DB it was just added. Either way the index is safe here
     // but would fail if placed in the initial schema block (runs before migration).
     this.db.exec(`CREATE INDEX IF NOT EXISTS idx_facts_scope ON facts(scope)`);
+    // Composite index backing getFactsByCategoryAndScopes (enablement/override/
+    // how-to-act resolution) — a `WHERE category = ? AND scope IN (...)` lookup
+    // now hits this index instead of the getAllFacts()+filter full-table scan
+    // those callers used to do on every dispatch.
+    this.db.exec(`CREATE INDEX IF NOT EXISTS idx_facts_category_scope ON facts(category, scope)`);
 
     // Rebuild FTS index from existing facts (after all schema migrations)
     this.rebuildFtsIndex();
@@ -593,6 +604,7 @@ export class MemoryManager {
         name TEXT NOT NULL,
         sync_mode TEXT NOT NULL DEFAULT 'live' CHECK(sync_mode IN ('live', 'manual')),
         repo_url TEXT,
+        accent_color TEXT,
         created_at TEXT DEFAULT ((strftime('%Y-%m-%dT%H:%M:%fZ'))),
         updated_at TEXT DEFAULT ((strftime('%Y-%m-%dT%H:%M:%fZ')))
       );
@@ -610,6 +622,13 @@ export class MemoryManager {
     if (!clientColumns.some((c) => c.name === 'last_pushed_at')) {
       this.db.exec('ALTER TABLE clients ADD COLUMN last_pushed_at TEXT');
       console.log('[Memory] Migrated clients table: added last_pushed_at column');
+    }
+    // Migration: add accent_color to clients (client-identity accent — user's
+    // brand-color override; null falls back to the id-derived default computed
+    // client-side in ui/shared/client-accent.js).
+    if (!clientColumns.some((c) => c.name === 'accent_color')) {
+      this.db.exec('ALTER TABLE clients ADD COLUMN accent_color TEXT');
+      console.log('[Memory] Migrated clients table: added accent_color column');
     }
 
     // Migration: ensure the projects table exists on databases created before
@@ -935,6 +954,16 @@ export class MemoryManager {
       console.log('[Memory] Migrated cron_jobs table: added session_id column');
     }
 
+    // Migration: add content_hash TEXT column to facts (content-hash dedup —
+    // lets docs-import's mirrorMemoryDir skip re-saving/re-embedding a fact
+    // whose content is byte-identical to what's already stored; see
+    // src/memory/atelier-bridge.ts and facts.ts's computeFactContentHash).
+    const factsColsForHash = this.db.pragma('table_info(facts)') as Array<{ name: string }>;
+    if (!factsColsForHash.some((c) => c.name === 'content_hash')) {
+      this.db.exec('ALTER TABLE facts ADD COLUMN content_hash TEXT');
+      console.log('[Memory] Migrated facts table: added content_hash column');
+    }
+
     // Create indexes for session filtering
     try {
       this.db.exec(
@@ -1127,13 +1156,19 @@ export class MemoryManager {
     name: string;
     syncMode?: ClientSyncMode;
     repoUrl?: string | null;
+    accentColor?: string | null;
   }): Client {
     return _createClient(this.db, input);
   }
 
   updateClient(
     id: string,
-    fields: { name?: string; syncMode?: ClientSyncMode; repoUrl?: string | null }
+    fields: {
+      name?: string;
+      syncMode?: ClientSyncMode;
+      repoUrl?: string | null;
+      accentColor?: string | null;
+    }
   ): boolean {
     return _updateClient(this.db, id, fields);
   }
@@ -1359,8 +1394,13 @@ export class MemoryManager {
     return _getAllFacts(this.db);
   }
 
-  getFactsForContext(visibleScopes?: string[]): string {
+  getFactsForContext(visibleScopes: string[]): string {
     return _getFactsForContext(this.db, this.factsCache, visibleScopes);
+  }
+
+  /** Indexed category+scope lookup — see facts.ts's getFactsByCategoryAndScopes doc. */
+  getFactsByCategoryAndScopes(category: string, scopes: string[]): Fact[] {
+    return _getFactsByCategoryAndScopes(this.db, category, scopes);
   }
 
   // ============ SEMANTIC RECALL ============
@@ -1383,7 +1423,7 @@ export class MemoryManager {
     queryEmbedding: Float32Array,
     k: number,
     budgetChars: number,
-    visibleScopes?: string[]
+    visibleScopes: string[]
   ): string {
     return _retrieveRelevantFacts(this.db, queryEmbedding, k, budgetChars, visibleScopes);
   }
@@ -1502,6 +1542,14 @@ export class MemoryManager {
 
   getFactCategories(): string[] {
     return _getFactCategories(this.db);
+  }
+
+  /**
+   * Brain-freshness snapshot (fact count / embedded / pending / last synced)
+   * for a client's imported docs. See ClientDocsMemoryStatus in facts.ts.
+   */
+  getClientDocsMemoryStatus(scope: string): ClientDocsMemoryStatus {
+    return _getClientDocsMemoryStatus(this.db, scope);
   }
 
   // ============ CRON JOB METHODS ============

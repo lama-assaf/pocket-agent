@@ -1,6 +1,6 @@
-# Pocket Agent - Comprehensive Features & Systems Mapping
+# r3to.os - Comprehensive Features & Systems Mapping
 
-**Project**: Pocket Agent Desktop App  
+**Project**: r3to.os Desktop App  
 **Version**: Latest  
 **Description**: Personal AI assistant that remembers you, learns from your interactions, and automates tasks. Lives in your menu bar 24/7 with desktop, Telegram, and iOS interfaces.
 
@@ -1399,7 +1399,7 @@ Channel sends to user
 
 ## 📝 CONCLUSION
 
-**Pocket Agent** is a sophisticated AI assistant desktop application with:
+**r3to.os** is a sophisticated AI assistant desktop application with:
 
 - **45+ tools** across memory, scheduling, calendar, tasks, browser automation, and system integration
 - **3 communication channels** (Desktop, Telegram, iOS) with full feature parity
@@ -1415,4 +1415,4 @@ The system is built for **long-term usefulness** - the more you use it, the bett
 ---
 
 **Last Updated**: March 11, 2025  
-**Repository**: https://github.com/KenKaiii/pocket-agent
+**Repository**: https://github.com/lama-assaf/pocket-agent

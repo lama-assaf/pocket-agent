@@ -94,7 +94,11 @@ export function registerContentIPC(deps: IPCDependencies): void {
   // machine, so this can't be used to skip the approval gate.
   ipcMain.handle(
     'content:setStatus',
-    async (_, id: number, status: ContentDraftStatus): Promise<{ success: boolean; error?: string }> => {
+    async (
+      _,
+      id: number,
+      status: ContentDraftStatus
+    ): Promise<{ success: boolean; error?: string }> => {
       const memory = getMemory();
       if (!memory) return { success: false, error: 'Memory not initialized' };
       const result = memory.setContentDraftStatus(id, status, 'human');
@@ -112,7 +116,13 @@ export function registerContentIPC(deps: IPCDependencies): void {
       _,
       id: number,
       context?: SessionContext
-    ): Promise<{ success: boolean; status?: string; dryRun?: boolean; detail?: string; error?: string }> => {
+    ): Promise<{
+      success: boolean;
+      status?: string;
+      dryRun?: boolean;
+      detail?: string;
+      error?: string;
+    }> => {
       const memory = getMemory();
       if (!memory) return { success: false, error: 'Memory not initialized' };
       const draft = memory.getContentDraft(id);
@@ -139,7 +149,13 @@ export function registerContentIPC(deps: IPCDependencies): void {
       if (!memory) return { success: false, error: 'Memory not initialized' };
       const draft = memory.getContentDraft(id);
       if (!draft) return { success: false, error: `Draft #${id} not found.` };
-      const result = scheduleApprovedDraft(memory, draft, scheduledFor, 'human', CONTENT_UI_SESSION_ID);
+      const result = scheduleApprovedDraft(
+        memory,
+        draft,
+        scheduledFor,
+        'human',
+        CONTENT_UI_SESSION_ID
+      );
       return { success: result.ok, scheduledFor: result.scheduledFor, error: result.error };
     }
   );
