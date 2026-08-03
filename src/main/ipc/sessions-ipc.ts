@@ -265,6 +265,27 @@ export function registerSessionsIPC(deps: IPCDependencies): void {
     }
   );
 
+  // Per-client GitHub token override (src/clients/tokens.ts) — for brands
+  // whose repos live under an org the operator's default token can't reach.
+  // The token itself never round-trips to the renderer: set/clear only, with
+  // a masked status (hasOwnToken/last4) for display.
+  ipcMain.handle('clients:setGithubToken', async (_, id: string, token: string | null) => {
+    try {
+      const memory = getMemory();
+      if (!memory?.getClient(id)) return { success: false, error: 'Unknown client' };
+      const { setClientToken } = await import('../../clients/tokens');
+      setClientToken(id, token);
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: (err as Error).message };
+    }
+  });
+
+  ipcMain.handle('clients:githubTokenStatus', async (_, id: string) => {
+    const { clientTokenStatus } = await import('../../clients/tokens');
+    return clientTokenStatus(id);
+  });
+
   ipcMain.handle('sessions:delete', async (_, id: string) => {
     AgentManager.clearQueue(id);
     AgentManager.cleanupSession(id);

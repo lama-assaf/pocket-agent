@@ -84,6 +84,9 @@ contextBridge.exposeInMainWorld('pocketAgent', {
       ingestToMemory?: boolean;
     }) => ipcRenderer.invoke('clients:importDocs', input),
     memoryStatus: (clientId: string) => ipcRenderer.invoke('clients:memoryStatus', clientId),
+    setGithubToken: (id: string, token: string | null) =>
+      ipcRenderer.invoke('clients:setGithubToken', id, token),
+    githubTokenStatus: (id: string) => ipcRenderer.invoke('clients:githubTokenStatus', id),
   },
   projects: {
     list: (clientId: string) => ipcRenderer.invoke('projects:list', clientId),

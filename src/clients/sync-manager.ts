@@ -156,7 +156,7 @@ export interface AutoPullResult {
  */
 export async function autoPullLiveClients(
   memory: MemoryManager,
-  token: string,
+  token: string | ((clientId: string) => string),
   options?: {
     /**
      * Return true to exclude a client from this pull sweep — used by the
@@ -173,10 +173,13 @@ export async function autoPullLiveClients(
     .filter((c) => !options?.skip?.(c.id));
   const results: AutoPullResult[] = [];
   for (const client of clients) {
+    // Per-client token resolution (a function lets each client use its own
+    // token override — src/clients/tokens.ts); a plain string applies to all.
+    const clientToken = typeof token === 'function' ? token(client.id) : token;
     const repo: BrainRepo = {
       dir: clientPaths(client.id).rootDir,
       url: client.repo_url || '',
-      token,
+      token: clientToken,
     };
     const result = await pullBrainRepo(repo);
     if (result.ok) memory.touchClientPulled(client.id);

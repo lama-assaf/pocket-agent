@@ -13,6 +13,7 @@
 import fs from 'fs';
 import path from 'path';
 import { SettingsManager } from '../settings';
+import { tokenForScope } from './tokens';
 import type { MemoryManager } from '../memory/index';
 
 export interface BrainRepoLocation {
@@ -21,12 +22,16 @@ export interface BrainRepoLocation {
   token: string;
 }
 
-/** Resolve the on-disk repo + remote for a scope ('world' or a client id). */
+/**
+ * Resolve the on-disk repo + remote for a scope ('world' or a client id).
+ * Token resolution is per-scope: a client's own token override wins over the
+ * global github.token (src/clients/tokens.ts).
+ */
 export async function resolveBrainRepo(
   memory: MemoryManager | null,
   scope: string
 ): Promise<BrainRepoLocation | null> {
-  const token = SettingsManager.get('github.token') || '';
+  const token = tokenForScope(scope);
   const { getWorldRoot, clientPaths } = await import('./paths');
   if (scope === 'world') {
     return { dir: getWorldRoot(), url: SettingsManager.get('sync.world.repoUrl') || '', token };

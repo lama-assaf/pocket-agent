@@ -124,6 +124,43 @@ describe('autoPullLiveClients', () => {
     memory.close();
   });
 
+  it('resolves the token per client when given a resolver function', async () => {
+    memory.createClient({ id: 'zilliqa', name: 'Zilliqa', syncMode: 'live', repoUrl: 'https://x/z' });
+    memory.createClient({ id: 'acme', name: 'Acme', syncMode: 'live', repoUrl: 'https://x/a' });
+    isRepoMock.mockResolvedValue(false);
+    cloneBrainMock.mockResolvedValue(undefined);
+
+    const results = await autoPullLiveClients(memory, (clientId) =>
+      clientId === 'zilliqa' ? 'zil-tok' : 'global-tok'
+    );
+
+    expect(results.every((r) => r.ok)).toBe(true);
+    expect(cloneBrainMock).toHaveBeenCalledWith(
+      expect.objectContaining({ url: 'https://x/z', token: 'zil-tok' })
+    );
+    expect(cloneBrainMock).toHaveBeenCalledWith(
+      expect.objectContaining({ url: 'https://x/a', token: 'global-tok' })
+    );
+    memory.close();
+  });
+
+  it('a resolver returning "" for one client degrades just that client to the soft no-op', async () => {
+    memory.createClient({ id: 'has-tok', name: 'Has', syncMode: 'live', repoUrl: 'https://x/h' });
+    memory.createClient({ id: 'no-tok', name: 'No', syncMode: 'live', repoUrl: 'https://x/n' });
+    isRepoMock.mockResolvedValue(false);
+    cloneBrainMock.mockResolvedValue(undefined);
+
+    const results = await autoPullLiveClients(memory, (clientId) =>
+      clientId === 'has-tok' ? 'tok' : ''
+    );
+
+    expect(results.find((r) => r.id === 'has-tok')?.ok).toBe(true);
+    expect(results.find((r) => r.id === 'no-tok')?.ok).toBe(false);
+    expect(results.find((r) => r.id === 'no-tok')?.error).toMatch(/not configured/);
+    expect(cloneBrainMock).toHaveBeenCalledTimes(1);
+    memory.close();
+  });
+
   it('a missing token still returns results with a "not configured" soft error, never throws', async () => {
     memory.createClient({ id: 'acme', name: 'Acme', syncMode: 'live', repoUrl: 'https://x/acme' });
     const results = await autoPullLiveClients(memory, '');

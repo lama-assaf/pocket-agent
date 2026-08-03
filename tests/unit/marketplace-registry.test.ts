@@ -14,6 +14,10 @@ describe('registry lane maps', () => {
     expect(skillsForLane('product').some((s) => s.name === 'prd-writing')).toBe(true);
     expect(skillsForLane('social').length).toBeGreaterThanOrEqual(15);
   });
+  it("associates the private zilliqa pack with the zilliqa client's token", () => {
+    const z = PACK_SOURCES.find((p) => p.id === 'zilliqa-brand-identity');
+    expect(z?.tokenClientId).toBe('zilliqa');
+  });
   it('puts the zilliqa brand pack skills in the design lane', () => {
     const design = skillsForLane('design');
     expect(design.some((s) => s.name === 'zilliqa-brand')).toBe(true);

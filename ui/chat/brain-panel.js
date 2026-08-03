@@ -211,6 +211,24 @@ function _initBrainPanel() {
   const publishBtn = document.getElementById('brain-publish-btn');
   if (publishBtn) publishBtn.addEventListener('click', () => { playNormalClick(); brainPublishActive(); });
 
+  // Per-client GitHub token override (key button + popover, client scopes only).
+  const tokenBtn = document.getElementById('brain-token-btn');
+  if (tokenBtn) tokenBtn.addEventListener('click', () => { playNormalClick(); brainTokenTogglePop(); });
+  const tokenSaveBtn = document.getElementById('brain-token-save-btn');
+  if (tokenSaveBtn) tokenSaveBtn.addEventListener('click', () => { playNormalClick(); brainTokenSave(); });
+  const tokenClearBtn = document.getElementById('brain-token-clear-btn');
+  if (tokenClearBtn) tokenClearBtn.addEventListener('click', () => { playNormalClick(); brainTokenUseDefault(); });
+  const tokenInput = document.getElementById('brain-token-input');
+  if (tokenInput) tokenInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') brainTokenSave(); });
+  // Click-away closes the popover (but clicks inside it, incl. the key button, don't).
+  document.addEventListener('click', (e) => {
+    const pop = document.getElementById('brain-token-pop');
+    if (!pop || pop.hidden) return;
+    if (!pop.contains(e.target) && !document.getElementById('brain-token-btn')?.contains(e.target)) {
+      pop.hidden = true;
+    }
+  });
+
   // Brand color picker (World / client scopes only — see _bpRefreshAccentRow).
   const accentInput = document.getElementById('bp-accent-input');
   if (accentInput) {
@@ -808,7 +826,108 @@ async function _brainUpdateSyncBar() {
     return;
   }
   bar.hidden = false;
+  _brainUpdateTokenControl(scope);
   _brainRefreshSyncStatus(scope);
+}
+
+// ---- Per-client GitHub token override (src/clients/tokens.ts) ----
+
+// The key button shows only for client scopes — World always syncs with the
+// operator's default token (it's their own shared base, not a brand). Scope
+// changes also close the popover so it never shows one brand's status while
+// the bar has moved to another.
+function _brainUpdateTokenControl(scope) {
+  const btn = document.getElementById('brain-token-btn');
+  const pop = document.getElementById('brain-token-pop');
+  if (!btn) return;
+  const isClient = scope !== 'world';
+  btn.hidden = !isClient;
+  if (pop) pop.hidden = true;
+  if (isClient) _brainRefreshTokenStatus(scope);
+}
+
+// Refresh the masked status line + button state. Never receives the token
+// itself — the IPC surface only reports hasOwnToken/last4/hasDefaultToken.
+async function _brainRefreshTokenStatus(scope) {
+  const btn = document.getElementById('brain-token-btn');
+  const statusEl = document.getElementById('brain-token-status');
+  const clearBtn = document.getElementById('brain-token-clear-btn');
+  try {
+    const s = await window.pocketAgent.clients.githubTokenStatus(scope);
+    if (btn) {
+      btn.classList.toggle('brain-token-btn--override', !!s.hasOwnToken);
+      btn.title = s.hasOwnToken
+        ? `Using a client token (••••${s.last4}) for this brand`
+        : 'GitHub token for this brand';
+    }
+    if (statusEl) {
+      statusEl.textContent = s.hasOwnToken
+        ? `Using a client token ••••${s.last4}`
+        : s.hasDefaultToken
+          ? 'Using your default GitHub token (Settings)'
+          : 'No token yet — paste one below, or connect GitHub in Settings.';
+    }
+    if (clearBtn) clearBtn.hidden = !s.hasOwnToken;
+  } catch {
+    if (statusEl) statusEl.textContent = 'Token status unavailable.';
+    if (clearBtn) clearBtn.hidden = true;
+  }
+}
+
+function brainTokenTogglePop() {
+  const pop = document.getElementById('brain-token-pop');
+  const scope = _brainSyncScope();
+  if (!pop || !scope || scope === 'world') return;
+  pop.hidden = !pop.hidden;
+  if (!pop.hidden) {
+    _brainRefreshTokenStatus(scope);
+    const input = document.getElementById('brain-token-input');
+    if (input) {
+      input.value = '';
+      input.focus();
+    }
+  }
+}
+
+async function brainTokenSave() {
+  const scope = _brainSyncScope();
+  const input = document.getElementById('brain-token-input');
+  if (!scope || scope === 'world' || !input) return;
+  const token = input.value.trim();
+  if (!token) return;
+  try {
+    const res = await window.pocketAgent.clients.setGithubToken(scope, token);
+    if (!res.success) {
+      _brainShowToast(res.error || 'Could not save token', 'error');
+      return;
+    }
+    input.value = '';
+    _brainShowToast('Client token saved', 'success');
+    _brainRefreshTokenStatus(scope);
+    // A token appearing can flip the scope from "not configured" to syncable.
+    _brainRefreshSyncStatus(scope);
+  } catch (err) {
+    console.error('[Brain] Token save failed:', err);
+    _brainShowToast('Could not save token', 'error');
+  }
+}
+
+async function brainTokenUseDefault() {
+  const scope = _brainSyncScope();
+  if (!scope || scope === 'world') return;
+  try {
+    const res = await window.pocketAgent.clients.setGithubToken(scope, null);
+    if (!res.success) {
+      _brainShowToast(res.error || 'Could not clear token', 'error');
+      return;
+    }
+    _brainShowToast('Using default token', 'success');
+    _brainRefreshTokenStatus(scope);
+    _brainRefreshSyncStatus(scope);
+  } catch (err) {
+    console.error('[Brain] Token clear failed:', err);
+    _brainShowToast('Could not clear token', 'error');
+  }
 }
 
 // Relative-time label for a sync timestamp, e.g. "3h ago" — mirrors
@@ -852,7 +971,7 @@ async function _brainRefreshSyncStatus(scope) {
     if (!s.configured) {
       el.textContent = 'not configured';
       el.classList.remove('brain-sync-stale');
-      _brainSetSyncButtonsEnabled(false, 'Set a repo URL and GitHub token in Settings to enable sync for this brand.');
+      _brainSetSyncButtonsEnabled(false, 'Set a repo URL and a GitHub token (Settings, or this brand’s key button) to enable sync.');
       return;
     }
     _brainSetSyncButtonsEnabled(true);

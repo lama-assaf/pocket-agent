@@ -140,13 +140,16 @@ export async function updatePack(
 
 export class PackSyncManager {
   /**
-   * `getToken` supplies a GitHub token at check time (not construction time,
-   * so a token added in Settings mid-session is picked up by the next check).
-   * Empty string = unauthenticated, which only works for public pack repos.
+   * `getToken` supplies a GitHub token per source at check time (not
+   * construction time, so a token added in Settings mid-session is picked up
+   * by the next check). Receiving the source lets the caller honor
+   * `PackSource.tokenClientId` (a client's own token override) without this
+   * module depending on the clients/settings layers. Empty string =
+   * unauthenticated, which only works for public pack repos.
    */
   constructor(
     private sources: PackSource[],
-    private getToken: () => string = () => ''
+    private getToken: (source: PackSource) => string = () => ''
   ) {}
 
   async ensureInstalled(): Promise<void> {
@@ -158,9 +161,9 @@ export class PackSyncManager {
 
   async checkAndUpdate(): Promise<{ id: string; updated: boolean; sha: string }[]> {
     const root = getPluginsRoot();
-    const token = this.getToken();
     const out: { id: string; updated: boolean; sha: string }[] = [];
     for (const s of this.sources) {
+      const token = this.getToken(s);
       const dest = path.join(root, s.id);
       const shaFile = path.join(dest, '.sha');
       const extractorFile = path.join(dest, EXTRACTOR_VERSION_FILE);

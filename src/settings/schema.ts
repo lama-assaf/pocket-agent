@@ -299,6 +299,16 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     type: 'password',
   },
   {
+    key: 'github.clientTokens',
+    defaultValue: '',
+    encrypted: true,
+    category: 'sync',
+    label: 'Per-Client GitHub Tokens',
+    description:
+      "JSON map of client id → token override, for brands whose repos live under a different GitHub org than your default token can reach. Managed from The Brain's sync bar (per client), not edited directly. Falls back to github.token per client (src/clients/tokens.ts). Stored encrypted, never synced to any repo.",
+    type: 'password',
+  },
+  {
     key: 'github.authMethod',
     defaultValue: '',
     encrypted: false,

@@ -956,6 +956,21 @@
           <span class="brain-sync-pending-dot" id="brain-sync-pending" title="Local changes queued to push" hidden></span>
           <button id="brain-pull-btn">Pull</button>
           <button id="brain-publish-btn">Publish</button>
+          <!-- Per-client GitHub token override (client scopes only — World always
+               uses the default token from Settings). See src/clients/tokens.ts. -->
+          <button id="brain-token-btn" class="brain-token-btn" title="GitHub token for this brand" aria-label="GitHub token for this brand" hidden>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="M10.9 12.1 20 3m-3 3 3 3m-6 0 2 2"/></g></svg>
+          </button>
+          <div class="brain-token-pop" id="brain-token-pop" hidden>
+            <div class="brain-token-pop-title">GitHub token for this brand</div>
+            <div class="brain-token-status" id="brain-token-status">…</div>
+            <div class="brain-token-row">
+              <input type="password" id="brain-token-input" placeholder="ghp_... or github_pat_..." autocomplete="off">
+              <button id="brain-token-save-btn">Save</button>
+            </div>
+            <button id="brain-token-clear-btn" class="brain-token-clear" hidden>Use default token instead</button>
+            <p class="brain-token-hint">Overrides your default GitHub token (Settings) for this brand only — use a token from the client's own org when its repos aren't visible to your account. Stored encrypted on this machine; never synced or included in setup links.</p>
+          </div>
         </span>
         <button onclick="playNormalClick(); hideBrainPanel()">Back</button>
         <button onclick="playNormalClick(); brainRefresh()">Refresh</button>

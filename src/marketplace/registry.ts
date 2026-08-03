@@ -18,14 +18,16 @@ export const PACK_SOURCES: PackSource[] = [
     branch: 'main',
   },
   { id: 'salon', name: 'Salon', lanes: ['social'], repo: 'lama-assaf/salon', branch: 'main' },
-  // Private repo — syncs only when Settings → GitHub has a token with access
-  // (PackSyncManager passes `github.token`); otherwise the bundled seed copy serves.
+  // Private repo — syncs only when a token with access is configured: the
+  // 'zilliqa' client's token override, else the global github.token
+  // (Settings → GitHub). Otherwise the bundled seed copy serves.
   {
     id: 'zilliqa-brand-identity',
     name: 'Zilliqa Brand',
     lanes: ['design'],
     repo: 'Zilliqa/zilliqa-brand-plugin',
     branch: 'main',
+    tokenClientId: 'zilliqa',
   },
 ];
 

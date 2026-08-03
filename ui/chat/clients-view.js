@@ -828,7 +828,7 @@ function cvSetupStringPrompt() {
       <div class="modal cv-prompt">
         <div class="modal-header"><div class="modal-title"><h2 id="cv-join-title">Join a client</h2></div></div>
         <div class="modal-body">
-          <p class="cv-join-hint">Paste the setup link a teammate shared with you. Make sure your GitHub token is set in Settings first so the initial pull can authenticate.</p>
+          <p class="cv-join-hint">Paste the setup link a teammate shared with you. Make sure your GitHub token is set in Settings first so the initial pull can authenticate. (After joining, you can also give the client its own token from The Brain's sync bar if its repos live under a different org.)</p>
           <textarea class="cv-prompt-input cv-join-textarea" rows="3" placeholder="pocketagent://join?..." aria-label="Client setup link"></textarea>
           <div class="cv-prompt-actions">
             <button class="cv-prompt-cancel">Cancel</button>

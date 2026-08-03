@@ -6,6 +6,15 @@ export interface PackSource {
   lanes: LaneId[];
   repo: string; // 'lama-assaf/atelier'
   branch: string; // 'main'
+  /**
+   * Client whose GitHub token authenticates this pack's sync — for a private
+   * pack repo owned by the same org as a client's brain (e.g. the Zilliqa
+   * pack uses the 'zilliqa' client's token override when one is set). The
+   * marketplace stays clients-free: main/index.ts's getToken callback is
+   * what maps this id to an actual token (src/clients/tokens.ts), falling
+   * back to the global github.token either way.
+   */
+  tokenClientId?: string;
 }
 
 export interface PackAgent {

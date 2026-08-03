@@ -24,6 +24,7 @@ import { ensureWorldScaffold, ensureClientScaffold } from '../clients/registry';
 import { seedDefaultClients } from '../clients/seed';
 import { loadClientSeeds } from '../clients/seed-loader';
 import { DebouncedPusher, autoPullLiveClients } from '../clients/sync-manager';
+import { tokenForScope } from '../clients/tokens';
 import {
   remirrorScope,
   remirrorImportedDocsForScope,
@@ -157,7 +158,7 @@ function scheduleLiveSyncPush(scope: string): void {
   const clientId = scope.slice('client:'.length);
   const client = memory.getClient(clientId);
   if (!client || client.sync_mode !== 'live' || !client.repo_url) return;
-  const token = SettingsManager.get('github.token') || '';
+  const token = tokenForScope(clientId);
   if (!token) return;
   const dir = clientPaths(clientId).rootDir;
   liveSyncPusher.schedule(
@@ -796,11 +797,14 @@ app.whenReady().then(async () => {
     // never abort core agent initialization further down this block.
     try {
       setPluginsRoot(path.join(app.getPath('userData'), 'plugins'));
-      // github.token lets private pack repos (e.g. zilliqa-brand-identity) sync;
-      // resolved lazily per check so a token added in Settings later still works.
-      const packSync = new PackSyncManager(
-        PACK_SOURCES,
-        () => SettingsManager.get('github.token') || ''
+      // Private pack repos (e.g. zilliqa-brand-identity) sync with the token
+      // of their associated client when one is set (tokenClientId → per-client
+      // override), else the global github.token. Resolved lazily per check so
+      // a token added in Settings later still works.
+      const packSync = new PackSyncManager(PACK_SOURCES, (source) =>
+        source.tokenClientId
+          ? tokenForScope(source.tokenClientId)
+          : SettingsManager.get('github.token') || ''
       );
       await packSync.ensureInstalled();
       void packSync
@@ -925,10 +929,11 @@ app.whenReady().then(async () => {
       const capturedMemory = memory;
       void (async () => {
         try {
-          const token = SettingsManager.get('github.token') || '';
-          if (!token) return;
           const { autoPullLiveClients } = await import('../clients/sync-manager');
-          const results = await autoPullLiveClients(capturedMemory, token);
+          // Per-client token resolution: a client's own override wins over the
+          // global github.token. Clients with no token at all degrade to the
+          // soft "not configured" no-op inside pullBrainRepo — still silent here.
+          const results = await autoPullLiveClients(capturedMemory, tokenForScope);
           const pulled = results.filter((r) => r.ok);
           if (pulled.length === 0) return;
           console.log(
@@ -1054,17 +1059,18 @@ app.whenReady().then(async () => {
       const capturedMemory = memory;
       const runLiveSyncPull = async (): Promise<void> => {
         try {
-          const token = SettingsManager.get('github.token') || '';
-          if (!token) return;
-          const results = await autoPullLiveClients(capturedMemory, token, {
+          // Per-client token resolution (override → global fallback).
+          const results = await autoPullLiveClients(capturedMemory, tokenForScope, {
             skip: (clientId) => liveSyncPusher.isPending(clientPaths(clientId).rootDir),
           });
           const pulled = results.filter((r) => r.ok);
-          // Every client here already has a repo_url + a token was confirmed
-          // above, so a failure is a real network/auth/git error — not the
-          // "sync not configured" soft no-op — worth an error toast (the one
-          // exception to "background sync stays quiet").
-          for (const r of results.filter((r) => !r.ok)) {
+          // Every client here already has a repo_url, so a failure is a real
+          // network/auth/git error — worth an error toast (the one exception
+          // to "background sync stays quiet") — EXCEPT the "sync not
+          // configured" soft no-op, which just means that client has no token
+          // (own or global) yet; toasting that every tick would nag users who
+          // haven't set up sync at all.
+          for (const r of results.filter((r) => !r.ok && r.error !== 'sync not configured')) {
             notifyBackgroundSyncError(r.id, 'pull', r.error || 'Background pull failed');
           }
           if (pulled.length === 0) return;

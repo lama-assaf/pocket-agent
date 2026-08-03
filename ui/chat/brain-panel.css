@@ -396,6 +396,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  position: relative; /* anchors the token popover */
 }
 #brain-view .brain-sync[hidden] {
   display: none;
@@ -438,6 +439,66 @@
 @keyframes brain-sync-pending-pulse {
   0%, 100% { opacity: 0.35; }
   50% { opacity: 1; }
+}
+
+/* Per-client GitHub token override (key button + popover). Client scopes
+   only — World always uses the default token, so the button hides there. */
+#brain-view .brain-token-btn svg {
+  width: 14px;
+  height: 14px;
+  display: block;
+}
+#brain-view .brain-token-btn[hidden] {
+  display: none;
+}
+/* Subtle cue that this brand runs on its own token, not the default. */
+#brain-view .brain-token-btn.brain-token-btn--override {
+  color: var(--accent, #6b8afd);
+}
+#brain-view .brain-token-pop {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 30;
+  width: 320px;
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--bg-secondary, #1d1d22);
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  text-align: left;
+}
+#brain-view .brain-token-pop[hidden] {
+  display: none;
+}
+#brain-view .brain-token-pop-title {
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+#brain-view .brain-token-status {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+#brain-view .brain-token-row {
+  display: flex;
+  gap: 6px;
+}
+#brain-view .brain-token-row input {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+}
+#brain-view .brain-token-clear {
+  margin-top: 6px;
+  font-size: 11px;
+}
+#brain-view .brain-token-hint {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin: 8px 0 0;
+  line-height: 1.4;
 }
 
 /* Spaces tab — cards for each shared memory space + sync actions */
