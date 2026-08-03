@@ -15,7 +15,7 @@ import { createScheduler, CronScheduler } from '../scheduler';
 import { createTelegramBot, TelegramBot } from '../channels/telegram';
 import { SettingsManager, createElectronEncryptionProvider } from '../settings';
 import { DEFAULT_COMMANDS } from '../config/commands';
-import { getBrowserManager } from '../browser';
+import { getBrowserManager, forEachBrowserManager } from '../browser';
 import { setPluginsRoot } from '../marketplace/paths';
 import { PackSyncManager } from '../marketplace/sync';
 import { PACK_SOURCES } from '../marketplace/registry';
@@ -819,12 +819,13 @@ app.whenReady().then(async () => {
 
     powerMonitor.on('resume', () => {
       console.log('[Power] System resumed from sleep');
-      // Force CDP reconnection — WebSocket is dead after sleep
-      getBrowserManager()
-        .forceReconnectCdp()
-        .catch((err) => {
+      // Force CDP reconnection for every active session's manager — the
+      // WebSocket is dead after sleep regardless of which session opened it.
+      forEachBrowserManager((manager) => {
+        manager.forceReconnectCdp().catch((err) => {
           console.warn('[Power] CDP reconnect after resume failed:', err);
         });
+      });
     });
 
     // Handle lock screen (display off but CPU running)
@@ -834,12 +835,13 @@ app.whenReady().then(async () => {
 
     powerMonitor.on('unlock-screen', () => {
       console.log('[Power] Screen unlocked');
-      // Force CDP reconnection — connection may have gone stale during lock
-      getBrowserManager()
-        .forceReconnectCdp()
-        .catch((err) => {
+      // Force CDP reconnection for every active session's manager —
+      // connection may have gone stale during lock regardless of session.
+      forEachBrowserManager((manager) => {
+        manager.forceReconnectCdp().catch((err) => {
           console.warn('[Power] CDP reconnect after unlock failed:', err);
         });
+      });
     });
 
     // Set Dock icon on macOS

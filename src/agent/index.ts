@@ -12,7 +12,7 @@ import {
   setGetCurrentModeCallback,
   addOnHandoffCallback,
 } from '../tools/agent-mode-tools';
-import { closeBrowserManager } from '../browser';
+import { closeAllBrowserManagers } from '../browser';
 import { SettingsManager } from '../settings';
 import { EventEmitter } from 'events';
 import { setStatusEmitter } from './safety';
@@ -47,7 +47,8 @@ export type AgentStatus = {
     | 'partial_text'
     | 'plan_mode_entered'
     | 'plan_mode_exited'
-    | 'memory_compacting';
+    | 'memory_compacting'
+    | 'cwd_collision';
   sessionId?: string;
   toolName?: string;
   toolInput?: string;
@@ -76,6 +77,8 @@ export type AgentStatus = {
   backgroundTaskId?: string;
   backgroundTaskDescription?: string;
   backgroundTaskCount?: number;
+  // Coder-mode working directory collision (see ChatEngine.warnOnCoderCwdCollision)
+  conflictSessionId?: string;
 };
 
 // Image content for multimodal messages
@@ -507,7 +510,9 @@ class AgentManagerClass extends EventEmitter {
   }
 
   cleanup(): void {
-    closeBrowserManager();
+    // Full app shutdown — tear down every session's browser manager, not
+    // just the caller's current session.
+    closeAllBrowserManagers();
     console.log('[AgentManager] Cleanup complete');
   }
 }

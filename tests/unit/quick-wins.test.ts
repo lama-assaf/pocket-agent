@@ -68,6 +68,7 @@ vi.mock('../../src/agent/chat-tools', () => ({
 vi.mock('../../src/tools', () => ({
   setCurrentSessionId: vi.fn(),
   runWithSessionId: vi.fn((_id: string, fn: () => unknown) => fn()),
+  getCurrentSessionId: vi.fn(() => 'test-session'),
 }));
 
 import { ChatEngine } from '../../src/agent/chat-engine';
@@ -93,6 +94,7 @@ function createEngine() {
     getSessionWorkingDirectory: vi.fn(() => null),
     getFactsMemoryUsage: vi.fn(() => ({ usedChars: 0, budgetChars: 50000, pct: 0 })),
     getSoulMemoryUsage: vi.fn(() => ({ usedChars: 0, budgetChars: 50000, pct: 0 })),
+    getSessionModel: vi.fn(() => null),
   };
   const engine = new ChatEngine({
     memory: memory as never,

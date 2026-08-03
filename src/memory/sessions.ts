@@ -32,6 +32,8 @@ export interface Session {
   context_type?: ContextType;
   client_id?: string | null;
   project_key?: string | null;
+  /** Per-session model override. null/undefined = fall back to the global `agent.model` setting. */
+  model?: string | null;
 }
 
 /**
@@ -88,7 +90,7 @@ export function getSessionByName(db: Database.Database, name: string): Session |
   const row = db
     .prepare(
       `
-      SELECT id, name, mode, working_directory, context_type, client_id, project_key, created_at, updated_at
+      SELECT id, name, mode, working_directory, context_type, client_id, project_key, model, created_at, updated_at
       FROM sessions
       WHERE name = ?
     `
@@ -105,7 +107,7 @@ export function getSession(db: Database.Database, id: string): Session | null {
   const row = db
     .prepare(
       `
-      SELECT id, name, mode, working_directory, context_type, client_id, project_key, created_at, updated_at
+      SELECT id, name, mode, working_directory, context_type, client_id, project_key, model, created_at, updated_at
       FROM sessions
       WHERE id = ?
     `
@@ -128,6 +130,7 @@ export function getSessions(db: Database.Database): Session[] {
     context_type: string | null;
     client_id: string | null;
     project_key: string | null;
+    model: string | null;
     created_at: string;
     updated_at: string;
     telegram_linked: number;
@@ -145,6 +148,7 @@ export function getSessions(db: Database.Database): Session[] {
         s.context_type,
         s.client_id,
         s.project_key,
+        s.model,
         s.created_at,
         s.updated_at,
         s.pulse_enabled,
@@ -165,6 +169,7 @@ export function getSessions(db: Database.Database): Session[] {
     context_type: (row.context_type as ContextType) || 'personal',
     client_id: row.client_id,
     project_key: row.project_key,
+    model: row.model,
     created_at: row.created_at,
     updated_at: row.updated_at,
     telegram_linked: !!row.telegram_linked,
@@ -317,6 +322,36 @@ export function setSessionMode(
     `
     )
     .run(mode, sessionId);
+  return result.changes > 0;
+}
+
+/**
+ * Get a session's model override (null = no override — caller should fall
+ * back to the global `agent.model` setting).
+ */
+export function getSessionModel(db: Database.Database, sessionId: string): string | null {
+  const row = db.prepare('SELECT model FROM sessions WHERE id = ?').get(sessionId) as
+    | { model: string | null }
+    | undefined;
+  return row?.model ?? null;
+}
+
+/**
+ * Set (or clear, with `null`) a session's model override.
+ */
+export function setSessionModel(
+  db: Database.Database,
+  sessionId: string,
+  model: string | null
+): boolean {
+  const result = db
+    .prepare(
+      `
+      UPDATE sessions SET model = ?, updated_at = (strftime('%Y-%m-%dT%H:%M:%fZ'))
+      WHERE id = ?
+    `
+    )
+    .run(model, sessionId);
   return result.changes > 0;
 }
 

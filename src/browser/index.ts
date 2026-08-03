@@ -12,6 +12,10 @@ import { ElectronTier } from './electron-tier';
 import { CdpTier } from './cdp-tier';
 import { BrowserAction, BrowserResult, BrowserTier, BrowserToolInput } from './types';
 import { SettingsManager } from '../settings';
+// Import the session-context module directly (NOT the `../tools` barrel,
+// which itself imports this file — going through the barrel would create an
+// import cycle).
+import { getCurrentSessionId } from '../tools/session-context';
 
 export * from './types';
 
@@ -179,22 +183,69 @@ export class BrowserManager {
   }
 }
 
-// Singleton instance
-let browserManager: BrowserManager | null = null;
+// One BrowserManager per session, keyed by the AsyncLocalStorage session ID
+// (see src/tools/session-context.ts). This keeps concurrent sessions from
+// sharing (and tearing down) one another's Electron/CDP tiers. Call sites
+// with no active session context resolve to getCurrentSessionId()'s fallback
+// ("default"), which is also what gives backward compatibility to call sites
+// that never ran inside runWithSessionId (e.g. app startup, power events).
+const browserManagersBySession = new Map<string, BrowserManager>();
+
+// Downloads directory injected once by the Electron main process at startup
+// (see src/main/index.ts). Applied to every session's manager — both
+// existing ones (late-binding) and any created afterwards — since it reflects
+// an OS-level path, not something scoped to a particular session.
+let defaultDownloadPath: string | undefined;
 
 export function getBrowserManager(options?: BrowserManagerOptions): BrowserManager {
-  if (!browserManager) {
-    browserManager = new BrowserManager(options);
-  } else if (options?.downloadPath) {
-    // Late-binding: allow main process to set the path on the existing singleton
-    browserManager.setDownloadPath(options.downloadPath);
+  if (options?.downloadPath) {
+    defaultDownloadPath = options.downloadPath;
   }
-  return browserManager;
+
+  const sessionId = getCurrentSessionId();
+  let manager = browserManagersBySession.get(sessionId);
+  if (!manager) {
+    manager = new BrowserManager({ downloadPath: defaultDownloadPath, ...options });
+    browserManagersBySession.set(sessionId, manager);
+  } else if (options?.downloadPath) {
+    // Late-binding: allow the main process to set the path on an
+    // already-created manager for this session.
+    manager.setDownloadPath(options.downloadPath);
+  }
+  return manager;
 }
 
+/**
+ * Close the current session's browser manager only. Other sessions'
+ * managers (and their underlying Electron/CDP tiers) are untouched.
+ */
 export function closeBrowserManager(): void {
-  browserManager?.close();
-  browserManager = null;
+  const sessionId = getCurrentSessionId();
+  const manager = browserManagersBySession.get(sessionId);
+  manager?.close();
+  browserManagersBySession.delete(sessionId);
+}
+
+/**
+ * Close every session's browser manager. Used for full app shutdown, where
+ * all Electron/CDP tiers across all sessions must be torn down.
+ */
+export function closeAllBrowserManagers(): void {
+  for (const manager of browserManagersBySession.values()) {
+    manager.close();
+  }
+  browserManagersBySession.clear();
+}
+
+/**
+ * Run `fn` against every currently-live session's browser manager. Used for
+ * OS-level events (system resume, screen unlock) that affect every open CDP
+ * connection, not just one session's.
+ */
+export function forEachBrowserManager(fn: (manager: BrowserManager) => void): void {
+  for (const manager of browserManagersBySession.values()) {
+    fn(manager);
+  }
 }
 
 /**

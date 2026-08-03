@@ -41,8 +41,15 @@ vi.mock('../../src/settings', () => ({
   },
 }));
 
-import { BrowserManager } from '../../src/browser/index';
+import {
+  BrowserManager,
+  getBrowserManager,
+  closeBrowserManager,
+  closeAllBrowserManagers,
+  forEachBrowserManager,
+} from '../../src/browser/index';
 import { SettingsManager } from '../../src/settings';
+import { runWithSessionId } from '../../src/tools/session-context';
 
 describe('BrowserManager', () => {
   let manager: BrowserManager;
@@ -153,5 +160,80 @@ describe('BrowserManager', () => {
 
       expect(mockCdpForceReconnect).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe('getBrowserManager / closeBrowserManager (per-session scoping)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(SettingsManager.get).mockReturnValue('false');
+    // Every session's manager from a previous test must be torn down so
+    // tests don't leak instances into one another via the module-level map.
+    closeAllBrowserManagers();
+  });
+
+  it('gives two different sessions distinct manager instances', () => {
+    const managerA = runWithSessionId('session-A', () => getBrowserManager());
+    const managerB = runWithSessionId('session-B', () => getBrowserManager());
+
+    expect(managerA).not.toBe(managerB);
+  });
+
+  it('returns the same manager instance for repeated calls within the same session', () => {
+    const first = runWithSessionId('session-A', () => getBrowserManager());
+    const second = runWithSessionId('session-A', () => getBrowserManager());
+
+    expect(first).toBe(second);
+  });
+
+  it('falls back to a shared default instance for call sites with no session context', () => {
+    // Simulates call sites like app startup / power events that never ran
+    // inside runWithSessionId.
+    const first = getBrowserManager();
+    const second = getBrowserManager();
+
+    expect(first).toBe(second);
+  });
+
+  it('closing one session does not close or recreate another session manager', async () => {
+    const managerA = runWithSessionId('session-A', () => getBrowserManager());
+    const managerB = runWithSessionId('session-B', () => getBrowserManager());
+
+    // Initialize both sessions' Electron tiers so close() has something to tear down.
+    await managerA.execute({ action: 'navigate', url: 'https://a.example.com' });
+    await managerB.execute({ action: 'navigate', url: 'https://b.example.com' });
+
+    runWithSessionId('session-A', () => closeBrowserManager());
+
+    // Session B's manager must still be the exact same instance — untouched
+    // by session A's close — and must still be usable.
+    const managerBAfter = runWithSessionId('session-B', () => getBrowserManager());
+    expect(managerBAfter).toBe(managerB);
+    await expect(
+      managerBAfter.execute({ action: 'navigate', url: 'https://b2.example.com' })
+    ).resolves.toEqual(expect.objectContaining({ success: true }));
+
+    // Session A must get a fresh manager instance now that its old one was closed/removed.
+    const managerAAfter = runWithSessionId('session-A', () => getBrowserManager());
+    expect(managerAAfter).not.toBe(managerA);
+  });
+
+  it('closeAllBrowserManagers tears down every session and forEachBrowserManager iterates all live sessions', async () => {
+    const managerA = runWithSessionId('session-A', () => getBrowserManager());
+    const managerB = runWithSessionId('session-B', () => getBrowserManager());
+
+    const seen = new Set<BrowserManager>();
+    forEachBrowserManager((manager) => seen.add(manager));
+    expect(seen.has(managerA)).toBe(true);
+    expect(seen.has(managerB)).toBe(true);
+    expect(seen.size).toBe(2);
+
+    closeAllBrowserManagers();
+
+    // Both sessions must now lazily create brand-new instances.
+    const managerAAfter = runWithSessionId('session-A', () => getBrowserManager());
+    const managerBAfter = runWithSessionId('session-B', () => getBrowserManager());
+    expect(managerAAfter).not.toBe(managerA);
+    expect(managerBAfter).not.toBe(managerB);
   });
 });

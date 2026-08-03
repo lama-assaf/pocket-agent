@@ -408,6 +408,21 @@ function updateStatusIndicator(status, sessionId) {
     statusEl.classList.remove('subagent-active');
     statusEl.classList.remove('pocket-cli-active');
     statusEl.classList.remove('team-active');
+  } else if (status.type === 'cwd_collision') {
+    // Two active coder sessions are pointed at the same working directory
+    statusEl.classList.add('tool-blocked');
+    statusEl.classList.remove('subagent-active');
+    statusEl.classList.remove('pocket-cli-active');
+    statusEl.classList.remove('team-active');
+    actionEl.textContent = status.message || '⚠️ working directory conflict';
+    if (status.conflictSessionId) {
+      detailEl.textContent = `Conflicts with session ${status.conflictSessionId}`;
+      detailEl.title = detailEl.textContent;
+      detailEl.classList.remove('hidden');
+    } else {
+      detailEl.textContent = '';
+      detailEl.classList.add('hidden');
+    }
   } else if (status.type === 'subagent_start') {
     // Subagent spawned - show special status
     statusEl.classList.add('subagent-active');

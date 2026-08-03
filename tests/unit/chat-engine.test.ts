@@ -11,6 +11,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import path from 'path';
 
 // ── Mock event helpers ────────────────────────────────────────────────
 
@@ -184,6 +185,7 @@ vi.mock('fs/promises', () => ({
 vi.mock('../../src/tools', () => ({
   setCurrentSessionId: vi.fn(),
   runWithSessionId: vi.fn((_id: string, fn: () => unknown) => fn()),
+  getCurrentSessionId: vi.fn(() => 'test-session'),
 }));
 
 // Mutable flags so individual tests can override compaction behaviour
@@ -224,6 +226,7 @@ function createEngine() {
     getSessionContext: vi.fn(() => ({ contextType: 'personal', clientId: null, projectKey: null })),
     getFactsMemoryUsage: vi.fn(() => ({ usedChars: 0, budgetChars: 50000, pct: 0 })),
     getSoulMemoryUsage: vi.fn(() => ({ usedChars: 0, budgetChars: 50000, pct: 0 })),
+    getSessionModel: vi.fn(() => null),
   };
 
   const statusEmitter = vi.fn();
@@ -338,6 +341,61 @@ describe('ChatEngine', () => {
       await engine.processMessage('hi', 'desktop', 'test-session');
 
       expect(capturedAgentOptions!.model).toBe('claude-opus-4-8');
+    });
+
+    it('a session with a model override uses it while another session simultaneously falls back to the global model', async () => {
+      const overrideModel = 'claude-haiku-4-5-20251001';
+      const globalModel = 'claude-opus-4-8'; // from the mocked SettingsManager.get('agent.model')
+
+      const firstGate = createGate([
+        makeTextDelta('override session response'),
+        makeTurnEnd(1, { inputTokens: 10, outputTokens: 5 }),
+        makeAgentDone(1, { inputTokens: 10, outputTokens: 5 }),
+      ]);
+      const secondGate = createGate([
+        makeTextDelta('global session response'),
+        makeTurnEnd(1, { inputTokens: 10, outputTokens: 5 }),
+        makeAgentDone(1, { inputTokens: 10, outputTokens: 5 }),
+      ]);
+      pendingGates = [firstGate, secondGate];
+
+      const { engine, memory } = createEngine();
+      memory.getSessionModel.mockImplementation((sessionId: string) =>
+        sessionId === 'session-override' ? overrideModel : null
+      );
+
+      // Poll microtasks until agentLoop has been called `count` times — that
+      // only happens once model resolution (session override → global
+      // fallback) has already run for that call.
+      async function flushUntilGateCount(count: number, maxTicks = 50) {
+        for (let i = 0; i < maxTicks && gateConsumerIndex < count; i++) {
+          await Promise.resolve();
+        }
+      }
+
+      // Session with an override starts first; capture the model it was
+      // resolved with before the other session's call can overwrite the
+      // shared capture variable.
+      const promiseOverride = engine.processMessage('hi', 'desktop', 'session-override');
+      await flushUntilGateCount(1);
+      expect(gateConsumerIndex).toBe(1);
+      const modelForOverrideSession = capturedAgentOptions!.model;
+
+      // A second, concurrent session with no override starts while the first
+      // is still mid-flight (blocked on its gate) and must independently
+      // fall back to the global setting.
+      const promiseGlobal = engine.processMessage('hi', 'desktop', 'session-global');
+      await flushUntilGateCount(2);
+      expect(gateConsumerIndex).toBe(2);
+      const modelForGlobalSession = capturedAgentOptions!.model;
+
+      expect(modelForOverrideSession).toBe(overrideModel);
+      expect(modelForGlobalSession).toBe(globalModel);
+
+      firstGate.release();
+      secondGate.release();
+      await promiseOverride;
+      await promiseGlobal;
     });
 
     it('passes provider from getStreamConfig to Agent', async () => {
@@ -665,6 +723,69 @@ describe('ChatEngine', () => {
         (args: unknown[]) => (args[0] as { type: string }).type === 'done'
       );
       expect(doneEvent).toBeDefined();
+    });
+
+    it('keeps subagent_update/subagent_end paired to the correct tool call when an unrelated tool completes while two subagents are still in flight', async () => {
+      // Two subagents are spawned (toolCallId 'call-sub-a' / 'call-sub-b').
+      // An unrelated tool call then starts and finishes *before* either
+      // subagent's own tool_call_end arrives — its end must not be mistaken
+      // for a subagent finishing. Only when 'call-sub-a' itself ends should
+      // the count drop to 1 (subagent_update); only when 'call-sub-b' itself
+      // ends should it drop to 0 (subagent_end).
+      mockAgentEvents = [
+        {
+          type: 'tool_call_start',
+          toolCallId: 'call-sub-a',
+          name: 'subagent',
+          args: { agent: 'general', task: 'research A' },
+        },
+        {
+          type: 'tool_call_start',
+          toolCallId: 'call-sub-b',
+          name: 'subagent',
+          args: { agent: 'general', task: 'research B' },
+        },
+        {
+          type: 'tool_call_start',
+          toolCallId: 'call-other-1',
+          name: 'web_fetch',
+          args: { url: 'https://example.com' },
+        },
+        // Unrelated tool finishes first, while both subagents are still running.
+        { type: 'tool_call_end', toolCallId: 'call-other-1', name: 'web_fetch' },
+        // Then subagent A finishes.
+        { type: 'tool_call_end', toolCallId: 'call-sub-a', name: 'subagent' },
+        // Then subagent B finishes.
+        { type: 'tool_call_end', toolCallId: 'call-sub-b', name: 'subagent' },
+        makeTextDelta('Done'),
+        makeTurnEnd(1, { inputTokens: 100, outputTokens: 50 }),
+        makeAgentDone(1, { inputTokens: 100, outputTokens: 50 }),
+      ];
+      const { engine, statusEmitter } = createEngine();
+
+      await engine.processMessage('go research', 'desktop', 'test-session');
+
+      const statuses = statusEmitter.mock.calls.map(
+        (args: unknown[]) => args[0] as { type: string; agentCount?: number }
+      );
+
+      // The unrelated tool's end, and each subagent's own end, must appear in
+      // this exact order: the unrelated call ending first (as a plain
+      // tool_end, leaving both subagents untouched), then subagent A's own
+      // end (dropping the count 2 -> 1, a subagent_update), then subagent B's
+      // own end (dropping the count 1 -> 0, a subagent_end). A FIFO-pop bug
+      // would instead consume the unrelated tool's end as a subagent
+      // completion, producing ['subagent_update', 'subagent_end', 'tool_end'].
+      const relevantSequence = statuses
+        .filter((s) => s.type === 'tool_end' || s.type === 'subagent_update' || s.type === 'subagent_end')
+        .map((s) => s.type);
+      expect(relevantSequence).toEqual(['tool_end', 'subagent_update', 'subagent_end']);
+
+      const subagentUpdate = statuses.find((s) => s.type === 'subagent_update')!;
+      expect(subagentUpdate.agentCount).toBe(1);
+
+      const subagentEnd = statuses.find((s) => s.type === 'subagent_end')!;
+      expect(subagentEnd.agentCount).toBe(0);
     });
   });
 
@@ -1404,7 +1525,9 @@ describe('ChatEngine', () => {
         getSessionContext: vi.fn(() => ({ contextType: 'personal', clientId: null, projectKey: null })),
         getFactsMemoryUsage: vi.fn(() => ({ usedChars: 0, budgetChars: 50000, pct: 0 })),
         getSoulMemoryUsage: vi.fn(() => ({ usedChars: 0, budgetChars: 50000, pct: 0 })),
-        getSessionWorkingDirectory: vi.fn(() => null),
+        getSessionWorkingDirectory: vi.fn(() => '/tmp/workspace/sessions/preset'),
+        setSessionWorkingDirectory: vi.fn(),
+        getSessionModel: vi.fn(() => null),
       };
       const statusEmitter = vi.fn();
       const engine = new ChatEngine({
@@ -1487,6 +1610,144 @@ describe('ChatEngine', () => {
 
       expect(toolResult).toMatch(/Error: could not read plan file/);
       expect(result.planPending).toBeFalsy();
+    });
+  });
+
+  describe('Coder cwd assignment & collision warning', () => {
+    function createCoderCwdEngine(overrides: {
+      getSessionWorkingDirectory: (sessionId: string) => string | null;
+      workspace?: string;
+    }) {
+      const setSessionWorkingDirectory = vi.fn();
+      const memory = {
+        setSummarizer: vi.fn(),
+        getRecentMessages: vi.fn(() => []),
+        getSessionMessageCount: vi.fn(() => 0),
+        getFactsForContext: vi.fn(() => ''),
+        getSoulContext: vi.fn(() => ''),
+        getDailyLogsContext: vi.fn(() => ''),
+        embedQuery: vi.fn(async () => null),
+        retrieveRelevantFacts: vi.fn(() => ''),
+        retrieveRelevantSoul: vi.fn(() => ''),
+        retrieveRelevantRollups: vi.fn(() => ''),
+        saveMessage: vi.fn(() => 1),
+        getSmartContext: vi.fn(async () => ({ recentMessages: [], rollingSummary: null })),
+        getSessionMode: vi.fn(() => 'coder'),
+        getSessionContext: vi.fn(() => ({ contextType: 'personal', clientId: null, projectKey: null })),
+        getFactsMemoryUsage: vi.fn(() => ({ usedChars: 0, budgetChars: 50000, pct: 0 })),
+        getSoulMemoryUsage: vi.fn(() => ({ usedChars: 0, budgetChars: 50000, pct: 0 })),
+        getSessionWorkingDirectory: vi.fn(overrides.getSessionWorkingDirectory),
+        setSessionWorkingDirectory,
+        getSessionModel: vi.fn(() => null),
+      };
+      const statusEmitter = vi.fn();
+      const engine = new ChatEngine({
+        memory: memory as never,
+        toolsConfig: {} as never,
+        statusEmitter,
+        workspace: overrides.workspace ?? '/tmp/ws',
+      } as never);
+      return { engine, memory, statusEmitter, setSessionWorkingDirectory };
+    }
+
+    it('defaults to and persists a per-session subdirectory when no working directory is set', async () => {
+      const { engine, setSessionWorkingDirectory, statusEmitter } = createCoderCwdEngine({
+        getSessionWorkingDirectory: () => null,
+        workspace: '/tmp/ws',
+      });
+      setDefaultAgentEvents('sure, on it');
+
+      await engine.processMessage('do something', 'desktop', 'coder-default');
+
+      expect(setSessionWorkingDirectory).toHaveBeenCalledWith(
+        'coder-default',
+        path.join('/tmp/ws', 'sessions', 'coder-default')
+      );
+      // A single active coder session must never trigger a collision warning.
+      expect(
+        statusEmitter.mock.calls.some(
+          (args: unknown[]) => (args[0] as { type: string }).type === 'cwd_collision'
+        )
+      ).toBe(false);
+    });
+
+    it('honors an explicit working directory and does not overwrite it', async () => {
+      const { engine, setSessionWorkingDirectory } = createCoderCwdEngine({
+        getSessionWorkingDirectory: () => '/tmp/ws/custom-project',
+      });
+      setDefaultAgentEvents('sure, on it');
+
+      await engine.processMessage('do something', 'desktop', 'coder-explicit');
+
+      expect(setSessionWorkingDirectory).not.toHaveBeenCalled();
+    });
+
+    it('warns the incoming session when another active coder session already owns its working directory', async () => {
+      const firstGate = createGate([
+        makeTextDelta('working on A'),
+        makeTurnEnd(1, { inputTokens: 10, outputTokens: 5 }),
+        makeAgentDone(1, { inputTokens: 10, outputTokens: 5 }),
+      ]);
+      const secondGate = createGate([
+        makeTextDelta('working on B'),
+        makeTurnEnd(1, { inputTokens: 10, outputTokens: 5 }),
+        makeAgentDone(1, { inputTokens: 10, outputTokens: 5 }),
+      ]);
+      pendingGates = [firstGate, secondGate];
+
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const { engine, statusEmitter } = createCoderCwdEngine({
+        getSessionWorkingDirectory: () => '/tmp/ws/shared-project',
+      });
+
+      // Poll microtasks until agentLoop has actually been called `count`
+      // times — that only happens once getCoderCwd (and everything before
+      // it) has already run for that call, so this deterministically orders
+      // "A reached its gate" before "B starts", instead of guessing how many
+      // microtask ticks the awaits before getCoderCwd need.
+      async function flushUntilGateCount(count: number, maxTicks = 50) {
+        for (let i = 0; i < maxTicks && gateConsumerIndex < count; i++) {
+          await Promise.resolve();
+        }
+      }
+
+      // Session A starts and occupies the shared directory; don't await —
+      // it should still be mid-flight (blocked on its own gate) when B starts.
+      const promiseA = engine.processMessage('do work as A', 'desktop', 'coder-A');
+      await flushUntilGateCount(1);
+      expect(gateConsumerIndex).toBe(1);
+      expect(engine.isQueryProcessing('coder-A')).toBe(true);
+
+      // Session B starts concurrently, pointed at the same directory. By the
+      // time its agentLoop call is made, its getCoderCwd has already run and
+      // must have seen session A as active.
+      const promiseB = engine.processMessage('do work as B', 'desktop', 'coder-B');
+      await flushUntilGateCount(2);
+      expect(gateConsumerIndex).toBe(2);
+
+      const collisionEvents = statusEmitter.mock.calls.filter(
+        (args: unknown[]) => (args[0] as { type: string }).type === 'cwd_collision'
+      );
+      // Exactly one warning per turn — the coder cwd is resolved once and
+      // reused for both the system prompt and the tool config, so the
+      // collision check must not fire twice for the same message.
+      expect(collisionEvents).toHaveLength(1);
+      const collisionEvent = collisionEvents[0];
+      expect((collisionEvent[0] as { sessionId: string }).sessionId).toBe('coder-B');
+      expect((collisionEvent[0] as { conflictSessionId: string }).conflictSessionId).toBe(
+        'coder-A'
+      );
+      const cwdCollisionWarnCalls = warnSpy.mock.calls.filter((args) =>
+        String(args[0]).includes('cwd collision')
+      );
+      expect(cwdCollisionWarnCalls).toHaveLength(1);
+
+      firstGate.release();
+      secondGate.release();
+      await promiseA;
+      await promiseB;
+
+      warnSpy.mockRestore();
     });
   });
 });

@@ -111,6 +111,8 @@ import {
   getSessionMessageCount as _getSessionMessageCount,
   getSessionMode as _getSessionMode,
   setSessionMode as _setSessionMode,
+  getSessionModel as _getSessionModel,
+  setSessionModel as _setSessionModel,
   getSdkSessionId as _getSdkSessionId,
   setSdkSessionId as _setSdkSessionId,
   clearSdkSessionId as _clearSdkSessionId,
@@ -659,6 +661,14 @@ export class MemoryManager {
       console.log('[Memory] Migrated sessions table: added pulse_enabled column');
     }
 
+    // Migration: add model column to sessions for per-session model override
+    // (NULL = unset → falls back to the global `agent.model` setting).
+    const sessColumnsForModel = this.db.pragma('table_info(sessions)') as Array<{ name: string }>;
+    if (!sessColumnsForModel.some((c) => c.name === 'model')) {
+      this.db.exec('ALTER TABLE sessions ADD COLUMN model TEXT');
+      console.log('[Memory] Migrated sessions table: added model column');
+    }
+
     // Migration: add embedding BLOB column to facts for semantic recall
     const factsColsForEmbedding = this.db.pragma('table_info(facts)') as Array<{ name: string }>;
     if (!factsColsForEmbedding.some((c) => c.name === 'embedding')) {
@@ -1129,6 +1139,15 @@ export class MemoryManager {
 
   setSessionMode(sessionId: string, mode: AgentModeId): boolean {
     return _setSessionMode(this.db, sessionId, mode);
+  }
+
+  /** Per-session model override; null means fall back to the global `agent.model` setting. */
+  getSessionModel(sessionId: string): string | null {
+    return _getSessionModel(this.db, sessionId);
+  }
+
+  setSessionModel(sessionId: string, model: string | null): boolean {
+    return _setSessionModel(this.db, sessionId, model);
   }
 
   // ============ SELECTED MEMORY CONTEXT (scoped memory) ============

@@ -7,6 +7,7 @@
  */
 
 import fs from 'fs/promises';
+import path from 'path';
 import { agentLoop } from '@kenkaiiii/gg-agent';
 import type { AgentOptions } from '@kenkaiiii/gg-agent';
 import { stream as ggStream } from '@kenkaiiii/gg-ai';
@@ -23,7 +24,7 @@ import { resolveVisibleScopes, USER_SCOPE, WORLD_SCOPE } from '../memory/scope';
 import type { SessionContext } from '../memory/sessions';
 import { SOUL_CHAR_BUDGET } from '../memory/soul';
 import { consolidateMemory } from '../memory/consolidation';
-import { ToolsConfig, setCurrentSessionId, runWithSessionId } from '../tools';
+import { ToolsConfig, setCurrentSessionId, runWithSessionId, getCurrentSessionId } from '../tools';
 import { SettingsManager } from '../settings';
 import { SYSTEM_GUIDELINES, buildSystemGuidelines } from '../config/system-guidelines';
 import { getModeConfig, buildRoutingInstructions } from './agent-modes';
@@ -146,7 +147,12 @@ export class ChatEngine {
     // Wire up the summarizer for smart context / compaction
     this.memory.setSummarizer(async (messages) => {
       const summaryModel = 'claude-haiku-4-5-20251001';
-      const currentModel = resolveModel(SettingsManager.get('agent.model'));
+      // getCurrentSessionId() resolves via the AsyncLocalStorage context set up
+      // by executeMessage()/runWithSessionId, so this correctly picks up the
+      // model override of whichever session is actually compacting right now.
+      const currentModel = resolveModel(
+        this.memory.getSessionModel(getCurrentSessionId()) || SettingsManager.get('agent.model')
+      );
       const prompt = messages.map((m) => `[${m.role}]: ${m.content}`).join('\n');
       const query = `Summarize this conversation concisely, preserving key facts, decisions, and context:\n\n${prompt}`;
 
@@ -283,9 +289,13 @@ export class ChatEngine {
 
     try {
       // Get model early — needed for context-window-aware message limits and token-based compaction.
-      // resolveModel() guarantees we pick a model whose provider has a key, even if `agent.model`
-      // is stale (e.g. user removed an Anthropic key but the setting still says claude-opus-4-7).
-      const model = resolveModel(SettingsManager.get('agent.model'));
+      // Session override (set via setSessionModel) wins over the global `agent.model` setting, so
+      // two concurrent sessions can run different models. resolveModel() guarantees we pick a model
+      // whose provider has a key, even if the configured value is stale (e.g. user removed an
+      // Anthropic key but the setting/override still says claude-opus-4-7).
+      const model = resolveModel(
+        this.memory.getSessionModel(sessionId) || SettingsManager.get('agent.model')
+      );
 
       // Load or get conversation history
       if (!this.conversationsBySession.has(sessionId)) {
@@ -317,9 +327,12 @@ export class ChatEngine {
       await this.compactMemoryIfNeeded(sessionId, model, channel);
 
       // Build system prompt — coder mode uses gg-coder's prompt, others use the standard prompt
+      // Resolved once per turn (not re-derived per call site below) so the
+      // cwd-collision warning fires at most once per message instead of once
+      // per getCoderCwd() call.
+      const coderCwd = sessionMode === 'coder' ? this.getCoderCwd(sessionId) : undefined;
       let systemPrompt: string;
-      if (sessionMode === 'coder') {
-        const coderCwd = this.getCoderCwd(sessionId);
+      if (sessionMode === 'coder' && coderCwd) {
         const coderPrompt = await buildCoderSystemPrompt(coderCwd);
         // Append routing instructions so coder can hand off to other modes
         const routingInstructions = buildRoutingInstructions(sessionMode);
@@ -381,10 +394,10 @@ export class ChatEngine {
       };
 
       const agentTools =
-        sessionMode === 'coder'
+        sessionMode === 'coder' && coderCwd
           ? await getCoderAgentTools(
               this.toolsConfig,
-              this.getCoderCwd(sessionId),
+              coderCwd,
               mcpSessionContext,
               sessionId,
               planHooks
@@ -487,8 +500,14 @@ export class ChatEngine {
       let response = '';
       let totalInputTokens = 0;
       let totalOutputTokens = 0;
-      // Track active subagents for status display
-      const activeSubagents = new Map<string, { type: string; description: string }>();
+      // Track active subagents for status display, keyed by the tool call ID
+      // that spawned them — NOT a FIFO queue — so an unrelated tool call
+      // finishing while a subagent is in flight can't be mistaken for the
+      // subagent completing.
+      const activeSubagents = new Map<
+        string,
+        { agentId: string; type: string; description: string }
+      >();
       // Track tool names used during this execution (for metadata)
       const toolsUsed: string[] = [];
       // Track whether a tool call happened since last text, so we can insert a separator
@@ -531,7 +550,7 @@ export class ChatEngine {
               const agentType = args.agent || 'general';
               const description = args.task?.slice(0, 80) || 'working on it';
               const agentId = `agent-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-              activeSubagents.set(agentId, { type: agentType, description });
+              activeSubagents.set(event.toolCallId, { agentId, type: agentType, description });
 
               this.emitStatus({
                 type: 'subagent_start',
@@ -584,10 +603,13 @@ export class ChatEngine {
 
           case 'tool_call_end': {
             hadToolSinceLastText = true;
-            // Check if a subagent just finished
-            if (activeSubagents.size > 0) {
-              const firstKey = activeSubagents.keys().next().value;
-              if (firstKey) activeSubagents.delete(firstKey);
+            // Only treat this as a subagent finishing if the ended tool call
+            // ID actually matches a tracked subagent — an unrelated tool
+            // finishing while a subagent is still in flight must not be
+            // mistaken for the subagent completing (previously a FIFO pop
+            // off activeSubagents regardless of which call ended).
+            if (activeSubagents.has(event.toolCallId)) {
+              activeSubagents.delete(event.toolCallId);
 
               if (activeSubagents.size > 0) {
                 this.emitStatus({
@@ -1400,11 +1422,52 @@ export class ChatEngine {
 
   /**
    * Get the working directory for coder mode.
-   * Falls back to session working directory from memory, then workspace.
+   *
+   * - An explicit session working directory (set via the sessions UI, or by
+   *   a previous call to this method) always wins.
+   * - Otherwise, defaults to a per-session subdirectory under the shared
+   *   workspace (`workspace/sessions/<sessionId>`) instead of falling back to
+   *   the shared workspace root — two coder sessions with no explicit
+   *   directory used to collide on the exact same cwd. The default is
+   *   persisted so it stays stable across turns and app restarts.
+   * - Either way, if another currently-active coder session already claims
+   *   this exact directory, warn the *current* session — concurrent coder
+   *   agents writing into the same directory can clobber each other's edits.
    */
   private getCoderCwd(sessionId: string): string {
-    const sessionWorkDir = this.memory.getSessionWorkingDirectory(sessionId);
-    if (sessionWorkDir) return sessionWorkDir;
-    return this.workspace;
+    let cwd = this.memory.getSessionWorkingDirectory(sessionId);
+    if (!cwd) {
+      cwd = path.join(this.workspace, 'sessions', sessionId);
+      this.memory.setSessionWorkingDirectory(sessionId, cwd);
+    }
+
+    this.warnOnCoderCwdCollision(sessionId, cwd);
+
+    return cwd;
+  }
+
+  /**
+   * If another currently-active coder session already owns `cwd`, log and
+   * emit a user-visible warning to `sessionId` (the session that is about to
+   * use it). No-op when there's no conflict.
+   */
+  private warnOnCoderCwdCollision(sessionId: string, cwd: string): void {
+    for (const otherSessionId of this.processingBySession.keys()) {
+      if (otherSessionId === sessionId) continue;
+      if (this.memory.getSessionMode(otherSessionId) !== 'coder') continue;
+      if (this.memory.getSessionWorkingDirectory(otherSessionId) !== cwd) continue;
+
+      const message = `Heads up: working directory "${cwd}" is already in use by active coder session "${otherSessionId}" — concurrent edits may clobber each other.`;
+      console.warn(
+        `[ChatEngine] cwd collision: session=${sessionId} conflictsWith=${otherSessionId} cwd=${cwd}`
+      );
+      this.emitStatus({
+        type: 'cwd_collision',
+        sessionId,
+        message,
+        conflictSessionId: otherSessionId,
+      });
+      return;
+    }
   }
 }
