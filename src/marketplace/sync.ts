@@ -53,11 +53,38 @@ export function installSeed(seedRoot: string, pluginsRoot: string, id: string): 
   return true;
 }
 
-/** Latest commit sha for repo/branch via GitHub API (unauthenticated; 60 req/hr is plenty). */
-export async function latestSha(repo: string, branch: string): Promise<string | null> {
+/** Auth header block for GitHub requests — empty when no token (public-repo unauthenticated path). Pure, exported for tests. */
+export function githubAuthHeaders(token?: string): Record<string, string> {
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+/**
+ * URL for a repo's branch tarball. Pure, exported for tests.
+ * - No token: codeload directly (no rate limit, public repos only).
+ * - Token: the API tarball endpoint, which honors Authorization for private
+ *   repos and 302-redirects to a signed codeload URL (undici strips the
+ *   Authorization header on that cross-origin redirect, which is fine — the
+ *   redirect Location is self-authenticating).
+ */
+export function tarballUrl(source: PackSource, token?: string): string {
+  return token
+    ? `https://api.github.com/repos/${source.repo}/tarball/${source.branch}`
+    : `https://codeload.github.com/${source.repo}/tar.gz/refs/heads/${source.branch}`;
+}
+
+/** Latest commit sha for repo/branch via GitHub API. Unauthenticated (60 req/hr is plenty) unless a token is given — required for private pack repos. */
+export async function latestSha(
+  repo: string,
+  branch: string,
+  token?: string
+): Promise<string | null> {
   try {
     const res = await fetch(`https://api.github.com/repos/${repo}/commits/${branch}`, {
-      headers: { Accept: 'application/vnd.github.sha', 'User-Agent': 'pocket-agent' },
+      headers: {
+        Accept: 'application/vnd.github.sha',
+        'User-Agent': 'pocket-agent',
+        ...githubAuthHeaders(token),
+      },
       signal: AbortSignal.timeout(15000),
     });
     if (!res.ok) return null;
@@ -67,11 +94,15 @@ export async function latestSha(repo: string, branch: string): Promise<string | 
   }
 }
 
-/** Download+extract the repo tarball into destDir (strips the top-level <repo>-<sha>/ folder). */
-export async function updatePack(source: PackSource, destDir: string): Promise<void> {
-  const url = `https://codeload.github.com/${source.repo}/tar.gz/refs/heads/${source.branch}`;
+/** Download+extract the repo tarball into destDir (strips the top-level <repo>-<sha>/ folder). Token required for private repos. */
+export async function updatePack(
+  source: PackSource,
+  destDir: string,
+  token?: string
+): Promise<void> {
+  const url = tarballUrl(source, token);
   const res = await fetch(url, {
-    headers: { 'User-Agent': 'pocket-agent' },
+    headers: { 'User-Agent': 'pocket-agent', ...githubAuthHeaders(token) },
     signal: AbortSignal.timeout(60000),
   });
   if (!res.ok || !res.body) throw new Error(`tarball fetch failed: ${res.status}`);
@@ -108,7 +139,15 @@ export async function updatePack(source: PackSource, destDir: string): Promise<v
 }
 
 export class PackSyncManager {
-  constructor(private sources: PackSource[]) {}
+  /**
+   * `getToken` supplies a GitHub token at check time (not construction time,
+   * so a token added in Settings mid-session is picked up by the next check).
+   * Empty string = unauthenticated, which only works for public pack repos.
+   */
+  constructor(
+    private sources: PackSource[],
+    private getToken: () => string = () => ''
+  ) {}
 
   async ensureInstalled(): Promise<void> {
     const seed = getSeedRoot();
@@ -119,12 +158,13 @@ export class PackSyncManager {
 
   async checkAndUpdate(): Promise<{ id: string; updated: boolean; sha: string }[]> {
     const root = getPluginsRoot();
+    const token = this.getToken();
     const out: { id: string; updated: boolean; sha: string }[] = [];
     for (const s of this.sources) {
       const dest = path.join(root, s.id);
       const shaFile = path.join(dest, '.sha');
       const extractorFile = path.join(dest, EXTRACTOR_VERSION_FILE);
-      const remote = await latestSha(s.repo, s.branch);
+      const remote = await latestSha(s.repo, s.branch, token);
       if (!remote) {
         out.push({ id: s.id, updated: false, sha: '' });
         continue;
@@ -138,7 +178,7 @@ export class PackSyncManager {
         continue;
       }
       try {
-        await updatePack(s, dest);
+        await updatePack(s, dest, token);
         fs.writeFileSync(shaFile, remote);
         fs.writeFileSync(extractorFile, String(EXTRACTOR_VERSION));
         out.push({ id: s.id, updated: true, sha: remote });

@@ -796,7 +796,12 @@ app.whenReady().then(async () => {
     // never abort core agent initialization further down this block.
     try {
       setPluginsRoot(path.join(app.getPath('userData'), 'plugins'));
-      const packSync = new PackSyncManager(PACK_SOURCES);
+      // github.token lets private pack repos (e.g. zilliqa-brand-identity) sync;
+      // resolved lazily per check so a token added in Settings later still works.
+      const packSync = new PackSyncManager(
+        PACK_SOURCES,
+        () => SettingsManager.get('github.token') || ''
+      );
       await packSync.ensureInstalled();
       void packSync
         .checkAndUpdate()

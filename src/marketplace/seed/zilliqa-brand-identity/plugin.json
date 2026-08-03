@@ -1,0 +1,22 @@
+{
+  "name": "zilliqa-brand-identity",
+  "version": "1.2.0",
+  "description": "Zilliqa brand identity and application UI system. Two auto-activating skills: zilliqa-brand (official colors, Montserrat type system, gradients, logo and icon assets from the 'Zilliqa - Brand Assets - Latest' Figma file, plus a UI layer extracted from live zilliqa.com) and zilliqa-app-ui (app shells, dashboards, data tables, forms, sticky/scroll behaviour and responsive rules). Ships SVG logos, an icon set, color/gradient swatches, design tokens (JSON / CSS / Tailwind) and three verified reference builds.",
+  "author": {
+    "name": "Zilliqa"
+  },
+  "keywords": [
+    "zilliqa",
+    "brand",
+    "design-system",
+    "design-tokens",
+    "logo",
+    "icons",
+    "color-palette",
+    "montserrat",
+    "dashboard",
+    "ui-kit",
+    "accessibility"
+  ],
+  "license": "MIT"
+}

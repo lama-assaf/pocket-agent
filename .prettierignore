@@ -1,0 +1,4 @@
+# Vendored pack seed content (verbatim copies of upstream pack repos — see
+# src/marketplace/sync.ts). Reformatting would create drift against the
+# synced-from-GitHub copies, so keep these byte-identical to upstream.
+src/marketplace/seed/

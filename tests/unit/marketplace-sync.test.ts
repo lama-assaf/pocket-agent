@@ -2,7 +2,13 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { installSeed, needsPackUpdate, EXTRACTOR_VERSION } from '../../src/marketplace/sync';
+import {
+  installSeed,
+  needsPackUpdate,
+  githubAuthHeaders,
+  tarballUrl,
+  EXTRACTOR_VERSION,
+} from '../../src/marketplace/sync';
 
 describe('installSeed', () => {
   let seed: string;
@@ -25,6 +31,37 @@ describe('installSeed', () => {
     fs.writeFileSync(path.join(plugins, 'atelier', 'VERSION'), '9.9.9');
     installSeed(seed, plugins, 'atelier');
     expect(fs.readFileSync(path.join(plugins, 'atelier', 'VERSION'), 'utf-8')).toBe('9.9.9');
+  });
+});
+
+describe('github auth plumbing', () => {
+  const source = {
+    id: 'zilliqa-brand-identity',
+    name: 'Zilliqa Brand',
+    lanes: ['design' as const],
+    repo: 'Zilliqa/zilliqa-brand-plugin',
+    branch: 'main',
+  };
+
+  it('produces no auth header without a token', () => {
+    expect(githubAuthHeaders()).toEqual({});
+    expect(githubAuthHeaders('')).toEqual({});
+  });
+
+  it('produces a Bearer header with a token', () => {
+    expect(githubAuthHeaders('ghp_abc')).toEqual({ Authorization: 'Bearer ghp_abc' });
+  });
+
+  it('uses codeload for unauthenticated tarballs', () => {
+    expect(tarballUrl(source)).toBe(
+      'https://codeload.github.com/Zilliqa/zilliqa-brand-plugin/tar.gz/refs/heads/main'
+    );
+  });
+
+  it('uses the API tarball endpoint (which honors Authorization) when a token is given', () => {
+    expect(tarballUrl(source, 'ghp_abc')).toBe(
+      'https://api.github.com/repos/Zilliqa/zilliqa-brand-plugin/tarball/main'
+    );
   });
 });
 
